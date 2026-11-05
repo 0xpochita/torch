@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -35,29 +36,44 @@ const NAV = [
 
 export function Icon({ d, size = 18 }: { d: string; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d={d} />
     </svg>
   );
 }
 
-/** Labeled sidebar, collapses to icons on medium screens. */
-export function Sidebar() {
+/** Torch app icon (squircle). */
+export function Logo({ size = 36 }: { size?: number }) {
+  return (
+    <span className="relative block shrink-0 overflow-hidden rounded-[23%] shadow-[0_4px_12px_-4px_rgb(110_40_230/0.55)]" style={{ width: size, height: size }}>
+      <Image src="/brand/torch-icon.png" alt="Torch" fill sizes={`${size * 2}px`} className="scale-[1.04] object-cover" priority />
+    </span>
+  );
+}
+
+function useActive() {
   const path = usePathname();
-  const isActive = (href: string) => (href === "/" ? path === "/" : path === href || (href === "/create" && path.startsWith("/create")));
+  return (href: string) => (href === "/" ? path === "/" : path === href || (href === "/create" && path.startsWith("/create")));
+}
+
+/** Translucent sidebar; collapses to icons on medium screens. */
+export function Sidebar() {
+  const isActive = useActive();
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-[76px] shrink-0 flex-col border-r border-line-soft px-3 py-6 md:flex xl:w-[244px] xl:px-4">
-      <Link href="/" className="flex items-center gap-2.5 px-1.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ink text-base font-semibold text-white">T</span>
-        <span className="hidden text-lg font-semibold xl:block">Torch</span>
-        <span className="ml-auto hidden rounded-md bg-panel px-1.5 py-0.5 text-[10px] font-medium text-muted xl:block">testnet</span>
+    <aside className="material sticky top-0 hidden h-screen w-[76px] shrink-0 flex-col border-r border-line-soft px-3 py-6 md:flex xl:w-[248px] xl:px-4">
+      <Link href="/" className="flex items-center gap-3 px-1">
+        <Logo size={38} />
+        <span className="hidden flex-col leading-tight xl:flex">
+          <span className="text-[17px] font-semibold">Torch</span>
+          <span className="text-[11px] text-muted">NFT ETFs on NEAR</span>
+        </span>
       </Link>
 
       <nav className="mt-8 flex flex-col gap-6">
         {NAV.map((g) => (
-          <div key={g.group} className="flex flex-col gap-1">
-            <span className="hidden px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-faint xl:block">{g.group}</span>
+          <div key={g.group} className="flex flex-col gap-0.5">
+            <span className="hidden px-3 pb-1.5 text-[12px] font-medium uppercase tracking-wide text-muted xl:block">{g.group}</span>
             {g.items.map((it) => {
               const active = isActive(it.href);
               return (
@@ -65,14 +81,15 @@ export function Sidebar() {
                   key={it.label}
                   href={it.href}
                   title={it.label}
-                  className={`relative flex h-10 items-center justify-center gap-3 rounded-xl px-3 text-sm transition xl:justify-start ${
-                    active ? "bg-panel font-medium text-ink" : "text-muted hover:bg-panel/60 hover:text-ink"
+                  className={`flex h-10 items-center justify-center gap-3 rounded-[10px] px-3 text-[15px] transition xl:justify-start ${
+                    active ? "bg-ink text-white" : "text-text/80 hover:bg-fill"
                   }`}
                 >
-                  {active && <span className="absolute -left-3 h-5 w-[3px] rounded-r-full bg-ink xl:-left-4" />}
                   <Icon d={it.icon} />
                   <span className="hidden xl:inline">{it.label}</span>
-                  {"badge" in it && <span className="ml-auto hidden rounded-md bg-ink px-1.5 py-0.5 text-[10px] text-white xl:inline">{it.badge}</span>}
+                  {"badge" in it && (
+                    <span className={`ml-auto hidden rounded-full px-2 py-0.5 text-[10px] font-semibold xl:inline ${active ? "bg-white/20" : "bg-tint text-white"}`}>{it.badge}</span>
+                  )}
                 </Link>
               );
             })}
@@ -81,20 +98,22 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">
-        <div className="hidden rounded-2xl bg-ink p-4 text-white xl:block">
-          <div className="flex items-center justify-between text-xs text-white/60">
-            Portfolio value <span className="rounded-md bg-white/10 px-1.5 py-0.5">mock</span>
+        <div className="card hidden flex-col gap-3 p-4 xl:flex">
+          <div className="flex items-center justify-between text-[13px] text-muted">
+            Portfolio <span className="rounded-full bg-fill px-2 py-0.5 text-[10px]">mock</span>
           </div>
-          <div className="mt-1 text-2xl font-semibold tabular-nums">
-            $4,170<span className="text-white/40">.00</span>
+          <div>
+            <div className="text-[26px] font-semibold tabular-nums leading-none">
+              $4,170<span className="text-faint">.00</span>
+            </div>
+            <div className="mt-1 text-[13px] font-medium text-up">↗ +3.18% this week</div>
           </div>
-          <div className="mt-0.5 text-xs text-up">↗ +3.18% this week</div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <button className="h-8 rounded-lg bg-white font-medium text-ink">Deposit</button>
-            <button className="h-8 rounded-lg border border-white/25 font-medium hover:bg-white/10">Withdraw</button>
+          <div className="grid grid-cols-2 gap-2 text-[13px]">
+            <button className="btn-ink h-9">Deposit</button>
+            <button className="btn-line h-9">Withdraw</button>
           </div>
         </div>
-        <a href="https://github.com/0xpochita/torch" className="flex h-10 items-center justify-center gap-3 rounded-xl px-3 text-sm text-muted hover:text-ink xl:justify-start" title="Docs">
+        <a href="https://github.com/0xpochita/torch" className="flex h-10 items-center justify-center gap-3 rounded-[10px] px-3 text-[15px] text-muted hover:bg-fill xl:justify-start" title="Docs">
           <Icon d={ICONS.docs} />
           <span className="hidden xl:inline">Docs & contracts</span>
         </a>
@@ -103,31 +122,47 @@ export function Sidebar() {
   );
 }
 
-/** Page top bar; pages pass a title and optional center content (e.g. tabs). */
+/** iOS-style bottom tab bar for phones. */
+export function TabBar() {
+  const isActive = useActive();
+  const tabs = [NAV[0].items[0], NAV[0].items[1], NAV[1].items[0], NAV[1].items[2]];
+  return (
+    <nav className="material fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-line pb-[max(env(safe-area-inset-bottom),6px)] pt-1.5 md:hidden">
+      {tabs.map((t) => (
+        <Link key={t.label} href={t.href} className={`flex flex-col items-center gap-0.5 text-[10px] font-medium ${isActive(t.href) ? "text-tint" : "text-muted"}`}>
+          <Icon d={t.icon} size={24} />
+          {t.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+/** Translucent navigation bar with a large title. */
 export function Topbar({ title, children }: { title?: string; children?: ReactNode }) {
   return (
-    <header className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line-soft bg-white/85 px-4 py-4 backdrop-blur md:-mx-8 md:px-8">
-      <Link href="/" className="grid size-9 place-items-center rounded-xl bg-ink font-semibold text-white md:hidden">
-        T
+    <header className="material sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line-soft px-4 py-3.5 md:-mx-8 md:px-8">
+      <Link href="/" className="md:hidden">
+        <Logo size={32} />
       </Link>
-      {title && <h1 className="text-lg font-semibold">{title}</h1>}
+      {title && <h1 className="text-[28px] font-bold leading-none">{title}</h1>}
       <div className="min-w-0 flex-1">{children}</div>
-      <div className="flex items-center gap-3">
-        <label className="hidden h-10 w-[260px] items-center gap-2 rounded-xl border border-line px-3 text-muted focus-within:border-ink lg:flex">
+      <div className="flex items-center gap-2.5">
+        <label className="hidden h-9 w-[260px] items-center gap-2 rounded-[10px] bg-fill px-3 text-muted lg:flex">
           <SearchIcon />
-          <input placeholder="Search ETFs, tokens, accounts" className="w-full bg-transparent text-sm text-text outline-none placeholder:text-faint" />
-          <kbd className="rounded-md border border-line px-1.5 text-[10px] text-muted">⌘K</kbd>
+          <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
+          <kbd className="rounded-md bg-white px-1.5 text-[10px] text-muted shadow-sm">⌘K</kbd>
         </label>
-        <span className="hidden h-10 items-center gap-2 rounded-xl bg-panel px-3 text-sm sm:flex">
-          <span className="size-2.5 rounded-full" style={{ background: TOKENS.NEAR.color }} />
-          NEAR <span className="font-medium tabular-nums">${TOKENS.NEAR.price.toFixed(2)}</span>
+        <span className="hidden h-9 items-center gap-2 rounded-full bg-fill px-3 text-[13px] sm:flex">
+          <span className="size-2 rounded-full" style={{ background: TOKENS.NEAR.color }} />
+          NEAR <span className="font-semibold tabular-nums">${TOKENS.NEAR.price.toFixed(2)}</span>
         </span>
-        <button className="relative grid size-10 place-items-center rounded-xl border border-line text-muted hover:text-ink" title="Notifications">
-          <Icon d={ICONS.bell} />
-          <span className="absolute right-2 top-2 size-2 rounded-full bg-down ring-2 ring-white" />
+        <button className="relative grid size-9 place-items-center rounded-full bg-fill text-text/80" title="Notifications">
+          <Icon d={ICONS.bell} size={17} />
+          <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-down ring-2 ring-[#f9f9fb]" />
         </button>
         {/* ponytail: mock button; wire to NearProvider from skills/hot-wallet-connect */}
-        <button className="btn-ink h-10 px-4 text-sm">Connect wallet</button>
+        <button className="btn-ink h-9 px-4 text-[14px]">Connect</button>
       </div>
     </header>
   );
@@ -135,7 +170,7 @@ export function Topbar({ title, children }: { title?: string; children?: ReactNo
 
 export function SearchIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />
     </svg>

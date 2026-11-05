@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Golos_Text } from "next/font/google";
-import { Sidebar } from "@/components/navbar";
+import { Sidebar, TabBar } from "@/components/navbar";
 import "./globals.css";
 
 // Same type system as HOT Craft: Golos Text for UI, Geist Mono for numbers/accounts.
@@ -26,8 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <div className="flex min-h-screen bg-bg">
           <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col px-4 md:px-8">{children}</div>
+          <div className="flex min-w-0 flex-1 flex-col px-4 pb-24 md:px-8 md:pb-0">{children}</div>
         </div>
+        <TabBar />
       </body>
     </html>
   );
