@@ -1,6 +1,8 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
-import { TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
+import Link from "next/link";
+import { Sym, type IconName } from "@/components/icons";
+import { TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/mock";
 
 /** Token logo (CoinGecko artwork), round. */
 export function TokenIcon({ token, size = 24 }: { token: TokenKey; size?: number }) {
@@ -83,7 +85,7 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${checked ? "bg-up" : "bg-fill"}`}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${checked ? "bg-tint" : "bg-line"}`}
     >
       <span className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_#00000026,0_1px_1px_#00000029] transition-all ${checked ? "left-[22px]" : "left-[2px]"}`} />
     </button>
@@ -130,5 +132,100 @@ export function Donut({ allocation, size = 120, label }: { allocation: Allocatio
       </svg>
       {label && <div className="absolute inset-0 grid place-items-center text-center">{label}</div>}
     </div>
+  );
+}
+
+/* ---------- Playful kit ---------- */
+
+export type Pastel = "lilac" | "pink" | "peach" | "lime" | "sky" | "mint";
+
+/** Tailwind class pairs for each pastel (literal strings so Tailwind sees them). */
+export const PASTEL: Record<Pastel, { bg: string; ink: string }> = {
+  lilac: { bg: "bg-lilac", ink: "text-lilac-ink" },
+  pink: { bg: "bg-pink", ink: "text-pink-ink" },
+  peach: { bg: "bg-peach", ink: "text-peach-ink" },
+  lime: { bg: "bg-lime", ink: "text-lime-ink" },
+  sky: { bg: "bg-sky", ink: "text-sky-ink" },
+  mint: { bg: "bg-mint", ink: "text-mint-ink" },
+};
+
+export const CATEGORY_PASTEL: Record<Category, Pastel> = {
+  "Blue Chip": "sky",
+  Stable: "mint",
+  DeFi: "peach",
+  Meme: "lilac",
+  "Chain Abstraction": "pink",
+  "Liquid Staking": "lime",
+};
+
+/** Chunky display title with an accent full stop: "Explore." */
+export function Title({ children, size = "text-[48px]" }: { children: ReactNode; size?: string }) {
+  return (
+    <h1 className={`title-chunky ${size}`}>
+      {children}
+      <span className="text-tint">.</span>
+    </h1>
+  );
+}
+
+/** Pastel squircle with an icon. */
+export function PastelIcon({ icon, tone, size = 40 }: { icon: IconName; tone: Pastel; size?: number }) {
+  return (
+    <span className={`grid shrink-0 place-items-center rounded-[30%] ${PASTEL[tone].bg} ${PASTEL[tone].ink}`} style={{ width: size, height: size }}>
+      <Sym name={icon} size={size * 0.5} stroke={2.2} />
+    </span>
+  );
+}
+
+/** Round quick action: Buy / Swap / Send / More. */
+export function ActionCircle({ icon, label, href, onClick }: { icon: IconName; label: string; href?: string; onClick?: () => void }) {
+  const inner = (
+    <>
+      <span className="grid size-14 place-items-center rounded-full bg-fill text-text transition group-hover:bg-line group-active:scale-95">
+        <Sym name={icon} size={22} stroke={2} />
+      </span>
+      <span className="text-[13px] font-medium text-muted">{label}</span>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="group flex flex-col items-center gap-1.5">
+      {inner}
+    </Link>
+  ) : (
+    <button onClick={onClick} className="group flex flex-col items-center gap-1.5">
+      {inner}
+    </button>
+  );
+}
+
+/** "Daily check-in" style stat tile. */
+export function StatTile({ icon, tone, label, value, children }: { icon: IconName; tone: Pastel; label: string; value: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-[20px] bg-fill p-3.5">
+      <span className="flex items-center gap-2 text-[13px] font-semibold">
+        <span className={`grid size-6 place-items-center rounded-full ${PASTEL[tone].bg} ${PASTEL[tone].ink}`}>
+          <Sym name={icon} size={13} stroke={2.4} />
+        </span>
+        {label}
+      </span>
+      <span className="text-[20px] font-bold leading-none tracking-tight">{value}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Plan-style radio row (orange check when selected). */
+export function RadioRow({ selected, onSelect, title, detail }: { selected: boolean; onSelect: () => void; title: ReactNode; detail?: ReactNode }) {
+  return (
+    <button
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={`flex w-full items-center gap-3 rounded-[18px] border-2 px-3.5 py-3 text-left transition ${selected ? "border-tint bg-peach/60" : "border-transparent bg-fill hover:bg-line/60"}`}
+    >
+      <span className={`grid size-6 shrink-0 place-items-center rounded-full ${selected ? "bg-tint text-white" : "border-2 border-faint"}`}>{selected && <Sym name="check" size={14} stroke={3} />}</span>
+      <span className="flex-1 text-[15px] font-semibold">{title}</span>
+      {detail && <span className="text-[13px] text-muted">{detail}</span>}
+    </button>
   );
 }

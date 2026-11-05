@@ -5,80 +5,119 @@
  * translucent bars only where they float over content, tinted selections,
  * capsule controls, SF Pro type. No decorative gradients.
  */
-/* Apple palette: #F5F5F7 · #1D1D1F · #AAAAAA · #007AFF, neutral grey scale. */
+/*
+ * Playful iOS fintech palette: soft grey canvas, white cards, black capsule
+ * actions, orange accent, and a pastel set (bg + ink pairs) for tiles.
+ */
 :root {
-  --bg: #f5f5f7;
+  --bg: #f4f4f6;
   --surface: #ffffff;
   --raised: #ffffff;
-  --panel: #f5f5f7;
+  --panel: #f4f4f6;
   --panel-2: #ffffff;
-  --fill: #ececf0;
-  --line: #d2d2d7;
-  --line-soft: #e8e8ed;
-  --text: #1d1d1f;
-  --muted: #6e6e73;
-  --faint: #aaaaaa;
-  --ink: #1d1d1f;
+  --fill: #f0f0f3;
+  --line: #e4e4ea;
+  --line-soft: #efeff3;
+  --text: #121212;
+  --muted: #84848c;
+  --faint: #b9b9c0;
+  --ink: #121212;
   --on-ink: #ffffff;
-  --tint: #007aff;
-  --up: #34c759;
-  --up-text: #248a3d;
-  --down: #ff3b30;
-  --chip: #ffffffe0;
-  --bar: #ffffffd6;
-  --shadow: #0000000f;
+  --tint: #ff8a00;
+  --up: #1fbf6a;
+  --up-text: #17a35a;
+  --down: #ff4d4f;
+  --chip: #ffffffe6;
+  --bar: #ffffffd9;
+  --shadow: #00000012;
   --card: #ffffff;
+  --lilac: #efe8ff;
+  --lilac-ink: #7c5cf5;
+  --pink: #ffe6f0;
+  --pink-ink: #f0468b;
+  --peach: #ffeedd;
+  --peach-ink: #ff8a00;
+  --lime: #eef8d2;
+  --lime-ink: #6ea415;
+  --sky: #e3f1ff;
+  --sky-ink: #2f86f6;
+  --mint: #ddf6ea;
+  --mint-ink: #1fa864;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #000000;
-    --surface: #171717;
-    --raised: #262626;
-    --panel: #171717;
-    --panel-2: #262626;
-    --fill: #262626;
-    --line: #373737;
-    --line-soft: #262626;
-    --text: #f5f5f7;
-    --muted: #a3a3a3;
-    --faint: #737373;
-    --ink: #f5f5f7;
-    --on-ink: #0a0a0a;
-    --tint: #0a84ff;
-    --up: #30d158;
-    --up-text: #30d158;
-    --down: #ff453a;
-    --chip: #171717d1;
-    --bar: #171717d9;
+    --bg: #0b0b0c;
+    --surface: #18181b;
+    --raised: #27272a;
+    --panel: #18181b;
+    --panel-2: #27272a;
+    --fill: #232326;
+    --line: #333338;
+    --line-soft: #26262a;
+    --text: #f6f6f7;
+    --muted: #9a9aa3;
+    --faint: #6b6b73;
+    --ink: #f6f6f7;
+    --on-ink: #0b0b0c;
+    --tint: #ff9a1f;
+    --up: #34d07d;
+    --up-text: #34d07d;
+    --down: #ff5f61;
+    --chip: #18181be0;
+    --bar: #18181bd9;
     --shadow: #00000066;
-    --card: #171717;
+    --card: #18181b;
+    --lilac: #2a2340;
+    --lilac-ink: #b9a4ff;
+    --pink: #3a1f2c;
+    --pink-ink: #ff7fb1;
+    --peach: #3a2a17;
+    --peach-ink: #ffb054;
+    --lime: #273015;
+    --lime-ink: #b5dd57;
+    --sky: #17283d;
+    --sky-ink: #7ab8ff;
+    --mint: #15302a;
+    --mint-ink: #5fd9a0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #000000;
-  --surface: #171717;
-  --raised: #262626;
-  --panel: #171717;
-  --panel-2: #262626;
-  --fill: #262626;
-  --line: #373737;
-  --line-soft: #262626;
-  --text: #f5f5f7;
-  --muted: #a3a3a3;
-  --faint: #737373;
-  --ink: #f5f5f7;
-  --on-ink: #0a0a0a;
-  --tint: #0a84ff;
-  --up: #30d158;
-  --up-text: #30d158;
-  --down: #ff453a;
-  --chip: #171717d1;
-  --bar: #171717d9;
+  --bg: #0b0b0c;
+  --surface: #18181b;
+  --raised: #27272a;
+  --panel: #18181b;
+  --panel-2: #27272a;
+  --fill: #232326;
+  --line: #333338;
+  --line-soft: #26262a;
+  --text: #f6f6f7;
+  --muted: #9a9aa3;
+  --faint: #6b6b73;
+  --ink: #f6f6f7;
+  --on-ink: #0b0b0c;
+  --tint: #ff9a1f;
+  --up: #34d07d;
+  --up-text: #34d07d;
+  --down: #ff5f61;
+  --chip: #18181be0;
+  --bar: #18181bd9;
   --shadow: #00000066;
-  --card: #171717;
+  --card: #18181b;
+  --lilac: #2a2340;
+  --lilac-ink: #b9a4ff;
+  --pink: #3a1f2c;
+  --pink-ink: #ff7fb1;
+  --peach: #3a2a17;
+  --peach-ink: #ffb054;
+  --lime: #273015;
+  --lime-ink: #b5dd57;
+  --sky: #17283d;
+  --sky-ink: #7ab8ff;
+  --mint: #15302a;
+  --mint-ink: #5fd9a0;
   color-scheme: dark;
 }
 
@@ -102,6 +141,19 @@
   --color-raised: var(--raised);
   --color-chip: var(--chip);
   --color-up-text: var(--up-text);
+  --color-lilac: var(--lilac);
+  --color-lilac-ink: var(--lilac-ink);
+  --color-pink: var(--pink);
+  --color-pink-ink: var(--pink-ink);
+  --color-peach: var(--peach);
+  --color-peach-ink: var(--peach-ink);
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
+  --color-sky: var(--sky);
+  --color-sky-ink: var(--sky-ink);
+  --color-mint: var(--mint);
+  --color-mint-ink: var(--mint-ink);
+  --font-chunky: var(--font-bricolage), var(--font-golos), system-ui, sans-serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-golos), system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-golos), system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
@@ -122,11 +174,21 @@ h3 {
   letter-spacing: -0.025em;
 }
 
+@layer components {
 /* Inset grouped surface */
 .glass,
 .card {
   background: var(--surface);
-  border-radius: 22px;
+  border-radius: 26px;
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+/* Chunky display title, e.g. "Collection." */
+.title-chunky {
+  font-family: var(--font-chunky);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
 }
 
 /* Translucent bar material (floats over scrolling content) */
@@ -185,6 +247,8 @@ h3 {
 }
 .btn-line:active {
   transform: scale(0.96);
+}
+
 }
 
 .canvas-dots {

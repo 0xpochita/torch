@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Golos_Text } from "next/font/google";
+import { Bricolage_Grotesque, Geist_Mono, Golos_Text } from "next/font/google";
 import { Sidebar, TabBar } from "@/components/navbar";
 import { THEME_SCRIPT } from "@/components/theme-toggle";
 import "./globals.css";
 
-// Same type system as HOT Craft: Golos Text for UI, Geist Mono for numbers/accounts.
+// SF Pro (system) for UI with Golos as fallback, Bricolage Grotesque for chunky display titles.
 const golos = Golos_Text({
   variable: "--font-golos",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+});
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+  weight: ["700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -23,7 +29,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${golos.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" suppressHydrationWarning className={`${golos.variable} ${bricolage.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
