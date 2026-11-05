@@ -6,7 +6,7 @@ import { BasketGraph } from "@/components/basket-graph";
 import { AllocationBar, Change, EVENT } from "@/components/etf-card";
 import { SymTile } from "@/components/icons";
 import { NavChart } from "@/components/nav-chart";
-import { Money, Segmented, TokenIcon } from "@/components/ui";
+import { Avatar, Money, Segmented, TokenIcon } from "@/components/ui";
 import { TOKENS, type Etf } from "@/lib/mock";
 
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
@@ -138,7 +138,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
         <ol className="card flex flex-col">
           {holders.map((h, i) => (
             <li key={h.account} className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-0">
-              <span className="grid size-10 place-items-center rounded-full bg-tint text-sm font-semibold uppercase text-white">{h.account[0]}</span>
+              <Avatar account={h.account} size={40} />
               <span className="flex-1">
                 <span className="block text-sm font-medium">{h.account}</span>
                 <span className="text-xs text-muted">since {h.since}</span>

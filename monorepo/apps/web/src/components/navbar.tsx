@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sym, type IconName } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Title } from "@/components/ui";
+import { Avatar, Title } from "@/components/ui";
 import { ME } from "@/lib/mock";
 
 type NavItem = { href: string; label: string; icon: IconName; badge?: string };
@@ -77,7 +77,7 @@ export function Sidebar() {
         <div className="mt-auto flex flex-col items-center gap-3">
           <ThemeToggle compact />
           <a href="https://github.com/0xpochita/torch" title={`${ME} · mock wallet`} className="relative">
-            <span className="grid size-10 place-items-center rounded-full bg-fill text-[14px] font-semibold">B</span>
+            <Avatar account={ME} size={40} />
             <span className="absolute bottom-0 right-0 size-3 rounded-full bg-up ring-2 ring-surface" />
           </a>
         </div>

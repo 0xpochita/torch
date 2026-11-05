@@ -229,3 +229,30 @@ export function RadioRow({ selected, onSelect, title, detail }: { selected: bool
     </button>
   );
 }
+
+/* ---------- Account avatar ---------- */
+
+// FNV-1a, so the same account always gets the same avatar.
+function hash(s: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+const AVATAR_COLORS = ["#ff8a00", "#7c5cf5", "#2f86f6", "#1fa864", "#f0468b", "#6ea415", "#14b8a6", "#e11d48"];
+
+/** Deterministic 5×5 mirrored identicon for a NEAR account (no initials). */
+export function Avatar({ account, size = 40 }: { account: string; size?: number }) {
+  const h = hash(account);
+  const fg = AVATAR_COLORS[h % AVATAR_COLORS.length];
+  const cells: [number, number][] = [];
+  for (let y = 0; y < 5; y++)
+    for (let x = 0; x < 3; x++) if ((hash(`${account}:${x}:${y}`) & 1) === 1) cells.push([x, y]);
+  return (
+    <svg width={size} height={size} viewBox="-1 -1 7 7" role="img" aria-label={account} className="shrink-0 rounded-full" style={{ background: `color-mix(in oklab, ${fg} 16%, var(--surface))` }}>
+      {cells.flatMap(([x, y]) => (x === 2 ? [[x, y]] : [[x, y], [4 - x, y]])).map(([x, y]) => (
+        <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" rx="0.18" fill={fg} />
+      ))}
+    </svg>
+  );
+}
