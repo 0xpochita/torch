@@ -1,11 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Change, EtfRow, Group } from "@/components/etf-card";
 import { SymTile } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Donut, Money, Segmented } from "@/components/ui";
+import { ActionCircle, Donut, Money, Segmented, StatTile } from "@/components/ui";
 import { ETFS, ME, MY_VAULTS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
 
 const VIEWS = ["Owned", "Created", "Listed"] as const;
@@ -37,26 +38,38 @@ export function Vaults() {
 
       <div className="grid gap-6 pt-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <main className="flex min-w-0 flex-col gap-6">
-          <div className="card flex flex-wrap items-center gap-6 p-5">
-            <div className="flex-1">
-              <div className="text-[13px] font-medium text-muted">Total value</div>
-              <Money value={total} className="text-[40px] font-bold leading-tight tracking-tight" />
-              <div className="text-[15px] font-medium">
-                <Change value={(dayChange / total) * 100} /> <span className="text-muted">today ·</span> <Money value={dayChange} className="text-muted" />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            <div className="relative flex min-h-[210px] flex-col justify-between overflow-hidden rounded-[28px] bg-pink p-6">
+              <div className="flex items-start justify-between">
+                <span className="title-chunky text-[28px] text-pink-ink">torch</span>
+                <span className="relative size-24 -translate-y-2 translate-x-2 rotate-12">
+                  <Image src="/brand/torch-mark.png" alt="" fill sizes="96px" className="object-contain" />
+                </span>
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold text-pink-ink/80">Total value</div>
+                <Money value={total} className="title-chunky text-[44px]" />
+                <div className="mt-1 flex items-center justify-between text-[14px] font-medium">
+                  <span>
+                    <Change value={(dayChange / total) * 100} /> <span className="text-muted">today</span>
+                  </span>
+                  <span className="font-mono tracking-widest text-muted">•••• {ME}</span>
+                </div>
               </div>
             </div>
-            <dl className="grid grid-cols-3 gap-6 text-center">
-              {[
-                ["Vaults", owned.length],
-                ["Listed", owned.filter((e) => e.listed).length],
-                ["Tokens", exposure.length],
-              ].map(([k, v]) => (
-                <div key={String(k)}>
-                  <dd className="text-[22px] font-semibold">{v}</dd>
-                  <dt className="text-[12px] font-medium text-muted">{k}</dt>
-                </div>
-              ))}
-            </dl>
+            <div className="card flex flex-col justify-between gap-4 p-5">
+              <div className="grid grid-cols-4 gap-2">
+                <ActionCircle icon="down" label="Deposit" />
+                <ActionCircle icon="up" label="Withdraw" />
+                <ActionCircle icon="share" label="Transfer" />
+                <ActionCircle icon="plus" label="New" href="/create" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <StatTile icon="vault" tone="lilac" label="Vaults" value={owned.length} />
+                <StatTile icon="tag" tone="peach" label="Listed" value={owned.filter((e) => e.listed).length} />
+                <StatTile icon="layers" tone="sky" label="Tokens" value={exposure.length} />
+              </div>
+            </div>
           </div>
 
           <Group title="Vaults" action={<Segmented options={VIEWS} value={view} onChange={setView} />}>
