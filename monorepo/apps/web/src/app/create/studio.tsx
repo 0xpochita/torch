@@ -6,7 +6,7 @@ import { useState } from "react";
 import { CoinStack } from "@/components/coin-stack";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Donut, Money, Switch, TokenIcon } from "@/components/ui";
+import { Donut, Money, RadioRow, Switch, Title, TokenIcon } from "@/components/ui";
 import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
 
 const STEPS = ["Theme", "Basket", "Weights", "Strategy", "Review"] as const;
@@ -296,15 +296,15 @@ export function Studio() {
 
             {step === 3 && (
               <div className="flex flex-col gap-5 text-sm">
-                <div className="flex flex-col gap-2">
+                <div role="radiogroup" aria-label="Rebalance schedule" className="flex flex-col gap-2">
                   <span className="font-medium">Rebalance schedule</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {["Daily", "Weekly", "Monthly"].map((r) => (
-                      <button key={r} onClick={() => setRebalance(r)} className={`rounded-full border py-2.5 font-medium ${rebalance === r ? "border-transparent bg-ink text-on-ink" : "border-transparent bg-fill"}`}>
-                        {r}
-                      </button>
-                    ))}
-                  </div>
+                  {[
+                    ["Daily", "Tightest tracking", "most swaps"],
+                    ["Weekly", "Balanced", "recommended"],
+                    ["Monthly", "Lowest cost", "fewest swaps"],
+                  ].map(([r, t, d]) => (
+                    <RadioRow key={r} selected={rebalance === r} onSelect={() => setRebalance(r)} title={`${r} · ${t}`} detail={d} />
+                  ))}
                 </div>
                 <label className="flex flex-col gap-2">
                   <span className="flex justify-between font-medium">
@@ -420,7 +420,8 @@ function Minted({ name, deposit, bg, art, allocation, onReset }: { name: string;
             {art ? <Image src={art} alt="" fill sizes="192px" className="object-cover" /> : <CoinStack allocation={allocation} />}
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-up/15 px-3 py-1 text-[13px] font-semibold text-up-text"><Sym name="check" size={14} stroke={2.8} /> Mock mint complete</span>
-          <h1 className="text-2xl font-semibold">{name} is live</h1>
+          <Title size="text-[44px]">Congratulations</Title>
+          <p className="-mt-2 text-[17px] font-semibold">{name} is live</p>
           <p className="text-sm text-muted">
             Vault <span className="font-mono text-text">{NEXT_ID}.torch.near</span> would be created and funded with <Money value={deposit} />. Contracts aren&apos;t deployed
             yet, so nothing was sent on-chain.
@@ -429,7 +430,7 @@ function Minted({ name, deposit, bg, art, allocation, onReset }: { name: string;
             <button onClick={onReset} className="btn-line h-11 text-sm">
               Create another
             </button>
-            <Link href="/etf/0" className="btn-ink grid h-11 place-items-center text-sm">
+            <Link href="/etf/0" className="grid h-12 place-items-center rounded-full bg-tint text-[15px] font-bold text-white active:scale-95">
               View example vault
             </Link>
           </div>

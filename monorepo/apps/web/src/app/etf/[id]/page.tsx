@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Artwork, Change } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Money, TokenStack } from "@/components/ui";
+import { ActionCircle, Money, StatTile, TokenStack } from "@/components/ui";
 import { ETFS, getEtf } from "@/lib/mock";
 import { DetailTabs, NavPanel } from "./panels";
 
@@ -21,14 +21,6 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
   const etf = getEtf((await params).id);
   if (!etf) notFound();
 
-  // App Store–style info strip under the header.
-  const info = [
-    { k: "NAV", v: <Money value={etf.navUsd} />, s: "per NFT" },
-    { k: "24H", v: <Change value={etf.change24h} />, s: "change" },
-    { k: "TOKENS", v: etf.allocation.length, s: <TokenStack allocation={etf.allocation} size={14} /> },
-    { k: "REBALANCE", v: etf.rebalance, s: `≤${(etf.slippageBps / 100).toFixed(2)}% slip` },
-    { k: "OWNER", v: etf.owner.replace(".near", ""), s: ".near" },
-  ];
 
   return (
     <>
@@ -44,7 +36,7 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
           <div className="flex flex-wrap items-center gap-5">
             <Artwork etf={etf} size={112} />
             <div className="min-w-0 flex-1">
-              <h1 className="text-[28px] font-bold leading-tight">{etf.name}</h1>
+              <h1 className="title-chunky text-[38px]">{etf.name}</h1>
               <p className="text-[15px] text-muted">
                 {etf.category} basket · by {etf.creator}
               </p>
@@ -61,15 +53,22 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
             </div>
           </div>
 
-          <dl className="no-scrollbar -mx-5 flex overflow-x-auto border-t border-line-soft px-5 pt-4">
-            {info.map((x, n) => (
-              <div key={x.k} className={`flex min-w-[110px] flex-1 flex-col items-center gap-0.5 px-3 text-center ${n ? "border-l border-line" : ""}`}>
-                <dt className="text-[11px] font-semibold text-muted">{x.k}</dt>
-                <dd className="text-[20px] font-semibold leading-tight">{x.v}</dd>
-                <dd className="flex h-4 items-center text-[12px] text-muted">{x.s}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="grid gap-3 border-t border-line-soft pt-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
+            <div className="flex gap-5 lg:pr-4">
+              <ActionCircle icon="tag" label={etf.listed ? "Buy" : "Offer"} />
+              <ActionCircle icon="swap" label="Rebalance" />
+              <ActionCircle icon="share" label="Send" />
+              <ActionCircle icon="ellipsis" label="More" />
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <StatTile icon="vault" tone="lilac" label="NAV" value={<Money value={etf.navUsd} />} />
+              <StatTile icon="pulse" tone={etf.change24h >= 0 ? "mint" : "pink"} label="24h" value={<Change value={etf.change24h} />} />
+              <StatTile icon="layers" tone="sky" label="Tokens" value={etf.allocation.length}>
+                <TokenStack allocation={etf.allocation} size={18} />
+              </StatTile>
+              <StatTile icon="clock" tone="peach" label="Rebalance" value={etf.rebalance} />
+            </div>
+          </div>
         </header>
 
         <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
