@@ -6,7 +6,7 @@ import { useState } from "react";
 import { CoinStack } from "@/components/coin-stack";
 import { tint } from "@/components/etf-card";
 import { Topbar } from "@/components/navbar";
-import { Donut, Money, TokenIcon } from "@/components/ui";
+import { Donut, Money, Switch, TokenIcon } from "@/components/ui";
 import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
 
 const STEPS = ["Theme", "Basket", "Weights", "Strategy", "Review"] as const;
@@ -92,9 +92,9 @@ export function Studio() {
               <button
                 onClick={() => i <= step && setStep(i)}
                 disabled={i > step}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-full px-2.5 py-1.5 ${i === step ? "bg-panel font-medium" : i < step ? "text-text" : "text-faint"}`}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-full px-2.5 py-1.5 ${i === step ? "bg-white font-medium shadow-sm" : i < step ? "text-text" : "text-faint"}`}
               >
-                <span className={`grid size-5 place-items-center rounded-full text-[11px] ${i < step ? "bg-up text-white" : i === step ? "bg-ink text-white" : "border border-line"}`}>
+                <span className={`grid size-5 place-items-center rounded-full text-[11px] ${i < step ? "bg-up text-white" : i === step ? "bg-ink text-white" : "border border-faint"}`}>
                   {i < step ? "✓" : i + 1}
                 </span>
                 {s}
@@ -141,7 +141,7 @@ export function Studio() {
 
           <div className="flex flex-wrap gap-2">
             {allocation.map((a) => (
-              <span key={a.token} className="flex items-center gap-2 rounded-xl border border-line py-1 pl-1 pr-3 text-sm">
+              <span key={a.token} className="card flex items-center gap-2 rounded-full! py-1 pl-1 pr-3 text-sm">
                 <TokenIcon token={a.token} size={24} />
                 {TOKENS[a.token].symbol}
                 <span className="font-medium tabular-nums">{a.weight}%</span>
@@ -151,7 +151,7 @@ export function Studio() {
         </main>
 
         {/* Step panel */}
-        <aside className="flex flex-col rounded-3xl border border-line bg-white lg:sticky lg:top-[96px] lg:h-[calc(100vh-120px)]">
+        <aside className="flex flex-col card rounded-[26px] lg:sticky lg:top-[96px] lg:h-[calc(100vh-120px)]">
           <div className="border-b border-line-soft p-5">
             <div className="text-xs text-muted">
               Step {step + 1} of {STEPS.length}
@@ -168,7 +168,7 @@ export function Studio() {
                   <label className="text-sm font-medium" htmlFor="prompt">
                     Describe it
                   </label>
-                  <div className="flex overflow-hidden rounded-xl border border-line focus-within:border-ink">
+                  <div className="flex overflow-hidden rounded-[12px] bg-fill focus-within:ring-2 focus-within:ring-tint/40">
                     <input
                       id="prompt"
                       value={prompt}
@@ -183,7 +183,7 @@ export function Studio() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {SUGGESTIONS.map((s) => (
-                      <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-panel px-2.5 py-1 text-xs text-muted hover:text-text">
+                      <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-fill px-3 py-1 text-xs font-medium hover:bg-black/10">
                         {s.label}
                       </button>
                     ))}
@@ -206,7 +206,7 @@ export function Studio() {
 
                 <label className="flex flex-col gap-2 text-sm">
                   <span className="font-medium">Name</span>
-                  <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} className="rounded-xl border border-line px-3 py-2.5 outline-none focus:border-ink" />
+                  <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} className="rounded-[12px] bg-fill px-3 py-2.5 outline-none focus:ring-2 focus:ring-tint/40" />
                 </label>
                 <div className="flex flex-col gap-2 text-sm">
                   <span className="font-medium">Background</span>
@@ -233,7 +233,7 @@ export function Studio() {
                     {allocation.length}/{MAX_TOKENS}
                   </span>
                 </div>
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tokens" className="rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search tokens" className="rounded-[12px] bg-fill px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-tint/40" />
                 <ul className="flex flex-col gap-1">
                   {tokens.map((t) => {
                     const on = allocation.some((a) => a.token === t);
@@ -243,7 +243,7 @@ export function Studio() {
                         <button
                           onClick={() => toggleToken(t)}
                           disabled={full}
-                          className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition ${on ? "bg-panel" : "hover:bg-panel/60"} disabled:opacity-40`}
+                          className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition ${on ? "bg-tint/10" : "hover:bg-fill"} disabled:opacity-40`}
                         >
                           <TokenIcon token={t} size={32} />
                           <span className="flex-1">
@@ -251,7 +251,7 @@ export function Studio() {
                             <span className="text-xs text-muted">{TOKENS[t].name}</span>
                           </span>
                           <span className="text-xs tabular-nums text-muted">${TOKENS[t].price < 1 ? TOKENS[t].price.toPrecision(2) : TOKENS[t].price.toLocaleString("en-US")}</span>
-                          <span className={`grid size-5 place-items-center rounded-md border text-[11px] ${on ? "border-ink bg-ink text-white" : "border-line"}`}>{on ? "✓" : ""}</span>
+                          <span className={`grid size-5 place-items-center rounded-full border-[1.5px] text-[11px] ${on ? "border-tint bg-tint text-white" : "border-faint"}`}>{on ? "✓" : ""}</span>
                         </button>
                       </li>
                     );
@@ -306,7 +306,7 @@ export function Studio() {
                   <span className="font-medium">Rebalance schedule</span>
                   <div className="grid grid-cols-3 gap-2">
                     {["Daily", "Weekly", "Monthly"].map((r) => (
-                      <button key={r} onClick={() => setRebalance(r)} className={`rounded-xl border py-2.5 ${rebalance === r ? "border-ink bg-ink text-white" : "border-line hover:border-faint"}`}>
+                      <button key={r} onClick={() => setRebalance(r)} className={`rounded-full border py-2.5 font-medium ${rebalance === r ? "border-transparent bg-ink text-white" : "border-transparent bg-fill"}`}>
                         {r}
                       </button>
                     ))}
@@ -320,7 +320,7 @@ export function Studio() {
                 </label>
                 <label className="flex flex-col gap-2">
                   <span className="font-medium">Initial deposit (USDC)</span>
-                  <div className="flex items-center rounded-xl border border-line px-3 focus-within:border-ink">
+                  <div className="flex items-center rounded-[12px] bg-fill px-3 focus-within:ring-2 focus-within:ring-tint/40">
                     <span className="text-muted">$</span>
                     <input
                       type="number"
@@ -334,25 +334,25 @@ export function Studio() {
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     {[100, 250, 500, 1250].map((v) => (
-                      <button key={v} onClick={() => setDeposit(v)} className={`rounded-lg py-1.5 text-xs ${deposit === v ? "bg-ink text-white" : "bg-panel text-muted"}`}>
+                      <button key={v} onClick={() => setDeposit(v)} className={`rounded-full py-1.5 text-xs font-medium ${deposit === v ? "bg-ink text-white" : "bg-fill"}`}>
                         {v === 1250 ? "Max" : `$${v}`}
                       </button>
                     ))}
                   </div>
                 </label>
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line px-3 py-3">
+                <div className="flex items-center justify-between gap-3 rounded-[14px] bg-fill px-3.5 py-3">
                   <span>
                     <span className="font-medium">Auto-rebalance keeper</span>
                     <span className="block text-xs text-muted">Swaps only between basket tokens. It can never withdraw.</span>
                   </span>
-                  <input type="checkbox" checked={keeper} onChange={() => setKeeper(!keeper)} className="size-4 accent-[var(--ink)]" />
-                </label>
+                  <Switch checked={keeper} onChange={setKeeper} label="Auto-rebalance keeper" />
+                </div>
               </div>
             )}
 
             {step === 4 && (
               <div className="flex flex-col gap-5 text-sm">
-                <div className="flex items-center gap-4 rounded-2xl bg-panel p-4">
+                <div className="flex items-center gap-4 rounded-[18px] bg-fill p-4">
                   <Donut allocation={live} size={84} />
                   <dl className="grid flex-1 grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                     <dt className="text-muted">Name</dt>
@@ -381,7 +381,7 @@ export function Studio() {
                     </div>
                   ))}
                 </dl>
-                <ul className="flex flex-col gap-1.5 rounded-2xl border border-line p-4 text-xs text-muted">
+                <ul className="flex flex-col gap-1.5 card p-4 text-xs text-muted">
                   {["Vault is created with no access keys", "Only the NFT owner can withdraw", "Selling the NFT moves the whole basket"].map((c) => (
                     <li key={c} className="flex items-center gap-2">
                       <span className="grid size-4 place-items-center rounded-full bg-up/15 text-[9px] text-up">✓</span>
