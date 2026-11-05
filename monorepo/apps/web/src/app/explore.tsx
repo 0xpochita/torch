@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Artwork, BuyCapsule, Change } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
-import { ActionCircle, CATEGORY_PASTEL, Money, PASTEL, StatTile, Title, TokenStack } from "@/components/ui";
+import { ActionCircle, Money, StatTile, Title, TokenStack } from "@/components/ui";
 import { CATEGORIES, ETFS, ME, type Category, type Etf } from "@/lib/mock";
 
 const TABS = ["All", ...CATEGORIES] as const;
@@ -60,9 +60,7 @@ export function Explore() {
                   <Image src="/brand/torch-mark.png" alt="" fill sizes="48px" className="object-contain" />
                 </span>
               ) : (
-                <span className="relative size-6 overflow-hidden rounded-full" style={{ background: CATEGORY_ART[t].bg }}>
-                  <Image src={CATEGORY_ART[t].image} alt="" fill sizes="48px" className="scale-[1.35] object-cover" />
-                </span>
+                <TokenStack allocation={CATEGORY_ART[t].allocation.slice(0, 3)} size={20} />
               )
             }
           >
@@ -79,20 +77,30 @@ export function Explore() {
             <h2 className="text-[20px] font-bold">Browse</h2>
             <span className="text-[13px] text-muted">{CATEGORIES.length} categories</span>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3">
             {CATEGORIES.map((c) => {
-              const tone = CATEGORY_PASTEL[c];
-              const n = ETFS.filter((e) => e.category === c).length;
+              const art = CATEGORY_ART[c];
+              const change = ETFS.filter((e) => e.category === c).reduce((sum, e, _, all) => sum + e.change24h / all.length, 0);
               return (
-                <motion.button key={c} onClick={() => setTab(c)} whileHover={{ y: -3 }} whileTap={{ scale: 0.96 }} className={`flex flex-col items-start gap-6 rounded-[22px] p-3.5 text-left ${PASTEL[tone].bg} ${tab === c ? "ring-2 ring-ink" : ""}`}>
-                  <span className={`grid size-10 place-items-center rounded-[30%] bg-surface ${PASTEL[tone].ink}`}>
-                    <Sym name={CATEGORY_ICON[c]} size={20} stroke={2.2} />
+                <motion.button
+                  key={c}
+                  onClick={() => setTab(c)}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
+                  style={{ background: art.bg }}
+                >
+                  {/* artwork bleeds in from the right; the mask only fades its left edge into the tile colour */}
+                  <span className="absolute inset-y-0 right-0 w-[78%] [mask-image:linear-gradient(to_right,transparent,black_45%)]">
+                    <Image src={art.image} alt="" fill sizes="240px" className="object-cover object-[70%_50%]" />
                   </span>
-                  <span>
-                    <span className="block text-[15px] font-bold leading-tight">{c}</span>
-                    <span className="text-[12px] text-muted">
-                      {n} {n === 1 ? "basket" : "baskets"}
+                  <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
+                  <span className="relative">
+                    <span className={`block text-[22px] font-bold tabular-nums leading-none ${change >= 0 ? "text-[#138a4b]" : "text-[#d92d2d]"}`}>
+                      {change >= 0 ? "+" : "−"}
+                      {Math.abs(change).toFixed(2)}%
                     </span>
+                    <span className="text-[12px] font-medium text-[#121212]/55">24h change</span>
                   </span>
                 </motion.button>
               );
