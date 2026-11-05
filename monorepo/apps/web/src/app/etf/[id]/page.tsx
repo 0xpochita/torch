@@ -33,7 +33,7 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
       </Topbar>
 
       <div className="flex flex-1 flex-col gap-6 py-6">
-        <header className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-3xl p-5" style={{ background: tint(etf.bg, 70) }}>
+        <header className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-[28px] p-5" style={{ background: tint(etf.bg, 70) }}>
           <div className="flex items-center gap-4">
             <span className="relative size-16 overflow-hidden rounded-2xl ring-4 ring-white" style={{ background: etf.bg }}>
               <Image src={etf.image} alt="" fill sizes="64px" className="object-cover" />
@@ -72,13 +72,13 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
           <DetailTabs etf={etf} />
 
           <aside className="flex min-w-0 flex-col gap-4">
-            <div className="relative overflow-hidden rounded-3xl" style={{ background: etf.bg }}>
+            <div className="relative overflow-hidden rounded-[28px]" style={{ background: etf.bg }}>
               <div className="relative aspect-square">
                 <Image src={etf.image} alt={etf.name} fill priority sizes="(min-width: 1280px) 400px, 100vw" className="object-cover" />
               </div>
               <div className="absolute right-3 top-3 flex gap-2">
                 {["♡", "⤴"].map((icon) => (
-                  <button key={icon} className="grid size-9 place-items-center rounded-xl bg-white/80 text-ink backdrop-blur hover:bg-white">
+                  <button key={icon} className="grid size-9 place-items-center rounded-full bg-white/75 text-ink backdrop-blur-md hover:bg-white">
                     {icon}
                   </button>
                 ))}
@@ -88,15 +88,15 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
 
             <NavPanel etf={etf} />
 
-            <div className="flex flex-col gap-3 rounded-2xl bg-ink p-4 text-white">
+            <div className="flex flex-col gap-3 rounded-[26px] bg-[radial-gradient(120%_140%_at_100%_0%,#3b1d7a_0%,#141018_60%)] p-5 text-white shadow-[0_20px_50px_-24px_rgb(60_20_140/0.6)]">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-white/60">{etf.listed ? "Buy now price" : "Owner hasn't listed this ETF"}</span>
                 <span className="text-xs text-white/50">Fee 2% · royalty 0%</span>
               </div>
               <div className="text-2xl font-semibold">{etf.listed ? `Ⓝ ${etf.priceNear}` : "—"}</div>
               <div className="grid grid-cols-2 gap-2">
-                <button className="h-11 rounded-xl border border-white/30 text-sm font-medium hover:bg-white/10">Make offer</button>
-                <button disabled={!etf.listed} className="h-11 rounded-xl bg-white text-sm font-medium text-ink hover:bg-white/90 disabled:opacity-40">
+                <button className="h-12 rounded-full bg-white/15 text-[15px] font-semibold backdrop-blur hover:bg-white/20 active:scale-[0.97]">Make offer</button>
+                <button disabled={!etf.listed} className="h-12 rounded-full bg-white text-[15px] font-semibold text-ink active:scale-[0.97] disabled:opacity-40">
                   {etf.listed ? "Buy now" : "Not listed"}
                 </button>
               </div>

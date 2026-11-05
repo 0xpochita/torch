@@ -55,7 +55,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
               { k: "Withdrawals while listed", v: etf.listed ? "Locked" : "Open", ok: true, d: "Seller can't drain the basket mid-sale" },
               { k: "Vault code", v: "Immutable", ok: true, d: "Global contract deployed by hash" },
             ].map((s) => (
-              <div key={s.k} className="flex flex-col gap-1 rounded-2xl border border-line p-4">
+              <div key={s.k} className="flex flex-col gap-1 card p-4">
                 <span className="flex items-center gap-2 text-xs text-muted">
                   <span className="grid size-4 place-items-center rounded-full bg-up/15 text-[9px] text-up">✓</span>
                   {s.k}
@@ -69,7 +69,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
       )}
 
       {tab === "Holdings" && (
-        <div className="overflow-x-auto rounded-2xl border border-line">
+        <div className="card overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-panel text-left text-xs text-muted">
               <tr>
@@ -122,7 +122,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
       )}
 
       {tab === "History" && (
-        <ol id="history" className="flex flex-col rounded-2xl border border-line">
+        <ol id="history" className="card flex flex-col">
           {[...etf.history].reverse().map((h, i) => (
             <li key={i} className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-0">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl text-base" style={{ background: EVENT[h.type].bg }}>
@@ -140,7 +140,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
       )}
 
       {tab === "Holders" && (
-        <ol className="flex flex-col rounded-2xl border border-line">
+        <ol className="card flex flex-col">
           {holders.map((h, i) => (
             <li key={h.account} className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-0">
               <span className="grid size-10 place-items-center rounded-full bg-panel text-sm font-semibold uppercase">{h.account[0]}</span>
@@ -165,7 +165,7 @@ export function NavPanel({ etf }: { etf: Etf }) {
   const delta = ((values[values.length - 1] - values[0]) / values[0]) * 100;
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-line p-4">
+    <div className="flex flex-col gap-4 card p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="text-xs text-muted">Net asset value</div>

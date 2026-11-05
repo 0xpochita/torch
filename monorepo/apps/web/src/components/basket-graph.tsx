@@ -19,7 +19,7 @@ export function BasketGraph({ etf }: { etf: Etf }) {
   const vaultMid = height / 2;
 
   return (
-    <div className="canvas-dots overflow-x-auto rounded-2xl border border-line">
+    <div className="canvas-dots card overflow-x-auto">
       <div className="relative mx-auto" style={{ width: WIDTH, height }}>
         <svg className="absolute inset-0" width={WIDTH} height={height} aria-hidden>
           {etf.allocation.map((a, i) => {
