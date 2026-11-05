@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Change, EtfRow, Group } from "@/components/etf-card";
 import { SymTile } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { ActionCircle, Donut, Money, Segmented, StatTile } from "@/components/ui";
+import { ActionCircle, Donut, Money, NearAmount, Segmented, StatTile } from "@/components/ui";
 import { ETFS, ME, MY_VAULTS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
 
 const VIEWS = ["Owned", "Created", "Listed"] as const;
@@ -81,7 +81,13 @@ export function Vaults() {
                     etf={e}
                     trailing={
                       <span className="text-right">
-                        <span className={`block rounded-full px-2 py-0.5 text-[11px] font-semibold ${e.listed ? "bg-up/15 text-up-text" : "bg-fill text-muted"}`}>{e.listed ? `Listed Ⓝ ${e.priceNear}` : "Not listed"}</span>
+                        <span className={`block rounded-full px-2 py-0.5 text-[11px] font-semibold ${e.listed ? "bg-up/15 text-up-text" : "bg-fill text-muted"}`}>{e.listed ? (
+                          <span className="flex items-center gap-1">
+                            Listed <NearAmount amount={e.priceNear} />
+                          </span>
+                        ) : (
+                          "Not listed"
+                        )}</span>
                       </span>
                     }
                   />

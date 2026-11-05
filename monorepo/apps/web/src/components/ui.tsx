@@ -256,3 +256,15 @@ export function Avatar({ account, size = 40 }: { account: string; size?: number 
     </svg>
   );
 }
+
+/** NEAR amount with the official NEAR logo (CoinGecko), sized to the surrounding text. */
+export function NearAmount({ amount, className = "" }: { amount: number | string; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-[0.3em] tabular-nums ${className}`}>
+      <span className="relative inline-block size-[1.15em] shrink-0 overflow-hidden rounded-full shadow-[0_0_0_1.5px_#ffffff59]">
+        <Image src="/tokens/near.png" alt="NEAR" fill sizes="32px" className="object-cover" />
+      </span>
+      {amount}
+    </span>
+  );
+}

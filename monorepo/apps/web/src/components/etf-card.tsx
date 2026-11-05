@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Sym, SymTile, type IconName } from "@/components/icons";
-import { Money } from "@/components/ui";
+import { Money, NearAmount } from "@/components/ui";
 import { TOKENS, type Etf, type HistoryEvent } from "@/lib/mock";
 
 /** Soft pastel version of an ETF's background, used for card surfaces. */
@@ -40,7 +40,7 @@ export function Artwork({ etf, size = 56, className = "" }: { etf: Etf; size?: n
 export function BuyCapsule({ etf, className = "" }: { etf: Etf; className?: string }) {
   return (
     <Link href={`/etf/${etf.id}`} className={`btn-tint grid h-8 min-w-[76px] place-items-center px-4 text-[14px] ${className}`}>
-      {etf.listed ? `Ⓝ ${etf.priceNear}` : "VIEW"}
+      {etf.listed ? <NearAmount amount={etf.priceNear} /> : "VIEW"}
     </Link>
   );
 }

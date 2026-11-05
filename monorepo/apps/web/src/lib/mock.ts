@@ -82,7 +82,7 @@ function etf(e: Omit<Etf, "nav30d" | "history"> & { seed: number; drift: number 
       { type: "mint", at: day(-30 + n), detail: `Vault ${rest.id}.torch.near created`, account: rest.creator },
       { type: "deposit", at: day(-30 + n), detail: `Deposited ${(rest.navUsd * 0.8).toFixed(0)} USDC, swapped to basket`, account: rest.creator },
       { type: "rebalance", at: day(-16 + n), detail: "Rebalanced to target weights (drift 4.1%)", account: "keeper.torch.near" },
-      { type: "transfer", at: day(-9 + n), detail: `Sold for Ⓝ ${rest.priceNear}`, account: rest.owner },
+      { type: "transfer", at: day(-9 + n), detail: `Sold for ${rest.priceNear} NEAR`, account: rest.owner },
       ...(n % 2 ? [{ type: "withdraw" as const, at: day(-6 + n), detail: "Withdrew 40 USDC to owner", account: rest.owner }] : []),
       { type: n % 3 ? ("deposit" as const) : ("rebalance" as const), at: day(-n), detail: n % 3 ? "Topped up 120 USDC" : "Rebalanced to target weights (drift 2.7%)", account: n % 3 ? rest.owner : "keeper.torch.near" },
     ],

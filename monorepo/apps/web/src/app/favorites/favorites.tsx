@@ -5,7 +5,7 @@ import { useState } from "react";
 import { EtfCard, EtfRow, Group } from "@/components/etf-card";
 import { Sym, SymTile } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Segmented } from "@/components/ui";
+import { NearAmount, Segmented } from "@/components/ui";
 import { ETFS, MY_FAVORITES } from "@/lib/mock";
 
 const LAYOUTS = ["Grid", "List"] as const;
@@ -47,7 +47,7 @@ export function Favorites() {
           ) : (
             <div className="card py-1">
               {favs.map((e) => (
-                <EtfRow key={e.id} etf={e} trailing={<span className="text-[13px] text-muted">{e.listed ? `Ⓝ ${e.priceNear}` : "—"}</span>} />
+                <EtfRow key={e.id} etf={e} trailing={<span className="text-[13px] text-muted">{e.listed ? <NearAmount amount={e.priceNear} /> : "—"}</span>} />
               ))}
             </div>
           )}

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Artwork, Change } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { ActionCircle, Money, StatTile, TokenStack } from "@/components/ui";
+import { ActionCircle, Money, NearAmount, StatTile, TokenStack } from "@/components/ui";
 import { ETFS, getEtf } from "@/lib/mock";
 import { DetailTabs, NavPanel } from "./panels";
 
@@ -43,7 +43,13 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
               <p className="mt-1 font-mono text-[12px] text-muted">{etf.id}.torch.near</p>
               <div className="mt-3 flex items-center gap-2">
                 <button disabled={!etf.listed} className="btn-ink h-9 px-5 text-[15px]">
-                  {etf.listed ? `Buy Ⓝ ${etf.priceNear}` : "Not listed"}
+                  {etf.listed ? (
+                    <span className="flex items-center gap-1.5">
+                      Buy <NearAmount amount={etf.priceNear} />
+                    </span>
+                  ) : (
+                    "Not listed"
+                  )}
                 </button>
                 <button className="btn-line h-9 px-4 text-[15px]">Make Offer</button>
                 <button className="btn-line grid size-9 place-items-center" aria-label="Share">
