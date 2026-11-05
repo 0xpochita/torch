@@ -2,13 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { useState } from "react";
 import { Artwork, BuyCapsule, Change } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
 import { HeroBackdrop } from "@/components/hero-backdrop";
 import { ToolbarChip, Topbar } from "@/components/navbar";
-import { ActionCircle, Money, StatTile, Title, TokenStack } from "@/components/ui";
+import { ActionCircle, Money, NearAmount, StatTile, Title, TokenStack } from "@/components/ui";
 import { CATEGORIES, ETFS, ME, type Category, type Etf } from "@/lib/mock";
 
 const TABS = ["All", ...CATEGORIES] as const;
@@ -145,8 +145,14 @@ export function Explore() {
                     </span>
                   </Link>
                   {i === 0 ? (
-                    <Link href={`/etf/${e.id}`} className="grid h-9 place-items-center rounded-full bg-tint px-4 text-[14px] font-bold text-white active:scale-95">
-                      {e.listed ? `Buy Ⓝ${e.priceNear}` : "View"}
+                    <Link href={`/etf/${e.id}`} className="flex h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-tint px-4 text-[14px] font-bold text-white active:scale-95">
+                      {e.listed ? (
+                        <>
+                          Buy <NearAmount amount={e.priceNear} className="ml-1.5" />
+                        </>
+                      ) : (
+                        "View"
+                      )}
                     </Link>
                   ) : (
                     <BuyCapsule etf={e} />
@@ -232,6 +238,7 @@ export function Explore() {
 /** "Collection."-style hero: chunky title, wallet chip, fanned NFT cards and quick actions. */
 function Hero() {
   const fan = [ETFS[2], ETFS[0], ETFS[4], ETFS[3], ETFS[5]];
+  const [hover, setHover] = useState<number | null>(null);
   return (
     <section className="card relative isolate flex flex-col items-center gap-5 overflow-hidden px-5 pb-6 pt-7 text-center">
       <div className="absolute inset-0 -z-10">
@@ -242,25 +249,10 @@ function Hero() {
         {ME} <Sym name="chevronDown" size={13} stroke={2.4} />
       </span>
 
-      <div className="relative h-[262px] w-full max-w-[620px]">
-        {fan.map((e, i) => {
-          const offset = i - 2;
-          return (
-            <motion.div
-              key={e.id}
-              initial={{ rotate: 0, x: -offset * 112, y: 30 }}
-              animate={{ rotate: offset * 7, x: 0, y: Math.abs(offset) * 14 }}
-              whileHover={{ y: Math.abs(offset) * 14 - 14, rotate: offset * 4, zIndex: 10 }}
-              transition={{ type: "spring", stiffness: 220, damping: 20, delay: 0.08 + Math.abs(offset) * 0.06 }}
-              className="absolute left-1/2 top-3"
-              style={{ marginLeft: -90 + offset * 112, zIndex: 5 - Math.abs(offset) }}
-            >
-              <Link href={`/etf/${e.id}`} aria-label={e.name} className="relative block overflow-hidden rounded-[26px] shadow-[0_14px_30px_-14px_#00000059]" style={{ width: 180, height: 210, background: e.bg }}>
-                <Image src={e.image} alt="" fill sizes="180px" className="object-cover" />
-              </Link>
-            </motion.div>
-          );
-        })}
+      <div className="relative h-[262px] w-full max-w-[620px] [perspective:1000px]" onMouseLeave={() => setHover(null)}>
+        {fan.map((e, i) => (
+          <FanCard key={e.id} etf={e} offset={i - 2} hover={hover} index={i} onHover={setHover} />
+        ))}
       </div>
 
       <div className="flex gap-7">
@@ -270,5 +262,74 @@ function Hero() {
         <ActionCircle icon="ellipsis" label="More" href="/favorites" />
       </div>
     </section>
+  );
+}
+
+/**
+ * One card of the hero fan. The hovered card lifts, straightens and tilts toward the cursor;
+ * its neighbours slide aside. Everything rides springs so nothing snaps.
+ */
+function FanCard({ etf, offset, index, hover, onHover }: { etf: Etf; offset: number; index: number; hover: number | null; onHover: (i: number | null) => void }) {
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  const tiltX = useSpring(useTransform(py, [-0.5, 0.5], [10, -10]), { stiffness: 200, damping: 18 });
+  const tiltY = useSpring(useTransform(px, [-0.5, 0.5], [-12, 12]), { stiffness: 200, damping: 18 });
+  const glareX = useTransform(px, [-0.5, 0.5], ["0%", "100%"]);
+
+  const active = hover === index;
+  const shift = hover === null || active ? 0 : Math.sign(index - hover) * (Math.abs(index - hover) === 1 ? 46 : 26);
+
+  return (
+    <motion.div
+      initial={{ rotate: 0, x: -offset * 112, y: 30 }}
+      animate={{
+        rotate: active ? 0 : offset * 7,
+        x: shift,
+        y: active ? -16 : Math.abs(offset) * 14,
+        scale: active ? 1.1 : hover === null ? 1 : 0.96,
+      }}
+      transition={{ type: "spring", stiffness: 260, damping: 22, delay: hover === null ? 0.06 + Math.abs(offset) * 0.05 : 0 }}
+      onHoverStart={() => onHover(index)}
+      onMouseMove={(ev) => {
+        const r = ev.currentTarget.getBoundingClientRect();
+        px.set((ev.clientX - r.left) / r.width - 0.5);
+        py.set((ev.clientY - r.top) / r.height - 0.5);
+      }}
+      onMouseLeave={() => {
+        px.set(0);
+        py.set(0);
+      }}
+      className="absolute left-1/2 top-3"
+      style={{ marginLeft: -90 + offset * 112, zIndex: active ? 20 : 5 - Math.abs(offset), rotateX: active ? tiltX : 0, rotateY: active ? tiltY : 0, transformStyle: "preserve-3d" }}
+    >
+      <Link
+        href={`/etf/${etf.id}`}
+        aria-label={etf.name}
+        className={`relative block overflow-hidden rounded-[26px] transition-shadow duration-300 ${active ? "shadow-[0_30px_50px_-18px_#00000080]" : "shadow-[0_14px_30px_-14px_#00000059]"}`}
+        style={{ width: 180, height: 210, background: etf.bg }}
+      >
+        <motion.span className="absolute inset-0 block" animate={{ scale: active ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}>
+          <Image src={etf.image} alt="" fill sizes="200px" className="object-cover" />
+        </motion.span>
+        {/* soft specular sheen that tracks the cursor */}
+        <motion.span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 mix-blend-soft-light"
+          animate={{ opacity: active ? 1 : 0 }}
+          style={{ background: useTransform(glareX, (x) => `radial-gradient(circle at ${x} 30%, #ffffffb3, transparent 55%)`) }}
+        />
+        <motion.span
+          className="absolute inset-x-2 bottom-2 rounded-[16px] bg-chip px-3 py-2 text-left backdrop-blur"
+          initial={false}
+          animate={{ opacity: active ? 1 : 0, y: active ? 0 : 10 }}
+          transition={{ type: "spring", stiffness: 300, damping: 26 }}
+        >
+          <span className="block truncate text-[13px] font-bold">{etf.name}</span>
+          <span className="text-[11px] text-muted">
+            <Money value={etf.navUsd} />
+          </span>
+        </motion.span>
+      </Link>
+    </motion.div>
   );
 }
