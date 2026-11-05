@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Golos_Text } from "next/font/google";
-import { Rail } from "@/components/navbar";
+import { Sidebar } from "@/components/navbar";
 import "./globals.css";
 
 // Same type system as HOT Craft: Golos Text for UI, Geist Mono for numbers/accounts.
@@ -25,8 +25,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${golos.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full">
         <div className="flex min-h-screen bg-bg">
-          <Rail />
-          <div className="flex min-w-0 flex-1 flex-col px-4 md:border-l md:border-line-soft md:px-8">{children}</div>
+          <Sidebar />
+          <div className="flex min-w-0 flex-1 flex-col px-4 md:px-8">{children}</div>
         </div>
       </body>
     </html>
