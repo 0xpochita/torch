@@ -25,6 +25,11 @@ export const CATEGORY_ICON: Record<Category, IconName> = {
   "Liquid Staking": "down",
 };
 
+// Each category chip shows the artwork of its most liked basket.
+const CATEGORY_ART = Object.fromEntries(
+  CATEGORIES.map((c) => [c, ETFS.filter((e) => e.category === c).sort((a, b) => b.likes - a.likes)[0] ?? ETFS[0]]),
+) as Record<Category, Etf>;
+
 // Creators ranked by the total value of the vaults they made.
 const CREATORS = Object.values(
   ETFS.reduce<Record<string, { name: string; nav: number; etf: Etf }>>((acc, e) => {
@@ -50,9 +55,15 @@ export function Explore() {
             onClick={() => setTab(t)}
             count={t === "All" ? ETFS.length : ETFS.filter((e) => e.category === t).length}
             icon={
-              <span className={`grid size-6 place-items-center rounded-full ${t === "All" ? "bg-ink text-on-ink" : `${PASTEL[CATEGORY_PASTEL[t]].bg} ${PASTEL[CATEGORY_PASTEL[t]].ink}`}`}>
-                <Sym name={t === "All" ? "layers" : CATEGORY_ICON[t]} size={13} stroke={2.4} />
-              </span>
+              t === "All" ? (
+                <span className="relative size-6">
+                  <Image src="/brand/torch-mark.png" alt="" fill sizes="48px" className="object-contain" />
+                </span>
+              ) : (
+                <span className="relative size-6 overflow-hidden rounded-full" style={{ background: CATEGORY_ART[t].bg }}>
+                  <Image src={CATEGORY_ART[t].image} alt="" fill sizes="48px" className="scale-[1.35] object-cover" />
+                </span>
+              )
             }
           >
             {t}
@@ -225,8 +236,8 @@ function Hero() {
           return (
             <motion.div
               key={e.id}
-              initial={{ opacity: 0, rotate: 0, x: -offset * 112, y: 30 }}
-              animate={{ opacity: 1, rotate: offset * 7, x: 0, y: Math.abs(offset) * 14 }}
+              initial={{ rotate: 0, x: -offset * 112, y: 30 }}
+              animate={{ rotate: offset * 7, x: 0, y: Math.abs(offset) * 14 }}
               whileHover={{ y: Math.abs(offset) * 14 - 14, rotate: offset * 4, zIndex: 10 }}
               transition={{ type: "spring", stiffness: 220, damping: 20, delay: 0.08 + Math.abs(offset) * 0.06 }}
               className="absolute left-1/2 top-3"
