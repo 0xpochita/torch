@@ -10,14 +10,8 @@ export function NavChart({ values, markers = [] }: { values: number[]; markers?:
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-28 w-full" role="img" aria-label="NAV, last 30 days">
-      <defs>
-        <linearGradient id="nav-fill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#8b7cf6" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#8b7cf6" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <polygon points={`0,${h} ${line} ${w},${h}`} fill="url(#nav-fill)" />
-      <polyline points={line} fill="none" stroke="#6b5cf0" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      <polygon points={`0,${h} ${line} ${w},${h}`} fill="var(--tint)" fillOpacity="0.08" />
+      <polyline points={line} fill="none" stroke="var(--tint)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       {markers.map((i) => (
         <line key={i} x1={x(i)} x2={x(i)} y1={0} y2={h} stroke="var(--text)" strokeOpacity="0.35" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
       ))}

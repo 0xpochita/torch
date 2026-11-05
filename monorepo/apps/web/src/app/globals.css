@@ -1,24 +1,85 @@
 @import "tailwindcss";
 
 /*
- * iOS-style system: grouped gray canvas (#F2F2F7), white rounded cards,
- * hairline separators, capsule buttons, translucent materials, SF Pro type.
+ * iOS system look: flat #F5F5F7 canvas, solid white inset cards,
+ * translucent bars only where they float over content, tinted selections,
+ * capsule controls, SF Pro type. No decorative gradients.
  */
+/* Apple palette: #F5F5F7 · #1D1D1F · #AAAAAA · #007AFF, neutral grey scale. */
 :root {
-  --bg: #f2f2f7;
-  --card: #ffffff;
-  --panel: #f2f2f7;
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --panel: #f5f5f7;
   --panel-2: #ffffff;
-  --fill: rgb(120 120 128 / 0.12);
-  --line: rgb(60 60 67 / 0.14);
-  --line-soft: rgb(60 60 67 / 0.08);
-  --text: #000000;
-  --muted: rgb(60 60 67 / 0.6);
-  --faint: rgb(60 60 67 / 0.3);
-  --ink: #000000;
-  --tint: #7b3ff2;
+  --fill: #ececf0;
+  --line: #d2d2d7;
+  --line-soft: #e8e8ed;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: #aaaaaa;
+  --ink: #1d1d1f;
+  --on-ink: #ffffff;
+  --tint: #007aff;
   --up: #34c759;
+  --up-text: #248a3d;
   --down: #ff3b30;
+  --chip: #ffffffe0;
+  --bar: #ffffffd6;
+  --shadow: #0000000f;
+  --card: #ffffff;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --surface: #171717;
+    --raised: #262626;
+    --panel: #171717;
+    --panel-2: #262626;
+    --fill: #262626;
+    --line: #373737;
+    --line-soft: #262626;
+    --text: #f5f5f7;
+    --muted: #a3a3a3;
+    --faint: #737373;
+    --ink: #f5f5f7;
+    --on-ink: #0a0a0a;
+    --tint: #0a84ff;
+    --up: #30d158;
+    --up-text: #30d158;
+    --down: #ff453a;
+    --chip: #171717d1;
+    --bar: #171717d9;
+    --shadow: #00000066;
+    --card: #171717;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #171717;
+  --raised: #262626;
+  --panel: #171717;
+  --panel-2: #262626;
+  --fill: #262626;
+  --line: #373737;
+  --line-soft: #262626;
+  --text: #f5f5f7;
+  --muted: #a3a3a3;
+  --faint: #737373;
+  --ink: #f5f5f7;
+  --on-ink: #0a0a0a;
+  --tint: #0a84ff;
+  --up: #30d158;
+  --up-text: #30d158;
+  --down: #ff453a;
+  --chip: #171717d1;
+  --bar: #171717d9;
+  --shadow: #00000066;
+  --card: #171717;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -36,17 +97,22 @@
   --color-tint: var(--tint);
   --color-up: var(--up);
   --color-down: var(--down);
+  --color-on-ink: var(--on-ink);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-chip: var(--chip);
+  --color-up-text: var(--up-text);
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-golos), system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-golos), system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
 }
 
 body {
-  background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  background: var(--bg);
 }
 
 h1,
@@ -56,33 +122,34 @@ h3 {
   letter-spacing: -0.025em;
 }
 
-/* Inset grouped card */
+/* Inset grouped surface */
+.glass,
 .card {
-  background: var(--card);
+  background: var(--surface);
   border-radius: 22px;
-  box-shadow: 0 1px 0 rgb(0 0 0 / 0.02), 0 1px 2px rgb(0 0 0 / 0.04);
 }
 
-/* Translucent material (navigation bars, overlays) */
+/* Translucent bar material (floats over scrolling content) */
 .material {
-  background: rgb(249 249 251 / 0.78);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: var(--bar);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 0 0 0.5px var(--line), 0 4px 16px -8px var(--shadow);
 }
 
 /* Filled capsule */
 .btn-ink {
   background: var(--ink);
-  color: #fff;
+  color: var(--on-ink);
   font-weight: 600;
   border-radius: 9999px;
   transition: transform 0.12s, opacity 0.15s;
 }
 .btn-ink:hover {
-  opacity: 0.85;
+  opacity: 0.86;
 }
 .btn-ink:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 .btn-ink:disabled {
   opacity: 0.3;
@@ -90,7 +157,22 @@ h3 {
   transform: none;
 }
 
-/* Tinted / gray capsule */
+/* Tinted capsule, App Store "GET" style */
+.btn-tint {
+  background: color-mix(in oklab, var(--tint) 14%, transparent);
+  color: var(--tint);
+  font-weight: 700;
+  border-radius: 9999px;
+  transition: transform 0.12s, background 0.15s;
+}
+.btn-tint:hover {
+  background: color-mix(in oklab, var(--tint) 22%, transparent);
+}
+.btn-tint:active {
+  transform: scale(0.96);
+}
+
+/* Gray glass capsule */
 .btn-line {
   background: var(--fill);
   color: var(--text);
@@ -99,15 +181,14 @@ h3 {
   transition: transform 0.12s, background 0.15s;
 }
 .btn-line:hover {
-  background: rgb(120 120 128 / 0.18);
+  background: color-mix(in oklab, var(--fill), var(--text) 6%);
 }
 .btn-line:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 
 .canvas-dots {
-  background-color: #fafafc;
-  background-image: radial-gradient(rgb(60 60 67 / 0.16) 1px, transparent 1px);
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
   background-size: 18px 18px;
 }
 
@@ -121,7 +202,7 @@ input[type="range"] {
 }
 
 :focus-visible {
-  outline: 3px solid rgb(123 63 242 / 0.45);
+  outline: 3px solid color-mix(in oklab, var(--tint) 45%, transparent);
   outline-offset: 2px;
 }
 
