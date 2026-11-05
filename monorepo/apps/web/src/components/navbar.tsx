@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sym, type IconName } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Title } from "@/components/ui";
 import { ETFS, ME, MY_VAULTS } from "@/lib/mock";
 
 type NavItem = { href: string; label: string; icon: IconName; badge?: string };
@@ -28,11 +29,11 @@ const NAV: { group: string; items: NavItem[] }[] = [
   },
 ];
 
-/** Torch app icon (squircle). */
+/** Torch mark (transparent torch, no tile). */
 export function Logo({ size = 36 }: { size?: number }) {
   return (
-    <span className="relative block shrink-0 overflow-hidden rounded-[23%] shadow-[0_0_0_0.5px_#00000014]" style={{ width: size, height: size }}>
-      <Image src="/brand/torch-icon.png" alt="Torch" fill sizes={`${size * 2}px`} className="scale-[1.04] object-cover" priority />
+    <span className="relative block shrink-0" style={{ width: size, height: size }}>
+      <Image src="/brand/torch-mark.png" alt="Torch" fill sizes={`${size * 2}px`} className="object-contain" priority />
     </span>
   );
 }
@@ -176,7 +177,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
       </header>
       {title && (
         <div className="px-1 pb-1 pt-6">
-          <h1 className="text-[34px] font-bold leading-none">{title}</h1>
+          <Title size="text-[44px]">{title}</Title>
           {subtitle && <p className="mt-1.5 text-[15px] text-muted">{subtitle}</p>}
         </div>
       )}
@@ -185,15 +186,16 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
 }
 
 /** Segment inside the toolbar's iOS-style segmented control. */
-export function ToolbarChip({ active, onClick, count, children }: { active?: boolean; onClick?: () => void; count?: number; children: ReactNode }) {
+export function ToolbarChip({ active, onClick, count, icon, children }: { active?: boolean; onClick?: () => void; count?: number; icon?: ReactNode; children: ReactNode }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[14px] transition ${
+      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-4 text-[14px] transition ${
         active ? "bg-raised font-semibold text-text shadow-[0_1px_2px_#00000014,0_3px_10px_#0000001a]" : "font-medium text-muted hover:text-text"
       }`}
     >
+      {icon}
       {children}
       {count !== undefined && <span className={`text-[12px] tabular-nums ${active ? "text-muted" : "text-faint"}`}>{count}</span>}
     </button>
