@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sym, type IconName } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ETFS, ME, MY_VAULTS } from "@/lib/mock";
 
 type NavItem = { href: string; label: string; icon: IconName; badge?: string };
 
@@ -41,60 +42,94 @@ function useActive() {
   return (href: string) => (href === "/" ? path === "/" || path.startsWith("/etf") : path.startsWith(href));
 }
 
-/** Floating glass sidebar (iPadOS style); collapses to icons on medium screens. */
+/** iPadOS-style sidebar: flush pane with search, sections, pinned vaults and the account row. */
 export function Sidebar() {
   const isActive = useActive();
+  const path = usePathname();
+  const pinned = ETFS.filter((e) => (MY_VAULTS.owned as readonly string[]).includes(e.id));
 
   return (
-    <div className="sticky top-0 hidden h-screen shrink-0 p-3 pr-0 md:block">
-      <aside className="material flex h-full w-[68px] flex-col rounded-[28px] px-2.5 py-5 xl:w-[244px] xl:px-3.5">
-        <Link href="/" className="flex items-center gap-3 px-1">
-          <Logo size={38} />
-          <span className="hidden flex-col leading-tight xl:flex">
-            <span className="text-[17px] font-semibold">Torch</span>
-            <span className="text-[12px] text-muted">testnet · mock</span>
+    <aside className="sticky top-0 hidden h-screen w-[72px] shrink-0 flex-col border-r border-line-soft bg-surface px-2.5 pb-3 pt-5 md:flex xl:w-[264px] xl:px-3">
+      <Link href="/" className="flex items-center gap-2.5 px-1.5">
+        <Logo size={34} />
+        <span className="hidden text-[19px] font-bold xl:block">Torch</span>
+        <span className="ml-auto hidden rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted xl:block">Testnet</span>
+      </Link>
+
+      <label className="mt-5 hidden h-9 items-center gap-2 rounded-[10px] bg-fill px-2.5 text-muted xl:flex">
+        <Sym name="search" size={15} />
+        <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
+      </label>
+
+      <nav className="mt-5 flex flex-col gap-5">
+        {NAV.map((g) => (
+          <div key={g.group} className="flex flex-col gap-px">
+            <span className="hidden px-2.5 pb-1 text-[13px] font-semibold text-muted xl:block">{g.group}</span>
+            {g.items.map((it) => {
+              const active = isActive(it.href);
+              return (
+                <Link
+                  key={it.label}
+                  href={it.href}
+                  title={it.label}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex h-9 items-center justify-center gap-2.5 rounded-[10px] px-2.5 text-[15px] transition xl:justify-start ${active ? "bg-fill font-semibold" : "hover:bg-fill/60"}`}
+                >
+                  <span className="text-tint">
+                    <Sym name={it.icon} size={19} stroke={2} />
+                  </span>
+                  <span className="hidden xl:inline">{it.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+
+        <div className="hidden flex-col gap-px xl:flex">
+          <span className="flex items-center justify-between px-2.5 pb-1 text-[13px] font-semibold text-muted">
+            Pinned Vaults
+            <Link href="/create" className="text-tint" aria-label="Create vault">
+              <Sym name="plus" size={15} stroke={2.4} />
+            </Link>
           </span>
-        </Link>
-
-        <nav className="mt-7 flex flex-col gap-5">
-          {NAV.map((g) => (
-            <div key={g.group} className="flex flex-col gap-0.5">
-              <span className="hidden px-3 pb-1 text-[13px] font-semibold text-muted xl:block">{g.group}</span>
-              {g.items.map((it) => {
-                const active = isActive(it.href);
-                return (
-                  <Link
-                    key={it.label}
-                    href={it.href}
-                    title={it.label}
-                    className={`flex h-10 items-center justify-center gap-3 rounded-full px-3 text-[15px] transition xl:justify-start ${
-                      active ? "bg-fill font-semibold text-ink" : "text-text/85 hover:bg-fill/60"
-                    }`}
-                  >
-                    <Sym name={it.icon} size={19} />
-                    <span className="hidden xl:inline">{it.label}</span>
-                    
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="hidden xl:block">
-            <ThemeToggle />
-          </div>
-          <div className="flex justify-center xl:hidden">
-            <ThemeToggle compact />
-          </div>
-          <a href="https://github.com/0xpochita/torch" className="flex h-10 items-center justify-center gap-3 rounded-full px-3 text-[15px] text-muted hover:bg-fill xl:justify-start" title="Docs">
-            <Sym name="doc" size={19} />
-            <span className="hidden xl:inline">Docs & Contracts</span>
-          </a>
+          {pinned.map((e) => {
+            const active = path === `/etf/${e.id}`;
+            return (
+              <Link key={e.id} href={`/etf/${e.id}`} className={`flex h-11 items-center gap-2.5 rounded-[10px] px-2 transition ${active ? "bg-fill" : "hover:bg-fill/60"}`}>
+                <span className="relative size-7 shrink-0 overflow-hidden rounded-[7px]" style={{ background: e.bg }}>
+                  <Image src={e.image} alt="" fill sizes="56px" className="object-cover" />
+                </span>
+                <span className="min-w-0 flex-1 leading-tight">
+                  <span className="block truncate text-[14px] font-medium">{e.name}</span>
+                  <span className="block truncate text-[12px] text-muted">${e.navUsd.toLocaleString("en-US")}</span>
+                </span>
+              </Link>
+            );
+          })}
         </div>
-      </aside>
-    </div>
+      </nav>
+
+      <div className="mt-auto flex flex-col gap-2 border-t border-line-soft pt-3">
+        <div className="hidden px-0.5 xl:block">
+          <ThemeToggle />
+        </div>
+        <div className="flex items-center justify-center gap-2.5 rounded-[12px] px-1.5 py-1.5 xl:justify-start xl:hover:bg-fill/60">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-ink text-[14px] font-semibold text-on-ink">B</span>
+          <span className="hidden min-w-0 flex-1 leading-tight xl:block">
+            <span className="block truncate text-[14px] font-semibold">{ME}</span>
+            <span className="flex items-center gap-1 text-[12px] text-muted">
+              <span className="size-1.5 rounded-full bg-up" /> Mock wallet
+            </span>
+          </span>
+          <a href="https://github.com/0xpochita/torch" title="Docs & contracts" className="hidden size-8 place-items-center rounded-full text-muted hover:bg-fill xl:grid">
+            <Sym name="doc" size={17} />
+          </a>
+          <span className="xl:hidden">
+            <ThemeToggle compact />
+          </span>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -126,7 +161,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
           <Logo size={40} />
         </Link>
         {children ? <div className="material no-scrollbar flex h-12 min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full px-1.5">{children}</div> : <div className="flex-1" />}
-        <label className="material hidden h-12 w-[240px] items-center gap-2 rounded-full px-4 text-muted lg:flex">
+        <label className="material hidden h-12 w-[240px] items-center gap-2 rounded-full px-4 text-muted lg:flex xl:hidden">
           <Sym name="search" size={16} />
           <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
         </label>

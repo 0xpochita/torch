@@ -30,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <div className="flex min-h-screen">
           <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col px-3 pb-28 md:px-6 md:pb-8">{children}</div>
+          <div className="flex min-w-0 flex-1 flex-col px-3 pb-28 md:px-8 md:pb-8">{children}</div>
         </div>
         <TabBar />
       </body>
