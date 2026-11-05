@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -74,8 +75,9 @@ export function Sidebar() {
                   href={it.href}
                   title={it.label}
                   aria-current={active ? "page" : undefined}
-                  className={`flex h-9 items-center justify-center gap-2.5 rounded-[10px] px-2.5 text-[15px] transition xl:justify-start ${active ? "bg-fill font-semibold" : "hover:bg-fill/60"}`}
+                  className={`relative flex h-9 items-center justify-center gap-2.5 rounded-[10px] px-2.5 text-[15px] transition-colors xl:justify-start ${active ? "font-semibold" : "hover:bg-fill/60"}`}
                 >
+                  {active && <motion.span layoutId="sidebar-active" className="absolute inset-0 -z-10 rounded-[10px] bg-fill" />}
                   <span className="text-tint">
                     <Sym name={it.icon} size={19} stroke={2} />
                   </span>
@@ -143,7 +145,8 @@ export function TabBar() {
       {tabs.map((t) => {
         const active = isActive(t.href);
         return (
-          <Link key={t.label} href={t.href} className={`flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
+          <Link key={t.label} href={t.href} className={`relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
+            {active && <motion.span layoutId="tabbar-active" className="absolute inset-0 -z-10 rounded-full bg-fill" />}
             <Sym name={t.icon} size={22} />
             {t.label}
           </Link>
@@ -191,10 +194,9 @@ export function ToolbarChip({ active, onClick, count, icon, children }: { active
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-4 text-[14px] transition ${
-        active ? "bg-raised font-semibold text-text shadow-[0_1px_2px_#00000014,0_3px_10px_#0000001a]" : "font-medium text-muted hover:text-text"
-      }`}
+      className={`relative isolate flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-4 text-[14px] transition-colors ${active ? "font-semibold text-text" : "font-medium text-muted hover:text-text"}`}
     >
+      {active && <motion.span layoutId="toolbar-chip" className="absolute inset-0 -z-10 rounded-full bg-raised shadow-[0_1px_2px_#00000014,0_3px_10px_#0000001a]" />}
       {icon}
       {children}
       {count !== undefined && <span className={`text-[12px] tabular-nums ${active ? "text-muted" : "text-faint"}`}>{count}</span>}

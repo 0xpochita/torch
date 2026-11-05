@@ -1,5 +1,8 @@
+"use client";
+
+import { motion } from "motion/react";
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import Link from "next/link";
 import { Sym, type IconName } from "@/components/icons";
 import { TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/mock";
@@ -60,6 +63,7 @@ export function SectionHeader({ title, action, sub }: { title: string; action?: 
 
 /** iOS segmented control. */
 export function Segmented<T extends string>({ options, value, onChange }: { options: readonly T[]; value: T; onChange: (v: T) => void }) {
+  const id = useId();
   return (
     <div role="tablist" className="inline-flex rounded-[10px] bg-fill p-[2px] text-[13px]">
       {options.map((o) => (
@@ -68,8 +72,9 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
           role="tab"
           aria-selected={value === o}
           onClick={() => onChange(o)}
-          className={`min-w-16 rounded-[8px] px-3 py-1 font-medium transition ${value === o ? "bg-raised shadow-[0_3px_8px_#0000001f,0_0_0_0.5px_#0000000a]" : "text-text/80"}`}
+          className={`relative isolate min-w-16 rounded-[8px] px-3 py-1 font-medium transition-colors ${value === o ? "" : "text-text/80"}`}
         >
+          {value === o && <motion.span layoutId={`seg-${id}`} className="absolute inset-0 -z-10 rounded-[8px] bg-raised shadow-[0_3px_8px_#0000001f,0_0_0_0.5px_#0000000a]" />}
           {o}
         </button>
       ))}
@@ -87,7 +92,7 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
       onClick={() => onChange(!checked)}
       className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${checked ? "bg-tint" : "bg-line"}`}
     >
-      <span className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_#00000026,0_1px_1px_#00000029] transition-all ${checked ? "left-[22px]" : "left-[2px]"}`} />
+      <motion.span layout className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_#00000026,0_1px_1px_#00000029] ${checked ? "left-[22px]" : "left-[2px]"}`} />
     </button>
   );
 }
