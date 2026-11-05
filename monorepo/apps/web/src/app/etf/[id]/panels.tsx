@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { BasketGraph } from "@/components/basket-graph";
 import { AllocationBar, Change, EVENT } from "@/components/etf-card";
@@ -40,6 +41,8 @@ export function DetailTabs({ etf }: { etf: Etf }) {
         <span className="text-[13px] text-muted">Mock data · refreshes every block</span>
       </div>
 
+      <AnimatePresence mode="wait" initial={false}>
+      <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.18 }}>
       {tab === "Basket" && (
         <div className="flex flex-col gap-4">
           <BasketGraph etf={etf} />
@@ -147,6 +150,8 @@ export function DetailTabs({ etf }: { etf: Etf }) {
           ))}
         </ol>
       )}
+      </motion.div>
+      </AnimatePresence>
     </section>
   );
 }

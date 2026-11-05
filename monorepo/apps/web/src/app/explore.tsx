@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Artwork, BuyCapsule, Change } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
@@ -72,7 +73,7 @@ export function Explore() {
               const tone = CATEGORY_PASTEL[c];
               const n = ETFS.filter((e) => e.category === c).length;
               return (
-                <button key={c} onClick={() => setTab(c)} className={`flex flex-col items-start gap-6 rounded-[22px] p-3.5 text-left transition active:scale-[0.98] ${PASTEL[tone].bg} ${tab === c ? "ring-2 ring-ink" : ""}`}>
+                <motion.button key={c} onClick={() => setTab(c)} whileHover={{ y: -3 }} whileTap={{ scale: 0.96 }} className={`flex flex-col items-start gap-6 rounded-[22px] p-3.5 text-left ${PASTEL[tone].bg} ${tab === c ? "ring-2 ring-ink" : ""}`}>
                   <span className={`grid size-10 place-items-center rounded-[30%] bg-surface ${PASTEL[tone].ink}`}>
                     <Sym name={CATEGORY_ICON[c]} size={20} stroke={2.2} />
                   </span>
@@ -82,7 +83,7 @@ export function Explore() {
                       {n} {n === 1 ? "basket" : "baskets"}
                     </span>
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -103,8 +104,17 @@ export function Explore() {
 
           {items.length ? (
             <ol className="flex flex-col gap-2">
+              <AnimatePresence initial={false} mode="popLayout">
               {items.map((e, i) => (
-                <li key={e.id} className="flex items-center gap-3.5 rounded-[20px] bg-fill p-2.5 pr-3">
+                <motion.li
+                  key={e.id}
+                  layout
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  whileHover={{ scale: 1.01 }}
+                  className="flex items-center gap-3.5 rounded-[20px] bg-fill p-2.5 pr-3"
+                >
                   <Artwork etf={e} size={56} />
                   <Link href={`/etf/${e.id}`} className="min-w-0 flex-1">
                     <span className="block truncate text-[16px] font-bold">{e.name}</span>
@@ -121,8 +131,9 @@ export function Explore() {
                   ) : (
                     <BuyCapsule etf={e} />
                   )}
-                </li>
+                </motion.li>
               ))}
+              </AnimatePresence>
             </ol>
           ) : (
             <div className="grid place-items-center gap-2 rounded-[20px] bg-fill p-10 text-center">
@@ -212,23 +223,19 @@ function Hero() {
         {fan.map((e, i) => {
           const offset = i - 2;
           return (
-            <Link
+            <motion.div
               key={e.id}
-              href={`/etf/${e.id}`}
-              aria-label={e.name}
-              className="absolute left-1/2 top-3 overflow-hidden rounded-[26px] shadow-[0_14px_30px_-14px_#00000059] transition hover:-translate-y-2"
-              style={{
-                width: 180,
-                height: 210,
-                marginLeft: -90 + offset * 112,
-                rotate: `${offset * 7}deg`,
-                translate: `0 ${Math.abs(offset) * 14}px`,
-                zIndex: 5 - Math.abs(offset),
-                background: e.bg,
-              }}
+              initial={{ opacity: 0, rotate: 0, x: -offset * 112, y: 30 }}
+              animate={{ opacity: 1, rotate: offset * 7, x: 0, y: Math.abs(offset) * 14 }}
+              whileHover={{ y: Math.abs(offset) * 14 - 14, rotate: offset * 4, zIndex: 10 }}
+              transition={{ type: "spring", stiffness: 220, damping: 20, delay: 0.08 + Math.abs(offset) * 0.06 }}
+              className="absolute left-1/2 top-3"
+              style={{ marginLeft: -90 + offset * 112, zIndex: 5 - Math.abs(offset) }}
             >
-              <Image src={e.image} alt="" fill sizes="180px" className="object-cover" />
-            </Link>
+              <Link href={`/etf/${e.id}`} aria-label={e.name} className="relative block overflow-hidden rounded-[26px] shadow-[0_14px_30px_-14px_#00000059]" style={{ width: 180, height: 210, background: e.bg }}>
+                <Image src={e.image} alt="" fill sizes="180px" className="object-cover" />
+              </Link>
+            </motion.div>
           );
         })}
       </div>
