@@ -1,74 +1,113 @@
 @import "tailwindcss";
 
-/* Light dashboard: full-bleed white canvas, ink-black actions, pastel cards. */
+/*
+ * iOS-style system: grouped gray canvas (#F2F2F7), white rounded cards,
+ * hairline separators, capsule buttons, translucent materials, SF Pro type.
+ */
 :root {
-  --bg: #ffffff;
-  --panel: #f5f5f8;
+  --bg: #f2f2f7;
+  --card: #ffffff;
+  --panel: #f2f2f7;
   --panel-2: #ffffff;
-  --line: #e8e8ef;
-  --line-soft: #f0f0f4;
-  --text: #17171c;
-  --muted: #8a8a99;
-  --faint: #b4b4c2;
-  --ink: #1c1c1f;
-  --up: #16a34a;
-  --down: #e5484d;
+  --fill: rgb(120 120 128 / 0.12);
+  --line: rgb(60 60 67 / 0.14);
+  --line-soft: rgb(60 60 67 / 0.08);
+  --text: #000000;
+  --muted: rgb(60 60 67 / 0.6);
+  --faint: rgb(60 60 67 / 0.3);
+  --ink: #000000;
+  --tint: #7b3ff2;
+  --up: #34c759;
+  --down: #ff3b30;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-card: var(--card);
   --color-panel: var(--panel);
   --color-panel-2: var(--panel-2);
+  --color-fill: var(--fill);
   --color-line: var(--line);
   --color-line-soft: var(--line-soft);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-ink: var(--ink);
+  --color-tint: var(--tint);
   --color-up: var(--up);
   --color-down: var(--down);
-  --font-sans: var(--font-golos);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-golos), system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", var(--font-golos), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-golos), system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Primary action: solid ink */
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+/* Inset grouped card */
+.card {
+  background: var(--card);
+  border-radius: 22px;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.02), 0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+/* Translucent material (navigation bars, overlays) */
+.material {
+  background: rgb(249 249 251 / 0.78);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Filled capsule */
 .btn-ink {
   background: var(--ink);
   color: #fff;
-  font-weight: 500;
-  border-radius: 10px;
-  transition: opacity 0.15s;
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: transform 0.12s, opacity 0.15s;
 }
 .btn-ink:hover {
-  opacity: 0.88;
+  opacity: 0.85;
+}
+.btn-ink:active {
+  transform: scale(0.97);
 }
 .btn-ink:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: not-allowed;
+  transform: none;
 }
 
-/* Secondary action: outline */
+/* Tinted / gray capsule */
 .btn-line {
-  border: 1px solid #cfcfd8;
-  border-radius: 10px;
-  font-weight: 500;
-  transition: background 0.15s;
+  background: var(--fill);
+  color: var(--text);
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: transform 0.12s, background 0.15s;
 }
 .btn-line:hover {
-  background: rgb(0 0 0 / 0.04);
+  background: rgb(120 120 128 / 0.18);
+}
+.btn-line:active {
+  transform: scale(0.97);
 }
 
-/* Dotted canvas for the node graph */
 .canvas-dots {
   background-color: #fafafc;
-  background-image: radial-gradient(rgb(23 23 28 / 0.12) 1px, transparent 1px);
+  background-image: radial-gradient(rgb(60 60 67 / 0.16) 1px, transparent 1px);
   background-size: 18px 18px;
 }
 
@@ -78,7 +117,12 @@ body {
 }
 
 input[type="range"] {
-  accent-color: var(--ink);
+  accent-color: var(--tint);
+}
+
+:focus-visible {
+  outline: 3px solid rgb(123 63 242 / 0.45);
+  outline-offset: 2px;
 }
 
 .no-scrollbar::-webkit-scrollbar {

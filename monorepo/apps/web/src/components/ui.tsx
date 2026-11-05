@@ -45,10 +45,10 @@ export function Money({ value, className = "" }: { value: number; className?: st
 
 export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "up" | "down" | "dark" }) {
   const tones = {
-    neutral: "bg-panel text-text",
-    up: "bg-up/10 text-up",
-    down: "bg-down/10 text-down",
-    dark: "bg-ink text-white",
+    neutral: "bg-fill text-text",
+    up: "bg-up/15 text-[#248a3d]",
+    down: "bg-down/12 text-down",
+    dark: "bg-black/70 text-white backdrop-blur",
   };
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>{children}</span>;
 }
@@ -57,7 +57,7 @@ export function SectionHeader({ title, action, sub }: { title: string; action?: 
   return (
     <div className="flex items-end justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
+        <h2 className="text-[22px] font-bold">{title}</h2>
         {sub && <p className="text-sm text-muted">{sub}</p>}
       </div>
       {action}
@@ -65,19 +65,47 @@ export function SectionHeader({ title, action, sub }: { title: string; action?: 
   );
 }
 
-/** Segmented pill tabs. */
+/** iOS segmented control. */
 export function Segmented<T extends string>({ options, value, onChange }: { options: readonly T[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="inline-flex rounded-xl bg-panel p-1 text-sm">
+    <div role="tablist" className="inline-flex rounded-[10px] bg-fill p-[2px] text-[13px]">
       {options.map((o) => (
         <button
           key={o}
+          role="tab"
+          aria-selected={value === o}
           onClick={() => onChange(o)}
-          className={`rounded-lg px-3 py-1.5 transition ${value === o ? "bg-white font-medium shadow-sm" : "text-muted hover:text-text"}`}
+          className={`min-w-16 rounded-[8px] px-3 py-1 font-medium transition ${value === o ? "bg-white shadow-[0_3px_8px_rgb(0_0_0/0.12),0_0_0_0.5px_rgb(0_0_0/0.04)]" : "text-text/80"}`}
         >
           {o}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** iOS switch. */
+export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${checked ? "bg-up" : "bg-fill"}`}
+    >
+      <span className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_rgb(0_0_0/0.15),0_1px_1px_rgb(0_0_0/0.16)] transition-all ${checked ? "left-[22px]" : "left-[2px]"}`} />
+    </button>
+  );
+}
+
+/** Inset grouped list row with optional chevron. */
+export function Row({ label, value, chevron }: { label: ReactNode; value?: ReactNode; chevron?: boolean }) {
+  return (
+    <div className="flex min-h-11 items-center gap-3 border-b border-line-soft py-2.5 text-[15px] last:border-0">
+      <span className="flex-1">{label}</span>
+      {value !== undefined && <span className="text-muted">{value}</span>}
+      {chevron && <span className="text-faint">›</span>}
     </div>
   );
 }
