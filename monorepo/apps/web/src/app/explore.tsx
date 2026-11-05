@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Avatars, Change, EtfCard, tint } from "@/components/etf-card";
+import { Money, SectionHeader, Segmented } from "@/components/ui";
 import { Topbar } from "@/components/navbar";
-import { CATEGORIES, ETFS, TOKENS, fmtUsd, type Category, type Etf, type HistoryEvent } from "@/lib/mock";
+import { CATEGORIES, ETFS, TOKENS, type Category, type Etf, type HistoryEvent } from "@/lib/mock";
 
 const TABS = ["All ETFs", ...CATEGORIES] as const;
 
@@ -34,15 +35,28 @@ const CREATORS = Object.values(
   .sort((a, b) => b.nav - a.nav)
   .slice(0, 4);
 
+const STATS = [
+  { k: "Total value locked", v: ETFS.reduce((s, e) => s + e.navUsd, 0), change: 3.18 },
+  { k: "24h volume", v: 12_480.5, change: 8.4 },
+  { k: "ETF vaults", n: ETFS.length, sub: `${ETFS.filter((e) => e.listed).length} listed` },
+  { k: "Unique holders", n: new Set(ETFS.map((e) => e.owner)).size, sub: "+2 this week" },
+];
+
+const SORTS = ["Trending", "NAV", "Newest"] as const;
+
 export function Explore() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("All ETFs");
   const [showAll, setShowAll] = useState(false);
+  const [sort, setSort] = useState<(typeof SORTS)[number]>("Trending");
+  const [following, setFollowing] = useState<string[]>([]);
 
-  const items = ETFS.filter((e) => tab === "All ETFs" || e.category === (tab as Category));
+  const items = ETFS.filter((e) => tab === "All ETFs" || e.category === (tab as Category)).sort((a, b) =>
+    sort === "NAV" ? b.navUsd - a.navUsd : sort === "Newest" ? Number(b.id) - Number(a.id) : b.likes - a.likes,
+  );
 
   return (
     <>
-      <Topbar>
+      <Topbar title="Explore">
         <nav className="no-scrollbar flex gap-6 overflow-x-auto text-sm">
           {TABS.map((t) => (
             <button key={t} onClick={() => setTab(t)} className={`shrink-0 ${tab === t ? "font-semibold text-text" : "text-muted hover:text-text"}`}>
@@ -52,19 +66,28 @@ export function Explore() {
         </nav>
       </Topbar>
 
-      <div className="grid flex-1 gap-8 py-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid flex-1 gap-8 py-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
         <main className="flex min-w-0 flex-col gap-8">
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
+            {STATS.map((st) => (
+              <div key={st.k} className="flex flex-col gap-1 bg-white p-4">
+                <dt className="text-xs text-muted">{st.k}</dt>
+                <dd className="text-xl font-semibold">{"v" in st && st.v !== undefined ? <Money value={st.v} /> : st.n}</dd>
+                <dd className="text-xs">{"change" in st && st.change !== undefined ? <Change value={st.change} /> : <span className="text-muted">{st.sub}</span>}</dd>
+              </div>
+            ))}
+          </dl>
+
           <Hero />
 
           <section className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Trending ETFs</h2>
-              <button onClick={() => setTab("All ETFs")} className="text-sm text-muted hover:text-text">
-                View all ›
-              </button>
-            </div>
+            <SectionHeader
+              title="Trending ETFs"
+              sub="Baskets the community is buying and rebalancing this week"
+              action={<Segmented options={SORTS} value={sort} onChange={setSort} />}
+            />
             {items.length ? (
-              <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map((e) => (
                   <EtfCard key={e.id} etf={e} />
                 ))}
@@ -75,7 +98,7 @@ export function Explore() {
           </section>
         </main>
 
-        <aside className="flex flex-col gap-8">
+        <aside className="grid gap-8 lg:grid-cols-2 2xl:flex 2xl:flex-col">
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Recent Activity</h2>
@@ -122,10 +145,18 @@ export function Explore() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">@{c.name.replace(".near", "")}</span>
-                    <span className="text-xs text-muted">NAV {fmtUsd(c.nav)}</span>
+                    <span className="text-xs text-muted">
+                      NAV <Money value={c.nav} />
+                    </span>
                   </span>
-                  <span className="text-xs font-medium">
+                  <span className="flex flex-col items-end gap-1 text-xs font-medium">
                     <Change value={c.change} />
+                    <button
+                      onClick={() => setFollowing((f) => (f.includes(c.name) ? f.filter((x) => x !== c.name) : [...f, c.name]))}
+                      className={`rounded-md px-2 py-0.5 text-[11px] ${following.includes(c.name) ? "bg-panel text-muted" : "bg-ink text-white"}`}
+                    >
+                      {following.includes(c.name) ? "Following" : "Follow"}
+                    </button>
                   </span>
                 </li>
               ))}
@@ -189,7 +220,9 @@ function Hero() {
         <dl className="flex flex-wrap gap-x-12 gap-y-3">
           <div>
             <dt className="text-xs text-white/50">NAV per NFT</dt>
-            <dd className="text-xl font-semibold">{fmtUsd(etf.navUsd)}</dd>
+            <dd className="text-xl font-semibold">
+              <Money value={etf.navUsd} />
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-white/50">Next rebalance in</dt>
