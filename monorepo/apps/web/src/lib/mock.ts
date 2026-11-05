@@ -1,23 +1,24 @@
 // Mock data until the collection + vault contracts are live.
+// Token logos: CoinGecko (HOT from HOT Labs, it is not listed there).
 
-export type Token = { symbol: string; name: string; color: string; price: number };
+export type Token = { symbol: string; name: string; color: string; price: number; logo: string };
 
 export const TOKENS = {
-  NEAR: { symbol: "NEAR", name: "NEAR Protocol", color: "#00ec97", price: 3.12 },
-  USDC: { symbol: "USDC", name: "USD Coin", color: "#2775ca", price: 1 },
-  USDT: { symbol: "USDT", name: "Tether", color: "#26a17b", price: 1 },
-  BTC: { symbol: "nBTC", name: "Bitcoin (omni)", color: "#f7931a", price: 98450 },
-  ETH: { symbol: "ETH", name: "Ether (omni)", color: "#8c8cf0", price: 3420 },
-  ZEC: { symbol: "ZEC", name: "Zcash (omni)", color: "#f4b728", price: 61.4 },
-  HOT: { symbol: "HOT", name: "HOT Protocol", color: "#ff6b2c", price: 1.94 },
-  RHEA: { symbol: "RHEA", name: "RHEA Finance", color: "#7ee0c6", price: 0.21 },
-  LINEAR: { symbol: "LiNEAR", name: "LiNEAR staked NEAR", color: "#6dd5ff", price: 3.58 },
-  STNEAR: { symbol: "stNEAR", name: "Meta Pool stNEAR", color: "#c9a7ff", price: 3.66 },
-  AURORA: { symbol: "AURORA", name: "Aurora", color: "#78d64b", price: 0.12 },
-  NPRO: { symbol: "NPRO", name: "NEAR Mobile", color: "#4f7cff", price: 0.64 },
-  DRAGON: { symbol: "BLACKDRAGON", name: "Black Dragon", color: "#9b5cff", price: 0.0000021 },
-  SHITZU: { symbol: "SHITZU", name: "Shitzu", color: "#ff9f6b", price: 0.0011 },
-  SWEAT: { symbol: "SWEAT", name: "Sweat Economy", color: "#ff4fa3", price: 0.0042 },
+  NEAR: { symbol: "NEAR", name: "NEAR Protocol", color: "#00ec97", price: 3.12, logo: "/tokens/near.png" },
+  USDC: { symbol: "USDC", name: "USD Coin", color: "#2775ca", price: 1, logo: "/tokens/usdc.png" },
+  USDT: { symbol: "USDT", name: "Tether", color: "#26a17b", price: 1, logo: "/tokens/usdt.png" },
+  BTC: { symbol: "nBTC", name: "Bitcoin (omni)", color: "#f7931a", price: 98450, logo: "/tokens/btc.png" },
+  ETH: { symbol: "ETH", name: "Ether (omni)", color: "#8c8cf0", price: 3420, logo: "/tokens/eth.png" },
+  ZEC: { symbol: "ZEC", name: "Zcash (omni)", color: "#f4b728", price: 61.4, logo: "/tokens/zec.png" },
+  HOT: { symbol: "HOT", name: "HOT Protocol", color: "#ff6b2c", price: 1.94, logo: "/tokens/hot.png" },
+  RHEA: { symbol: "RHEA", name: "RHEA Finance", color: "#7ee0c6", price: 0.21, logo: "/tokens/rhea.png" },
+  LINEAR: { symbol: "LiNEAR", name: "LiNEAR staked NEAR", color: "#6dd5ff", price: 3.58, logo: "/tokens/linear.png" },
+  STNEAR: { symbol: "stNEAR", name: "Meta Pool stNEAR", color: "#c9a7ff", price: 3.66, logo: "/tokens/stnear.png" },
+  AURORA: { symbol: "AURORA", name: "Aurora", color: "#78d64b", price: 0.12, logo: "/tokens/aurora.png" },
+  NPRO: { symbol: "NPRO", name: "NEAR Mobile", color: "#4f7cff", price: 0.64, logo: "/tokens/npro.png" },
+  DRAGON: { symbol: "BLACKDRAGON", name: "Black Dragon", color: "#9b5cff", price: 0.0000021, logo: "/tokens/blackdragon.png" },
+  SHITZU: { symbol: "SHITZU", name: "Shitzu", color: "#ff9f6b", price: 0.0011, logo: "/tokens/shitzu.png" },
+  SWEAT: { symbol: "SWEAT", name: "Sweat Economy", color: "#ff4fa3", price: 0.0042, logo: "/tokens/sweat.png" },
 } satisfies Record<string, Token>;
 
 export type TokenKey = keyof typeof TOKENS;
@@ -93,17 +94,26 @@ export const ETFS: Etf[] = [
     allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] }),
   etf({ id: "1", name: "Stable Harbor", image: "/nfts/stable.png", bg: "#b8f0d8", category: "Stable", creator: "carol.near", owner: "carol.near", likes: 98, navUsd: 5020, change24h: 0.1, priceNear: 1620, listed: false, rebalance: "Monthly", slippageBps: 10, seed: 23, drift: 0.0003,
     allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] }),
-  etf({ id: "2", name: "DeFi Engine", image: "/nfts/defi.png", bg: "#ffd8a8", category: "DeFi", creator: "dave.near", owner: "erin.near", likes: 167, navUsd: 920, change24h: -1.8, priceNear: 300, listed: true, rebalance: "Weekly", slippageBps: 100, seed: 37, drift: 0.002,
+  etf({ id: "2", name: "DeFi Engine", image: "/nfts/defi.png", bg: "#ffd8a8", category: "DeFi", creator: "dave.near", owner: "bob.near", likes: 167, navUsd: 920, change24h: -1.8, priceNear: 300, listed: true, rebalance: "Weekly", slippageBps: 100, seed: 37, drift: 0.002,
     allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] }),
   etf({ id: "3", name: "Meme Lab", image: "/nfts/meme.png", bg: "#e5c8ff", category: "Meme", creator: "frank.near", owner: "frank.near", likes: 402, navUsd: 310, change24h: 12.7, priceNear: 140, listed: true, rebalance: "Daily", slippageBps: 300, seed: 41, drift: 0.01,
     allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] }),
   etf({ id: "4", name: "Omni Hot", image: "/nfts/omni.png", bg: "#ffc2a8", category: "Chain Abstraction", creator: "grace.near", owner: "heidi.near", likes: 256, navUsd: 1330, change24h: 4.9, priceNear: 455, listed: true, rebalance: "Weekly", slippageBps: 80, seed: 53, drift: 0.005,
     allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] }),
-  etf({ id: "5", name: "Staked Garden", image: "/nfts/staking.png", bg: "#c5f5b0", category: "Liquid Staking", creator: "ivan.near", owner: "judy.near", likes: 131, navUsd: 2260, change24h: 1.2, priceNear: 730, listed: false, rebalance: "Monthly", slippageBps: 30, seed: 67, drift: 0.002,
+  etf({ id: "5", name: "Staked Garden", image: "/nfts/staking.png", bg: "#c5f5b0", category: "Liquid Staking", creator: "ivan.near", owner: "bob.near", likes: 131, navUsd: 2260, change24h: 1.2, priceNear: 730, listed: false, rebalance: "Monthly", slippageBps: 30, seed: 67, drift: 0.002,
     allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] }),
 ];
 
 export const getEtf = (id: string) => ETFS.find((e) => e.id === id);
+
+/** The mock connected wallet. */
+export const ME = "bob.near";
+/** Vaults the mock wallet holds (owner) plus ones it created. */
+export const MY_VAULTS = { owned: ["0", "2", "5"], created: ["0"] } as const;
+export const MY_FAVORITES = ["3", "4", "0"];
+
+/** Every vault event across the marketplace, newest first. */
+export const ALL_ACTIVITY = ETFS.flatMap((e) => e.history.map((h) => ({ ...h, etf: e }))).sort((a, b) => b.at.localeCompare(a.at));
 
 export const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: n < 1 ? 6 : 0 });

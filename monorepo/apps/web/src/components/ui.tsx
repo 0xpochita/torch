@@ -1,22 +1,13 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
 
-/** Coin-style token mark: brand color + symbol initials. */
+/** Token logo (CoinGecko artwork), round. */
 export function TokenIcon({ token, size = 24 }: { token: TokenKey; size?: number }) {
   const t = TOKENS[token];
   return (
-    <span
-      title={t.name}
-      className="grid shrink-0 place-items-center rounded-full font-semibold text-white ring-2 ring-white"
-      style={{
-        width: size,
-        height: size,
-        fontSize: size * 0.36,
-        background: `radial-gradient(circle at 30% 25%, color-mix(in oklab, ${t.color}, white 35%), ${t.color} 60%)`,
-        textShadow: "0 1px 1px rgb(0 0 0 / 0.25)",
-      }}
-    >
-      {t.symbol.slice(0, t.symbol.length > 4 ? 1 : 2)}
+    <span title={t.name} className="relative block shrink-0 overflow-hidden rounded-full bg-surface ring-2 ring-surface" style={{ width: size, height: size }}>
+      <Image src={t.logo} alt={t.symbol} fill sizes={`${size * 2}px`} className="object-cover" />
     </span>
   );
 }
@@ -46,7 +37,7 @@ export function Money({ value, className = "" }: { value: number; className?: st
 export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "up" | "down" | "dark" }) {
   const tones = {
     neutral: "bg-fill text-text",
-    up: "bg-up/15 text-[#248a3d]",
+    up: "bg-up/15 text-up-text",
     down: "bg-down/12 text-down",
     dark: "bg-black/70 text-white backdrop-blur",
   };
@@ -75,7 +66,7 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
           role="tab"
           aria-selected={value === o}
           onClick={() => onChange(o)}
-          className={`min-w-16 rounded-[8px] px-3 py-1 font-medium transition ${value === o ? "bg-white shadow-[0_3px_8px_rgb(0_0_0/0.12),0_0_0_0.5px_rgb(0_0_0/0.04)]" : "text-text/80"}`}
+          className={`min-w-16 rounded-[8px] px-3 py-1 font-medium transition ${value === o ? "bg-raised shadow-[0_3px_8px_#0000001f,0_0_0_0.5px_#0000000a]" : "text-text/80"}`}
         >
           {o}
         </button>
@@ -94,7 +85,7 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
       onClick={() => onChange(!checked)}
       className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${checked ? "bg-up" : "bg-fill"}`}
     >
-      <span className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_rgb(0_0_0/0.15),0_1px_1px_rgb(0_0_0/0.16)] transition-all ${checked ? "left-[22px]" : "left-[2px]"}`} />
+      <span className={`absolute top-[2px] size-[27px] rounded-full bg-white shadow-[0_3px_8px_#00000026,0_1px_1px_#00000029] transition-all ${checked ? "left-[22px]" : "left-[2px]"}`} />
     </button>
   );
 }
@@ -122,7 +113,7 @@ export function Donut({ allocation, size = 120, label }: { allocation: Allocatio
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" className="size-full -rotate-90" role="img" aria-label="Allocation">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--panel)" strokeWidth="12" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--fill)" strokeWidth="12" />
         {arcs.map((a) => (
           <circle
             key={a.token}

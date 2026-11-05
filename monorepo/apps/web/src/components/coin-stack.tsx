@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { TOKENS, type Allocation } from "@/lib/mock";
 
 // Live preview of a basket as a cluster of 3D coins. Bigger weight → bigger coin.
@@ -23,7 +24,7 @@ export function CoinStack({ allocation, spin = false }: { allocation: Allocation
           return (
             <div
               key={a.token}
-              className="absolute grid place-items-center rounded-full font-black text-white"
+              className="absolute overflow-hidden rounded-full"
               style={{
                 left: `${s.x}%`,
                 top: `${s.y}%`,
@@ -31,12 +32,11 @@ export function CoinStack({ allocation, spin = false }: { allocation: Allocation
                 aspectRatio: "1",
                 zIndex: s.z,
                 transform: `translate(-50%, -50%) rotateX(18deg) rotateY(${(i % 2 ? -1 : 1) * (12 + i * 6)}deg)`,
-                background: `radial-gradient(circle at 30% 25%, color-mix(in oklab, ${t.color} 55%, white), ${t.color} 45%, color-mix(in oklab, ${t.color} 60%, black))`,
-                boxShadow: `inset 0 -6px 0 color-mix(in oklab, ${t.color} 55%, black), inset 0 0 0 5px color-mix(in oklab, ${t.color} 75%, white), 0 18px 30px -10px rgb(0 0 0 / 0.45)`,
-                fontSize: `${size * 0.16}cqw`,
+                background: t.color,
+                boxShadow: `0 0 0 4px #ffffff, 0 18px 30px -10px #00000073`,
               }}
             >
-              <span className="drop-shadow-[0_2px_2px_rgb(0_0_0/0.35)]">{t.symbol.slice(0, t.symbol.length > 4 ? 2 : 4)}</span>
+              <Image src={t.logo} alt={t.symbol} fill sizes="200px" className="object-cover" />
             </div>
           );
         })}

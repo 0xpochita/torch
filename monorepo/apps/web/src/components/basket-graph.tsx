@@ -1,3 +1,4 @@
+import { TokenIcon } from "@/components/ui";
 import { TOKENS, fmtUsd, type Etf } from "@/lib/mock";
 
 const NODE_H = 64;
@@ -51,12 +52,10 @@ export function BasketGraph({ etf }: { etf: Etf }) {
           return (
             <div
               key={a.token}
-              className="absolute flex items-center gap-3 rounded-xl border border-line bg-white px-3 shadow-sm"
+              className="absolute flex items-center gap-3 rounded-xl border border-line bg-surface px-3 shadow-sm"
               style={{ left: TOKEN_X, top: tokenY(i), width: TOKEN_W, height: NODE_H }}
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-full text-[10px] font-bold text-black" style={{ background: t.color }}>
-                {t.symbol.slice(0, 2)}
-              </span>
+              <TokenIcon token={a.token} size={32} />
               <div className="min-w-0 flex-1 text-xs">
                 <div className="flex justify-between font-semibold">
                   <span className="truncate">{t.symbol}</span>
@@ -64,7 +63,7 @@ export function BasketGraph({ etf }: { etf: Etf }) {
                 </div>
                 <div className="text-muted">{fmtUsd(usd)}</div>
               </div>
-              <span className="absolute -right-1.5 size-3 rounded-full border-2 border-white" style={{ background: t.color }} />
+              <span className="absolute -right-1.5 size-3 rounded-full border-2 border-surface" style={{ background: t.color }} />
             </div>
           );
         })}
@@ -72,7 +71,7 @@ export function BasketGraph({ etf }: { etf: Etf }) {
         <Node title="Vault account" x={VAULT_X} y={vaultY} w={VAULT_W} glow>
           <Row k="Account" v={`${etf.id}.torch.near`} mono />
           <Row k="Owner" v={etf.owner} mono />
-          <Row k="Access keys" v="None ✓" accent />
+          <Row k="Access keys" v="None" accent />
           <Row k="Status" v={etf.listed ? "Listed · withdraw locked" : "Active"} />
         </Node>
 
@@ -90,7 +89,7 @@ export function BasketGraph({ etf }: { etf: Etf }) {
 function Node({ title, x, y, w, glow, children }: { title: string; x: number; y: number; w: number; glow?: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`absolute rounded-xl border bg-white shadow-sm ${glow ? "border-ink shadow-[0_10px_30px_-12px_rgb(0_0_0/0.35)]" : "border-line"}`}
+      className={`absolute rounded-xl border bg-surface shadow-sm ${glow ? "border-ink shadow-[0_10px_30px_-12px_#00000059]" : "border-line"}`}
       style={{ left: x, top: y, width: w }}
     >
       <div className="border-b border-line px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted">{title}</div>
