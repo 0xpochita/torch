@@ -1,4 +1,4 @@
-// 30-day NAV area chart. Pure SVG, no chart lib.
+// 30-day portfolio value chart. Pure SVG, no chart lib.
 export function NavChart({ values, markers = [] }: { values: number[]; markers?: number[] }) {
   const w = 600;
   const h = 120;
@@ -9,7 +9,7 @@ export function NavChart({ values, markers = [] }: { values: number[]; markers?:
   const line = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-28 w-full" role="img" aria-label="NAV, last 30 days">
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-28 w-full" role="img" aria-label="Portfolio value, last 30 days">
       <polygon points={`0,${h} ${line} ${w},${h}`} fill="var(--tint)" fillOpacity="0.08" />
       <polyline points={line} fill="none" stroke="var(--tint)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       {markers.map((i) => (

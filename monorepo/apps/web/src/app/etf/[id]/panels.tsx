@@ -23,7 +23,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
   const driftSum = drifted.reduce((s, w) => s + w, 0);
   const holdings = etf.allocation.map((a, i) => {
     const t = TOKENS[a.token];
-    const actual = (drifted[i] / driftSum) * 100; // actual weights always sum to 100% of NAV
+    const actual = (drifted[i] / driftSum) * 100; // actual weights always sum to 100% of the vault value
     const value = (etf.navUsd * actual) / 100;
     return { ...a, t, actual, value, amount: value / t.price, change: jitter(a.token, 12) };
   });
@@ -165,7 +165,7 @@ export function NavPanel({ etf }: { etf: Etf }) {
     <div className="flex flex-col gap-4 card p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="text-xs text-muted">Net asset value</div>
+          <div className="text-xs text-muted">Portfolio value</div>
           <Money value={etf.navUsd} className="text-3xl font-semibold" />
           <div className="mt-1 text-xs">
             <Change value={delta} /> <span className="text-muted">last {period.toLowerCase()}</span>

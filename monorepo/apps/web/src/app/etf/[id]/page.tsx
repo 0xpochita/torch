@@ -61,7 +61,7 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
               <ActionCircle icon="ellipsis" label="More" />
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              <StatTile icon="vault" tone="lilac" label="NAV" value={<Money value={etf.navUsd} />} />
+              <StatTile icon="vault" tone="lilac" label="Value" value={<Money value={etf.navUsd} />} />
               <StatTile icon="pulse" tone={etf.change24h >= 0 ? "mint" : "pink"} label="24h" value={<Change value={etf.change24h} />} />
               <StatTile icon="layers" tone="sky" label="Tokens" value={etf.allocation.length}>
                 <TokenStack allocation={etf.allocation} size={18} />

@@ -21,7 +21,7 @@ export function Vaults() {
   const total = owned.reduce((s, e) => s + e.navUsd, 0);
   const dayChange = owned.reduce((s, e) => s + (e.navUsd * e.change24h) / 100, 0);
 
-  // Look-through exposure: every token across every owned vault, weighted by NAV.
+  // Look-through exposure: every token across every owned vault, weighted by value.
   const exposure = Object.entries(
     owned.reduce<Record<string, number>>((acc, e) => {
       e.allocation.forEach((a) => (acc[a.token] = (acc[a.token] ?? 0) + (e.navUsd * a.weight) / 100));
@@ -102,7 +102,7 @@ export function Vaults() {
             <div className="card flex flex-col gap-4 p-5">
               <div className="flex items-center gap-4">
                 <Donut allocation={donut} size={110} label={<span className="text-[13px] font-semibold">{exposure.length} tokens</span>} />
-                <p className="text-[13px] text-muted">What you actually hold once every vault is opened up, weighted by NAV.</p>
+                <p className="text-[13px] text-muted">What you actually hold once every vault is opened up, weighted by value.</p>
               </div>
               <ul>
                 {exposure.map((x) => (

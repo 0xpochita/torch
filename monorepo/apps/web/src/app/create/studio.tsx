@@ -176,7 +176,7 @@ export function Studio() {
                   <Sym name="clock" size={13} stroke={2.4} /> {rebalance}
                 </span>
                 <div className="text-right">
-                  <div className="text-[11px] font-medium text-muted">Initial NAV</div>
+                  <div className="text-[11px] font-medium text-muted">Starting value</div>
                   <Money value={deposit} className="title-chunky text-[24px]" />
                 </div>
               </div>

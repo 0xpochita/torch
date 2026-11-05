@@ -25,7 +25,7 @@ export const CATEGORY_ICON: Record<Category, IconName> = {
   "Liquid Staking": "down",
 };
 
-// Creators ranked by total NAV of the ETFs they made.
+// Creators ranked by the total value of the vaults they made.
 const CREATORS = Object.values(
   ETFS.reduce<Record<string, { name: string; nav: number; etf: Etf }>>((acc, e) => {
     const c = (acc[e.creator] ??= { name: e.creator, nav: 0, etf: e });
