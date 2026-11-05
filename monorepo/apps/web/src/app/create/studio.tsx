@@ -85,7 +85,7 @@ export function Studio() {
 
   return (
     <>
-      <Topbar title="Create ETF">
+      <Topbar>
         <ol className="no-scrollbar flex items-center gap-1 overflow-x-auto text-sm">
           {STEPS.map((s, i) => (
             <li key={s} className="flex items-center gap-1">
@@ -105,48 +105,83 @@ export function Studio() {
         </ol>
       </Topbar>
 
-      <div className="grid flex-1 gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-        {/* Preview */}
-        <main className="flex min-w-0 flex-col gap-4 lg:self-start">
-          <div className="relative mx-auto aspect-square w-full max-w-[620px] overflow-hidden rounded-[24px] [container-type:inline-size]" style={{ background: bg }}>
-            <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
-              <span className="rounded-full bg-chip px-3 py-1 text-xs font-medium backdrop-blur">Live preview</span>
+      <div className="grid flex-1 gap-4 py-4 lg:h-[calc(100dvh-76px)] lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* Workspace: prompt, canvas, templates */}
+        <main className="flex min-h-0 min-w-0 flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <div className="flex overflow-hidden rounded-full bg-surface p-1 shadow-[0_1px_2px_var(--shadow)] focus-within:ring-2 focus-within:ring-tint/40">
+              <input
+                id="prompt"
+                aria-label="Describe your ETF"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && generate()}
+                placeholder="Describe your ETF… e.g. stablecoin yield with staked NEAR"
+                className="min-w-0 flex-1 bg-transparent px-4 text-[15px] outline-none placeholder:text-faint"
+              />
+              <button onClick={generate} className="flex h-10 items-center gap-1.5 rounded-full bg-tint px-5 text-[15px] font-bold text-white active:scale-95">
+                <Sym name="sparkle" size={15} /> Generate
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 px-1 text-[13px]">
+              <span className="font-semibold">Suggestions:</span>
+              {SUGGESTIONS.map((s) => (
+                <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-surface px-3 py-1 font-medium shadow-[0_1px_2px_var(--shadow)] hover:bg-fill">
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: bg }}>
+            {art && <Image src={art.image} alt="" fill sizes="60vw" className="scale-125 object-cover opacity-70 blur-3xl" aria-hidden />}
+            <div className="absolute inset-0 grid place-items-center p-6 pb-24 pt-14">
+              <div className="relative aspect-square h-full max-w-full [container-type:inline-size]">
+                {art ? <Image src={art.image} alt={art.name} fill sizes="560px" className="rounded-[26px] object-cover shadow-[0_24px_60px_-24px_#00000059]" /> : <CoinStack allocation={live} spin />}
+              </div>
+            </div>
+            <div className="absolute left-4 top-4 flex items-center gap-2">
+              <span className="rounded-full bg-chip px-3 py-1 text-xs font-semibold backdrop-blur">Live preview</span>
               <span className="rounded-full bg-chip px-3 py-1 font-mono text-[11px] backdrop-blur">{NEXT_ID}.torch.near</span>
             </div>
-            {art ? <Image src={art.image} alt={art.name} fill sizes="620px" className="object-cover" /> : <CoinStack allocation={live} spin />}
-            <div className="absolute inset-x-4 bottom-4 flex flex-col gap-2">
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-xs text-muted">ETF name</div>
-                  <div className="text-xl font-semibold">{name || "Untitled ETF"}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-muted">Initial NAV</div>
-                  <Money value={deposit} className="text-xl font-semibold" />
+            <div className="absolute inset-x-4 bottom-4 flex items-end gap-4 rounded-[20px] bg-chip p-3.5 backdrop-blur">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[17px] font-bold">{name || "Untitled ETF"}</div>
+                <div className="mt-1.5 flex h-2 gap-0.5 overflow-hidden rounded-full bg-line">
+                  {allocation.map((a) => (
+                    <span key={a.token} style={{ width: `${a.weight}%`, background: TOKENS[a.token].color }} />
+                  ))}
                 </div>
               </div>
-              <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-black/10">
-                {allocation.map((a) => (
-                  <span key={a.token} style={{ width: `${a.weight}%`, background: TOKENS[a.token].color }} />
-                ))}
+              <div className="text-right">
+                <div className="text-[11px] text-muted">Initial NAV</div>
+                <Money value={deposit} className="text-[17px] font-bold" />
               </div>
             </div>
           </div>
 
-          <div className="mx-auto flex w-full max-w-[620px] flex-wrap gap-2">
-            {allocation.map((a) => (
-              <span key={a.token} className="card flex items-center gap-2 rounded-full! py-1 pl-1 pr-3 text-sm">
-                <TokenIcon token={a.token} size={24} />
-                {TOKENS[a.token].symbol}
-                <span className="font-medium tabular-nums">{a.weight}%</span>
-              </span>
-            ))}
+          <div className="card flex items-center gap-4 p-3">
+            <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
+              {ETFS.map((e) => (
+                <button key={e.id} onClick={() => applyTemplate(e)} title={e.name} className={`relative size-16 shrink-0 overflow-hidden rounded-[16px] ring-2 ring-offset-2 ring-offset-surface transition ${art?.id === e.id ? "ring-tint" : "ring-transparent hover:ring-line"}`} style={{ background: e.bg }}>
+                  <Image src={e.image} alt={e.name} fill sizes="64px" className="object-cover" />
+                </button>
+              ))}
+            </div>
+            <div className="hidden flex-wrap justify-end gap-1.5 xl:flex">
+              {allocation.map((a) => (
+                <span key={a.token} className="flex items-center gap-1.5 rounded-full bg-fill py-1 pl-1 pr-2.5 text-[13px] font-medium">
+                  <TokenIcon token={a.token} size={20} />
+                  {TOKENS[a.token].symbol} <span className="text-muted">{a.weight}%</span>
+                </span>
+              ))}
+            </div>
           </div>
         </main>
 
         {/* Step panel */}
-        <aside className="flex flex-col card rounded-[26px] lg:sticky lg:top-[96px] lg:h-[calc(100vh-120px)]">
-          <div className="border-b border-line-soft p-5">
+        <aside className="card flex min-h-0 flex-col">
+          <div className="border-b border-line-soft px-5 py-4">
             <div className="text-xs text-muted">
               Step {step + 1} of {STEPS.length}
             </div>
@@ -155,49 +190,10 @@ export function Studio() {
             </h2>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
+          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
             {step === 0 && (
               <>
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium" htmlFor="prompt">
-                    Describe it
-                  </label>
-                  <div className="flex overflow-hidden rounded-[12px] bg-fill focus-within:ring-2 focus-within:ring-tint/40">
-                    <input
-                      id="prompt"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && generate()}
-                      placeholder="e.g. stablecoin yield with staked NEAR"
-                      className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none placeholder:text-faint"
-                    />
-                    <button onClick={generate} className="btn-ink m-1 flex items-center gap-1.5 px-4 text-sm">
-                      <Sym name="sparkle" size={15} /> Generate
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SUGGESTIONS.map((s) => (
-                      <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-fill px-3 py-1 text-xs font-medium hover:bg-fill">
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium">Or start from a template</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {ETFS.map((e) => (
-                      <button key={e.id} onClick={() => applyTemplate(e)} className={`overflow-hidden rounded-xl border-2 text-left ${art?.id === e.id ? "border-ink" : "border-transparent"}`}>
-                        <span className="relative block aspect-square" style={{ background: e.bg }}>
-                          <Image src={e.image} alt="" fill sizes="110px" className="object-cover" />
-                        </span>
-                        <span className="block truncate px-1 py-1 text-[11px]">{e.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
+                <p className="text-[13px] text-muted">Describe a basket or pick a template on the left, then name it.</p>
                 <label className="flex flex-col gap-2 text-sm">
                   <span className="font-medium">Name</span>
                   <input value={name} onChange={(e) => setName(e.target.value)} maxLength={32} className="rounded-[12px] bg-fill px-3 py-2.5 outline-none focus:ring-2 focus:ring-tint/40" />
@@ -387,7 +383,24 @@ export function Studio() {
             )}
           </div>
 
-          <div className="flex flex-col gap-2 border-t border-line-soft p-5">
+          <div className="flex flex-col gap-3 border-t border-line-soft px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="relative size-12 shrink-0 overflow-hidden rounded-[14px] [container-type:inline-size]" style={{ background: bg }}>
+                {art ? <Image src={art.image} alt="" fill sizes="48px" className="object-cover" /> : <CoinStack allocation={live} />}
+              </div>
+              <dl className="grid min-w-0 flex-1 grid-cols-[auto_1fr] gap-x-3 text-[12px]">
+                <dt className="text-muted">Tokens</dt>
+                <dd className="truncate font-medium">{allocation.map((a) => TOKENS[a.token].symbol).join(", ") || "—"}</dd>
+                <dt className="text-muted">Strategy</dt>
+                <dd className="truncate font-medium">
+                  {rebalance} · ≤{(slippage / 100).toFixed(2)}%
+                </dd>
+                <dt className="text-muted">Deposit</dt>
+                <dd className="font-medium">
+                  <Money value={deposit} />
+                </dd>
+              </dl>
+            </div>
             {blocker && <p className="text-xs text-down">{blocker}</p>}
             <div className="grid grid-cols-[auto_1fr] gap-2">
               <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className="btn-line h-11 px-5 text-sm disabled:opacity-40">
