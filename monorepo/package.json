@@ -1,0 +1,14 @@
+{
+  "name": "torch",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api dev",
+    "build": "pnpm -r build",
+    "contract:build": "cd contracts/torch && cargo near build non-reproducible-wasm",
+    "contract:test": "cd contracts/torch && cargo test",
+    "contract:deploy": "cd contracts/torch && cargo near deploy build-non-reproducible-wasm $NEAR_CONTRACT_ID without-init-call network-config testnet sign-with-keychain send"
+  },
+  "packageManager": "pnpm@10.9.0"
+}

@@ -1,0 +1,38 @@
+name: Bug report
+description: Report something that is not working
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Frontend (web), Backend (api), Smart contract, CI/CD]
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include the expected and actual behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / transaction hash
+      render: shell
+  - type: input
+    id: network
+    attributes:
+      label: NEAR network
+      placeholder: testnet / mainnet

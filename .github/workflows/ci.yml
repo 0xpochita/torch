@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: monorepo
+
+jobs:
+  node:
+    name: Web & API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: monorepo/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: monorepo/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint (web)
+        run: pnpm --filter web lint
+      - name: Typecheck (api)
+        run: pnpm --filter api exec tsc --noEmit
+      - name: Build (web)
+        run: pnpm --filter web build
+
+  contract:
+    name: Contract
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monorepo/contracts/torch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monorepo/contracts/torch
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo build --target wasm32-unknown-unknown --release

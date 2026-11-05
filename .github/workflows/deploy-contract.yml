@@ -1,0 +1,45 @@
+name: Deploy Contract
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - monorepo/contracts/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-contract
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to NEAR testnet
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: testnet
+    if: vars.NEAR_CONTRACT_ID != ''
+    defaults:
+      run:
+        working-directory: monorepo/contracts/torch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install cargo-near
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.15.0/cargo-near-installer.sh | sh
+      - name: Deploy
+        env:
+          NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
+        run: |
+          cargo near deploy build-non-reproducible-wasm "${{ vars.NEAR_CONTRACT_ID }}" \
+            without-init-call \
+            network-config testnet \
+            sign-with-plaintext-private-key "$NEAR_PRIVATE_KEY" \
+            send
