@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { BasketGraph } from "@/components/basket-graph";
-import { AllocationBar, Change } from "@/components/etf-card";
+import { AllocationBar, Change, EVENT } from "@/components/etf-card";
+import { SymTile } from "@/components/icons";
 import { NavChart } from "@/components/nav-chart";
 import { Money, Segmented, TokenIcon } from "@/components/ui";
 import { TOKENS, type Etf } from "@/lib/mock";
@@ -10,13 +11,6 @@ import { TOKENS, type Etf } from "@/lib/mock";
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
 const PERIODS = ["7D", "14D", "30D"] as const;
 
-const EVENT = {
-  mint: { label: "Minted", glyph: "✦", bg: "#e4e0ff" },
-  deposit: { label: "Deposit", glyph: "↓", bg: "#d8f3e4" },
-  rebalance: { label: "Rebalance", glyph: "⇄", bg: "#dcecff" },
-  withdraw: { label: "Withdraw", glyph: "↑", bg: "#ffe0e3" },
-  transfer: { label: "Sale", glyph: "◈", bg: "#ffe7d1" },
-};
 
 // Deterministic per-token drift and 24h move so SSR and client agree.
 const jitter = (s: string, span: number) => ((s.split("").reduce((a, c) => a * 31 + c.charCodeAt(0), 7) % 1000) / 1000 - 0.5) * span;
@@ -43,7 +37,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
     <section className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented options={TABS} value={tab} onChange={setTab} />
-        <span className="text-xs text-muted">Data refreshes every block · mock</span>
+        <span className="text-[13px] text-muted">Mock data · refreshes every block</span>
       </div>
 
       {tab === "Basket" && (
@@ -51,13 +45,13 @@ export function DetailTabs({ etf }: { etf: Etf }) {
           <BasketGraph etf={etf} />
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { k: "Access keys on vault", v: "None", ok: true, d: "Only the collection contract can move funds" },
-              { k: "Withdrawals while listed", v: etf.listed ? "Locked" : "Open", ok: true, d: "Seller can't drain the basket mid-sale" },
-              { k: "Vault code", v: "Immutable", ok: true, d: "Global contract deployed by hash" },
+              { k: "Access keys on vault", icon: "key" as const, v: "None", ok: true, d: "Only the collection contract can move funds" },
+              { k: "Withdrawals while listed", icon: "lock" as const, v: etf.listed ? "Locked" : "Open", ok: true, d: "Seller can't drain the basket mid-sale" },
+              { k: "Vault code", icon: "shield" as const, v: "Immutable", ok: true, d: "Global contract deployed by hash" },
             ].map((s) => (
               <div key={s.k} className="flex flex-col gap-1 card p-4">
                 <span className="flex items-center gap-2 text-xs text-muted">
-                  <span className="grid size-4 place-items-center rounded-full bg-up/15 text-[9px] text-up">✓</span>
+                  <SymTile name={s.icon} size={22} />
                   {s.k}
                 </span>
                 <span className="font-semibold">{s.v}</span>
@@ -71,7 +65,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
       {tab === "Holdings" && (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="bg-panel text-left text-xs text-muted">
+            <thead className="text-left text-[12px] text-muted">
               <tr>
                 {["Token", "Target", "Actual", "Amount", "Price", "Value", "24h"].map((h, i) => (
                   <th key={h} className={`px-4 py-3 font-medium ${i ? "text-right" : ""}`}>
@@ -122,12 +116,10 @@ export function DetailTabs({ etf }: { etf: Etf }) {
       )}
 
       {tab === "History" && (
-        <ol id="history" className="card flex flex-col">
+        <ol id="history" className="card flex flex-col py-1">
           {[...etf.history].reverse().map((h, i) => (
             <li key={i} className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-0">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl text-base" style={{ background: EVENT[h.type].bg }}>
-                {EVENT[h.type].glyph}
-              </span>
+              <SymTile name={EVENT[h.type].icon} size={36} />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{EVENT[h.type].label}</span>
                 <span className="block truncate text-xs text-muted">{h.detail}</span>
@@ -143,12 +135,12 @@ export function DetailTabs({ etf }: { etf: Etf }) {
         <ol className="card flex flex-col">
           {holders.map((h, i) => (
             <li key={h.account} className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-0">
-              <span className="grid size-10 place-items-center rounded-full bg-panel text-sm font-semibold uppercase">{h.account[0]}</span>
+              <span className="grid size-10 place-items-center rounded-full bg-tint text-sm font-semibold uppercase text-white">{h.account[0]}</span>
               <span className="flex-1">
                 <span className="block text-sm font-medium">{h.account}</span>
                 <span className="text-xs text-muted">since {h.since}</span>
               </span>
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${i === 0 ? "bg-ink text-white" : "bg-panel text-muted"}`}>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${i === 0 ? "bg-tint/12 text-tint" : "bg-fill text-muted"}`}>
                 {i === 0 ? "Current owner" : "Previous"}
               </span>
             </li>

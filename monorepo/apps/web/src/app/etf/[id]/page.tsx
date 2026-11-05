@@ -1,9 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { tint } from "@/components/etf-card";
+import { Artwork, Change } from "@/components/etf-card";
+import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Money, Pill, TokenStack } from "@/components/ui";
+import { Money, TokenStack } from "@/components/ui";
 import { ETFS, getEtf } from "@/lib/mock";
 import { DetailTabs, NavPanel } from "./panels";
 
@@ -20,88 +21,73 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
   const etf = getEtf((await params).id);
   if (!etf) notFound();
 
+  // App Store–style info strip under the header.
+  const info = [
+    { k: "NAV", v: <Money value={etf.navUsd} />, s: "per NFT" },
+    { k: "24H", v: <Change value={etf.change24h} />, s: "change" },
+    { k: "TOKENS", v: etf.allocation.length, s: <TokenStack allocation={etf.allocation} size={14} /> },
+    { k: "REBALANCE", v: etf.rebalance, s: `≤${(etf.slippageBps / 100).toFixed(2)}% slip` },
+    { k: "OWNER", v: etf.owner.replace(".near", ""), s: ".near" },
+  ];
+
   return (
     <>
       <Topbar>
-        <nav className="flex items-center gap-2 text-sm text-muted">
-          <Link href="/" className="hover:text-text">
-            Explore
-          </Link>
-          <span>/</span>
-          <span className="text-text">{etf.name}</span>
-        </nav>
+        <Link href="/" className="flex h-9 items-center gap-1 rounded-full px-3 text-[15px] font-medium text-tint hover:bg-tint/10">
+          <Sym name="chevron" size={14} stroke={2.6} className="rotate-180" /> Explore
+        </Link>
+        <span className="truncate px-2 text-[15px] font-semibold">{etf.name}</span>
       </Topbar>
 
-      <div className="flex flex-1 flex-col gap-6 py-6">
-        <header className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-[28px] p-5" style={{ background: tint(etf.bg, 70) }}>
-          <div className="flex items-center gap-4">
-            <span className="relative size-16 overflow-hidden rounded-2xl ring-4 ring-white" style={{ background: etf.bg }}>
-              <Image src={etf.image} alt="" fill sizes="64px" className="object-cover" />
-            </span>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold">{etf.name}</h1>
-                <span className="grid size-5 place-items-center rounded-full bg-up text-[10px] text-white" title="Verified vault">
-                  ✓
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-white/70 px-2 py-0.5 font-mono text-xs">{etf.id}.torch.near</span>
-                <Pill tone="dark">{etf.category}</Pill>
-                <Pill tone={etf.listed ? "up" : "neutral"}>{etf.listed ? "● Listed" : "Not listed"}</Pill>
-                <TokenStack allocation={etf.allocation} size={20} />
+      <div className="flex flex-1 flex-col gap-6 pt-5">
+        <header className="card flex flex-col gap-5 p-5">
+          <div className="flex flex-wrap items-center gap-5">
+            <Artwork etf={etf} size={112} />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-[28px] font-bold leading-tight">{etf.name}</h1>
+              <p className="text-[15px] text-muted">
+                {etf.category} basket · by {etf.creator}
+              </p>
+              <p className="mt-1 font-mono text-[12px] text-muted">{etf.id}.torch.near</p>
+              <div className="mt-3 flex items-center gap-2">
+                <button disabled={!etf.listed} className="btn-ink h-9 px-5 text-[15px]">
+                  {etf.listed ? `Buy Ⓝ ${etf.priceNear}` : "Not listed"}
+                </button>
+                <button className="btn-line h-9 px-4 text-[15px]">Make Offer</button>
+                <button className="btn-line grid size-9 place-items-center" aria-label="Share">
+                  <Sym name="share" size={17} />
+                </button>
               </div>
             </div>
           </div>
-          <dl className="ml-auto grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
-            {[
-              ["NAV", <Money key="n" value={etf.navUsd} />],
-              ["Price", etf.listed ? `Ⓝ ${etf.priceNear}` : "—"],
-              ["Rebalance", etf.rebalance],
-              ["Owner", etf.owner],
-            ].map(([k, v]) => (
-              <div key={String(k)}>
-                <dt className="text-xs text-muted">{k}</dt>
-                <dd className="font-semibold">{v}</dd>
+
+          <dl className="no-scrollbar -mx-5 flex overflow-x-auto border-t border-line-soft px-5 pt-4">
+            {info.map((x, n) => (
+              <div key={x.k} className={`flex min-w-[110px] flex-1 flex-col items-center gap-0.5 px-3 text-center ${n ? "border-l border-line" : ""}`}>
+                <dt className="text-[11px] font-semibold text-muted">{x.k}</dt>
+                <dd className="text-[20px] font-semibold leading-tight">{x.v}</dd>
+                <dd className="flex h-4 items-center text-[12px] text-muted">{x.s}</dd>
               </div>
             ))}
           </dl>
         </header>
 
-        <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
           <DetailTabs etf={etf} />
 
           <aside className="flex min-w-0 flex-col gap-4">
-            <div className="relative overflow-hidden rounded-[28px]" style={{ background: etf.bg }}>
-              <div className="relative aspect-square">
-                <Image src={etf.image} alt={etf.name} fill priority sizes="(min-width: 1280px) 400px, 100vw" className="object-cover" />
+            <div className="card relative overflow-hidden p-0">
+              <div className="relative aspect-square" style={{ background: etf.bg }}>
+                <Image src={etf.image} alt={etf.name} fill priority sizes="(min-width: 1280px) 380px, 100vw" className="object-cover" />
               </div>
-              <div className="absolute right-3 top-3 flex gap-2">
-                {["♡", "⤴"].map((icon) => (
-                  <button key={icon} className="grid size-9 place-items-center rounded-full bg-white/75 text-ink backdrop-blur-md hover:bg-white">
-                    {icon}
-                  </button>
-                ))}
-              </div>
-              <span className="absolute bottom-3 left-3 rounded-full bg-white/85 px-3 py-1 text-xs font-medium backdrop-blur">♡ {etf.likes} favorites</span>
             </div>
 
             <NavPanel etf={etf} />
 
-            <div className="flex flex-col gap-3 rounded-[26px] bg-[radial-gradient(120%_140%_at_100%_0%,#3b1d7a_0%,#141018_60%)] p-5 text-white shadow-[0_20px_50px_-24px_rgb(60_20_140/0.6)]">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-white/60">{etf.listed ? "Buy now price" : "Owner hasn't listed this ETF"}</span>
-                <span className="text-xs text-white/50">Fee 2% · royalty 0%</span>
-              </div>
-              <div className="text-2xl font-semibold">{etf.listed ? `Ⓝ ${etf.priceNear}` : "—"}</div>
-              <div className="grid grid-cols-2 gap-2">
-                <button className="h-12 rounded-full bg-white/15 text-[15px] font-semibold backdrop-blur hover:bg-white/20 active:scale-[0.97]">Make offer</button>
-                <button disabled={!etf.listed} className="h-12 rounded-full bg-white text-[15px] font-semibold text-ink active:scale-[0.97] disabled:opacity-40">
-                  {etf.listed ? "Buy now" : "Not listed"}
-                </button>
-              </div>
-              <p className="text-[11px] text-white/50">The vault and every token in it transfer with the NFT. Previous owners lose all access.</p>
-            </div>
+            <p className="flex items-start gap-2 px-1 text-[13px] text-muted">
+              <Sym name="shield" size={16} className="mt-0.5 shrink-0" />
+              The vault and every token in it transfer with the NFT. Previous owners lose all access.
+            </p>
           </aside>
         </div>
       </div>

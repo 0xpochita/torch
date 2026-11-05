@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { CoinStack } from "@/components/coin-stack";
-import { tint } from "@/components/etf-card";
+import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Donut, Money, Switch, TokenIcon } from "@/components/ui";
 import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
@@ -92,10 +92,10 @@ export function Studio() {
               <button
                 onClick={() => i <= step && setStep(i)}
                 disabled={i > step}
-                className={`flex items-center gap-2 whitespace-nowrap rounded-full px-2.5 py-1.5 ${i === step ? "bg-white font-medium shadow-sm" : i < step ? "text-text" : "text-faint"}`}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-full px-2.5 py-1.5 ${i === step ? "bg-raised font-medium shadow-sm" : i < step ? "text-text" : "text-faint"}`}
               >
-                <span className={`grid size-5 place-items-center rounded-full text-[11px] ${i < step ? "bg-up text-white" : i === step ? "bg-ink text-white" : "border border-faint"}`}>
-                  {i < step ? "✓" : i + 1}
+                <span className={`grid size-5 place-items-center rounded-full text-[11px] ${i < step ? "bg-up text-white" : i === step ? "bg-ink text-on-ink" : "border border-faint"}`}>
+                  {i < step ? <Sym name="check" size={12} stroke={3} /> : i + 1}
                 </span>
                 {s}
               </button>
@@ -108,26 +108,20 @@ export function Studio() {
       <div className="grid flex-1 gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_400px]">
         {/* Preview */}
         <main className="flex min-w-0 flex-col gap-4 lg:self-start">
-          <div className="relative overflow-hidden rounded-3xl" style={{ background: `radial-gradient(circle at 50% 35%, ${tint(bg, 40)}, ${bg})` }}>
+          <div className="relative mx-auto aspect-square w-full max-w-[620px] overflow-hidden rounded-[24px] [container-type:inline-size]" style={{ background: bg }}>
             <div className="absolute left-4 top-4 z-10 flex items-center gap-2">
-              <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium backdrop-blur">Live preview</span>
-              <span className="rounded-full bg-white/60 px-3 py-1 font-mono text-[11px] backdrop-blur">{NEXT_ID}.torch.near</span>
+              <span className="rounded-full bg-chip px-3 py-1 text-xs font-medium backdrop-blur">Live preview</span>
+              <span className="rounded-full bg-chip px-3 py-1 font-mono text-[11px] backdrop-blur">{NEXT_ID}.torch.near</span>
             </div>
-            <div className="relative mx-auto aspect-square w-full max-w-[540px] [container-type:inline-size]">
-              {art ? (
-                <Image src={art.image} alt={art.name} fill sizes="540px" className="animate-[float_6s_ease-in-out_infinite] object-cover [mask-image:radial-gradient(circle,black_55%,transparent_72%)]" />
-              ) : (
-                <CoinStack allocation={live} spin />
-              )}
-            </div>
+            {art ? <Image src={art.image} alt={art.name} fill sizes="620px" className="object-cover" /> : <CoinStack allocation={live} spin />}
             <div className="absolute inset-x-4 bottom-4 flex flex-col gap-2">
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="text-xs text-black/50">ETF name</div>
+                  <div className="text-xs text-muted">ETF name</div>
                   <div className="text-xl font-semibold">{name || "Untitled ETF"}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-black/50">Initial NAV</div>
+                  <div className="text-xs text-muted">Initial NAV</div>
                   <Money value={deposit} className="text-xl font-semibold" />
                 </div>
               </div>
@@ -139,7 +133,7 @@ export function Studio() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="mx-auto flex w-full max-w-[620px] flex-wrap gap-2">
             {allocation.map((a) => (
               <span key={a.token} className="card flex items-center gap-2 rounded-full! py-1 pl-1 pr-3 text-sm">
                 <TokenIcon token={a.token} size={24} />
@@ -177,13 +171,13 @@ export function Studio() {
                       placeholder="e.g. stablecoin yield with staked NEAR"
                       className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none placeholder:text-faint"
                     />
-                    <button onClick={generate} className="btn-ink rounded-none! px-4 text-sm">
-                      Generate ✦
+                    <button onClick={generate} className="btn-ink m-1 flex items-center gap-1.5 px-4 text-sm">
+                      <Sym name="sparkle" size={15} /> Generate
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {SUGGESTIONS.map((s) => (
-                      <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-fill px-3 py-1 text-xs font-medium hover:bg-black/10">
+                      <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-fill px-3 py-1 text-xs font-medium hover:bg-fill">
                         {s.label}
                       </button>
                     ))}
@@ -251,7 +245,7 @@ export function Studio() {
                             <span className="text-xs text-muted">{TOKENS[t].name}</span>
                           </span>
                           <span className="text-xs tabular-nums text-muted">${TOKENS[t].price < 1 ? TOKENS[t].price.toPrecision(2) : TOKENS[t].price.toLocaleString("en-US")}</span>
-                          <span className={`grid size-5 place-items-center rounded-full border-[1.5px] text-[11px] ${on ? "border-tint bg-tint text-white" : "border-faint"}`}>{on ? "✓" : ""}</span>
+                          <span className={`grid size-5 place-items-center rounded-full border-[1.5px] text-[11px] ${on ? "border-tint bg-tint text-white" : "border-faint"}`}>{on && <Sym name="check" size={12} stroke={3} />}</span>
                         </button>
                       </li>
                     );
@@ -306,7 +300,7 @@ export function Studio() {
                   <span className="font-medium">Rebalance schedule</span>
                   <div className="grid grid-cols-3 gap-2">
                     {["Daily", "Weekly", "Monthly"].map((r) => (
-                      <button key={r} onClick={() => setRebalance(r)} className={`rounded-full border py-2.5 font-medium ${rebalance === r ? "border-transparent bg-ink text-white" : "border-transparent bg-fill"}`}>
+                      <button key={r} onClick={() => setRebalance(r)} className={`rounded-full border py-2.5 font-medium ${rebalance === r ? "border-transparent bg-ink text-on-ink" : "border-transparent bg-fill"}`}>
                         {r}
                       </button>
                     ))}
@@ -334,7 +328,7 @@ export function Studio() {
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     {[100, 250, 500, 1250].map((v) => (
-                      <button key={v} onClick={() => setDeposit(v)} className={`rounded-full py-1.5 text-xs font-medium ${deposit === v ? "bg-ink text-white" : "bg-fill"}`}>
+                      <button key={v} onClick={() => setDeposit(v)} className={`rounded-full py-1.5 text-xs font-medium ${deposit === v ? "bg-ink text-on-ink" : "bg-fill"}`}>
                         {v === 1250 ? "Max" : `$${v}`}
                       </button>
                     ))}
@@ -384,7 +378,7 @@ export function Studio() {
                 <ul className="flex flex-col gap-1.5 card p-4 text-xs text-muted">
                   {["Vault is created with no access keys", "Only the NFT owner can withdraw", "Selling the NFT moves the whole basket"].map((c) => (
                     <li key={c} className="flex items-center gap-2">
-                      <span className="grid size-4 place-items-center rounded-full bg-up/15 text-[9px] text-up">✓</span>
+                      <Sym name="check" size={15} stroke={2.6} className="text-up" />
                       {c}
                     </li>
                   ))}
@@ -422,10 +416,10 @@ function Minted({ name, deposit, bg, art, allocation, onReset }: { name: string;
       <Topbar title="Create ETF" />
       <div className="grid flex-1 place-items-center py-16">
         <div className="flex w-full max-w-md flex-col items-center gap-5 text-center">
-          <div className="relative size-48 overflow-hidden rounded-3xl [container-type:inline-size]" style={{ background: bg }}>
+          <div className="relative size-48 overflow-hidden rounded-[24%] [container-type:inline-size]" style={{ background: bg }}>
             {art ? <Image src={art} alt="" fill sizes="192px" className="object-cover" /> : <CoinStack allocation={allocation} />}
           </div>
-          <span className="rounded-full bg-up/10 px-3 py-1 text-xs font-medium text-up">● Mock mint complete</span>
+          <span className="flex items-center gap-1.5 rounded-full bg-up/15 px-3 py-1 text-[13px] font-semibold text-up-text"><Sym name="check" size={14} stroke={2.8} /> Mock mint complete</span>
           <h1 className="text-2xl font-semibold">{name} is live</h1>
           <p className="text-sm text-muted">
             Vault <span className="font-mono text-text">{NEXT_ID}.torch.near</span> would be created and funded with <Money value={deposit} />. Contracts aren&apos;t deployed
