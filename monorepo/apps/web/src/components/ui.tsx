@@ -163,14 +163,9 @@ export const CATEGORY_PASTEL: Record<Category, Pastel> = {
   "Liquid Staking": "lime",
 };
 
-/** Chunky display title with an accent full stop: "Explore." */
+/** Chunky display title. */
 export function Title({ children, size = "text-[48px]" }: { children: ReactNode; size?: string }) {
-  return (
-    <h1 className={`title-chunky ${size}`}>
-      {children}
-      <span className="text-tint">.</span>
-    </h1>
-  );
+  return <h1 className={`title-chunky ${size}`}>{children}</h1>;
 }
 
 /** Pastel squircle with an icon. */
