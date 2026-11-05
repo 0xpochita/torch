@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { CoinStack } from "@/components/coin-stack";
 import { Sym } from "@/components/icons";
@@ -23,7 +24,12 @@ const NEXT_ID = ETFS.length;
 const STORAGE_NEAR = 0.11; // collection keeps 0.01 for token storage, vault gets the rest
 
 export function Studio() {
-  const [step, setStep] = useState(0);
+  const [step, setStepRaw] = useState(0);
+  const [dir, setDir] = useState(1);
+  const setStep = (n: number) => {
+    setDir(n >= step ? 1 : -1);
+    setStepRaw(n);
+  };
   const [minted, setMinted] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
@@ -137,31 +143,70 @@ export function Studio() {
             {art && <Image src={art.image} alt="" fill sizes="60vw" className="scale-125 object-cover opacity-70 blur-3xl" aria-hidden />}
             <div className="absolute inset-0 grid place-items-center p-6 pb-24 pt-14">
               <div className="relative aspect-square h-full max-w-full [container-type:inline-size]">
-                {art ? <Image src={art.image} alt={art.name} fill sizes="560px" className="rounded-[26px] object-cover shadow-[0_24px_60px_-24px_#00000059]" /> : <CoinStack allocation={live} spin />}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  <motion.div
+                    key={art?.id ?? "custom"}
+                    initial={{ opacity: 0, scale: 0.92, rotate: -4 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 1.04, rotate: 3 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                    className="absolute inset-0"
+                  >
+                    {art ? <Image src={art.image} alt={art.name} fill sizes="560px" className="rounded-[26px] object-cover shadow-[0_24px_60px_-24px_#00000059]" /> : <CoinStack allocation={live} spin />}
+                  </motion.div>
+                </AnimatePresence>
               </div>
             </div>
             <div className="absolute left-4 top-4 flex items-center gap-2">
               <span className="rounded-full bg-chip px-3 py-1 text-xs font-semibold backdrop-blur">Live preview</span>
               <span className="rounded-full bg-chip px-3 py-1 font-mono text-[11px] backdrop-blur">{NEXT_ID}.torch.near</span>
             </div>
-            <div className="absolute inset-x-4 bottom-4 flex items-end gap-4 rounded-[20px] bg-chip p-3.5 backdrop-blur">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[17px] font-bold">{name || "Untitled ETF"}</div>
-                <div className="mt-1.5 flex h-2 gap-0.5 overflow-hidden rounded-full bg-line">
-                  {allocation.map((a) => (
-                    <span key={a.token} style={{ width: `${a.weight}%`, background: TOKENS[a.token].color }} />
-                  ))}
+            <div className="absolute inset-x-4 bottom-4 flex flex-col gap-3 rounded-[22px] bg-chip p-4 shadow-[0_10px_30px_-12px_#00000040] backdrop-blur-xl">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-ink text-on-ink">
+                  <Sym name="layers" size={18} stroke={2.2} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="title-chunky truncate text-[22px]">{name || "Untitled ETF"}</div>
+                  <div className="truncate font-mono text-[11px] text-muted">
+                    {NEXT_ID}.torch.near · {allocation.length} tokens
+                  </div>
+                </div>
+                <span className="hidden items-center gap-1.5 rounded-full bg-fill px-3 py-1.5 text-[12px] font-semibold sm:flex">
+                  <Sym name="clock" size={13} stroke={2.4} /> {rebalance}
+                </span>
+                <div className="text-right">
+                  <div className="text-[11px] font-medium text-muted">Initial NAV</div>
+                  <Money value={deposit} className="title-chunky text-[24px]" />
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-[11px] text-muted">Initial NAV</div>
-                <Money value={deposit} className="text-[17px] font-bold" />
+
+              <div className="flex h-9 gap-1">
+                {live.map((a) => (
+                  <motion.div
+                    key={a.token}
+                    layout
+                    initial={{ opacity: 0, scaleX: 0.6 }}
+                    animate={{ opacity: 1, scaleX: 1 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="flex min-w-[44px] items-center gap-1.5 overflow-hidden rounded-full pl-1 pr-2.5 text-[12px] font-bold text-white"
+                    style={{ flexGrow: a.weight, flexBasis: 0, background: TOKENS[a.token].color }}
+                    title={`${TOKENS[a.token].symbol} ${a.weight}%`}
+                  >
+                    <TokenIcon token={a.token} size={26} />
+                    <span className="truncate drop-shadow-[0_1px_1px_#00000040]">
+                      {a.weight >= 12 && <span className="mr-1 font-semibold opacity-90">{TOKENS[a.token].symbol}</span>}
+                      {a.weight}%
+                    </span>
+                  </motion.div>
+                ))}
+                {!live.length && <div className="flex flex-1 items-center justify-center rounded-full border-2 border-dashed border-line text-[12px] text-muted">Pick tokens to build the basket</div>}
               </div>
             </div>
           </div>
 
           <div className="card flex items-center gap-4 p-3">
-            <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto">
+            <div className="no-scrollbar -m-1 flex min-w-0 flex-1 gap-2.5 overflow-x-auto p-1">
               {ETFS.map((e) => (
                 <button key={e.id} onClick={() => applyTemplate(e)} title={e.name} className={`relative size-16 shrink-0 overflow-hidden rounded-[16px] ring-2 ring-offset-2 ring-offset-surface transition ${art?.id === e.id ? "ring-tint" : "ring-transparent hover:ring-line"}`} style={{ background: e.bg }}>
                   <Image src={e.image} alt={e.name} fill sizes="64px" className="object-cover" />
@@ -190,7 +235,22 @@ export function Studio() {
             </h2>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+          <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <AnimatePresence mode="wait" initial={false} custom={dir}>
+          <motion.div
+            key={step}
+            custom={dir}
+            variants={{
+              enter: (d: number) => ({ opacity: 0, x: d * 28 }),
+              center: { opacity: 1, x: 0 },
+              exit: (d: number) => ({ opacity: 0, x: d * -28 }),
+            }}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "spring", stiffness: 380, damping: 34 }}
+            className="flex flex-col gap-5 px-5 py-4"
+          >
             {step === 0 && (
               <>
                 <p className="text-[13px] text-muted">Describe a basket or pick a template on the left, then name it.</p>
@@ -381,6 +441,8 @@ export function Studio() {
                 </ul>
               </div>
             )}
+          </motion.div>
+          </AnimatePresence>
           </div>
 
           <div className="flex flex-col gap-3 border-t border-line-soft px-5 py-4">
