@@ -209,3 +209,23 @@ input[type="range"] {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Tailwind v4 dropped the pointer cursor on buttons; restore it for everything clickable. */
+a[href],
+button,
+select,
+summary,
+label:has(> input),
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"],
+[role="button"],
+[role="tab"],
+[role="radio"],
+[role="switch"] {
+  cursor: pointer;
+}
+:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
