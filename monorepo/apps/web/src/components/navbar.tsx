@@ -160,7 +160,13 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
         <Link href="/" className="md:hidden">
           <Logo size={40} />
         </Link>
-        {children ? <div className="material no-scrollbar flex h-12 min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full px-1.5">{children}</div> : <div className="flex-1" />}
+        {children ? (
+          <div className="flex min-w-0 flex-1">
+            <div className="no-scrollbar flex h-11 max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-fill p-1">{children}</div>
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
         <label className="material hidden h-12 w-[240px] items-center gap-2 rounded-full px-4 text-muted lg:flex xl:hidden">
           <Sym name="search" size={16} />
           <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
@@ -178,11 +184,18 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
   );
 }
 
-/** Chip used inside the glass toolbar. */
-export function ToolbarChip({ active, onClick, children }: { active?: boolean; onClick?: () => void; children: ReactNode }) {
+/** Segment inside the toolbar's iOS-style segmented control. */
+export function ToolbarChip({ active, onClick, count, children }: { active?: boolean; onClick?: () => void; count?: number; children: ReactNode }) {
   return (
-    <button onClick={onClick} className={`h-9 shrink-0 rounded-full px-3.5 text-[14px] font-medium transition ${active ? "bg-raised text-text shadow-[0_2px_8px_#0000001a]" : "text-text/70 hover:text-text"}`}>
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[14px] transition ${
+        active ? "bg-raised font-semibold text-text shadow-[0_1px_2px_#00000014,0_3px_10px_#0000001a]" : "font-medium text-muted hover:text-text"
+      }`}
+    >
       {children}
+      {count !== undefined && <span className={`text-[12px] tabular-nums ${active ? "text-muted" : "text-faint"}`}>{count}</span>}
     </button>
   );
 }

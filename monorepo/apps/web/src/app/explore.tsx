@@ -43,7 +43,7 @@ export function Explore() {
     <>
       <Topbar>
         {TABS.map((t) => (
-          <ToolbarChip key={t} active={tab === t} onClick={() => setTab(t)}>
+          <ToolbarChip key={t} active={tab === t} onClick={() => setTab(t)} count={t === "All" ? ETFS.length : ETFS.filter((e) => e.category === t).length}>
             {t}
           </ToolbarChip>
         ))}

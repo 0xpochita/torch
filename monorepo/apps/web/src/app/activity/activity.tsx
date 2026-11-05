@@ -30,7 +30,7 @@ export function Activity() {
     <>
       <Topbar title="Activity" subtitle="Every vault event across Torch, from NEP-297 logs">
         {FILTERS.map((f) => (
-          <ToolbarChip key={f} active={filter === f} onClick={() => setFilter(f)}>
+          <ToolbarChip key={f} active={filter === f} onClick={() => setFilter(f)} count={f === "All" ? ALL_ACTIVITY.length : ALL_ACTIVITY.filter((a) => a.type === f).length}>
             {LABEL[f]}
           </ToolbarChip>
         ))}
