@@ -2,11 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Sym, SymTile, type IconName } from "@/components/icons";
-import { Money, NearAmount } from "@/components/ui";
-import { TOKENS, type Etf, type HistoryEvent } from "@/lib/mock";
+import { Money, NearAmount, shade } from "@/components/ui";
+import { type Etf, type HistoryEvent } from "@/lib/mock";
 
 /** Soft pastel version of an ETF's background, used for card surfaces. */
-export const tint = (c: string, white = 62) => `color-mix(in oklab, ${c}, white ${white}%)`;
+export const tint = (c: string, white = 62) => `color-mix(in oklab, ${c}, var(--surface) ${white}%)`;
 
 export function Change({ value }: { value: number }) {
   return (
@@ -20,8 +20,8 @@ export function Change({ value }: { value: number }) {
 export function AllocationBar({ etf, className = "h-1.5" }: { etf: Etf; className?: string }) {
   return (
     <div className={`flex w-full gap-[2px] overflow-hidden rounded-full ${className}`}>
-      {etf.allocation.map((a) => (
-        <span key={a.token} className="first:rounded-l-full last:rounded-r-full" style={{ width: `${a.weight}%`, background: TOKENS[a.token].color }} />
+      {etf.allocation.map((a, i) => (
+        <span key={a.token} className="first:rounded-l-full last:rounded-r-full" style={{ width: `${a.weight}%`, background: shade(i) }} />
       ))}
     </div>
   );

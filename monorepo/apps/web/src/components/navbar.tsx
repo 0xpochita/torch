@@ -95,7 +95,7 @@ function RailItem({ item, active }: { item: NavItem; active: boolean }) {
       className={`relative isolate flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-2.5 text-[11px] font-medium transition-colors ${active ? "text-text" : "text-muted hover:text-text"}`}
     >
       {active && <motion.span layoutId="rail-active" className="absolute inset-0 -z-10 rounded-[18px] bg-fill" />}
-      <Sym name={item.icon} size={22} stroke={active ? 2.2 : 1.8} />
+      <Sym name={item.icon} size={22} weight={active ? "fill" : "regular"} />
       {item.label.replace("My ", "")}
     </Link>
   );
@@ -112,7 +112,7 @@ export function TabBar() {
         return (
           <Link key={t.label} href={t.href} className={`relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
             {active && <motion.span layoutId="tabbar-active" className="absolute inset-0 -z-10 rounded-full bg-fill" />}
-            <Sym name={t.icon} size={22} />
+            <Sym name={t.icon} size={22} weight={active ? "fill" : "regular"} />
             {t.label}
           </Link>
         );

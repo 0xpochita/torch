@@ -6,7 +6,7 @@ import { BasketGraph } from "@/components/basket-graph";
 import { AllocationBar, Change, EVENT } from "@/components/etf-card";
 import { SymTile } from "@/components/icons";
 import { NavChart } from "@/components/nav-chart";
-import { Avatar, Money, Segmented, TokenIcon } from "@/components/ui";
+import { Avatar, Money, Segmented, TokenIcon, shade } from "@/components/ui";
 import { TOKENS, type Etf } from "@/lib/mock";
 
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
@@ -176,9 +176,9 @@ export function NavPanel({ etf }: { etf: Etf }) {
       <NavChart values={values} />
       <AllocationBar etf={etf} className="h-2" />
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-        {etf.allocation.map((a) => (
+        {etf.allocation.map((a, i) => (
           <span key={a.token} className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full" style={{ background: TOKENS[a.token].color }} />
+            <span className="size-2 rounded-full" style={{ background: shade(i) }} />
             {TOKENS[a.token].symbol} {a.weight}%
           </span>
         ))}

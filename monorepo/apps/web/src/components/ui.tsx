@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useId, type ReactNode } from "react";
 import Link from "next/link";
 import { Sym, type IconName } from "@/components/icons";
+import CountUp from "@/components/react-bits/CountUp";
 import { TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/mock";
 
 /** Token logo (CoinGecko artwork), round. */
@@ -29,11 +30,11 @@ export function TokenStack({ allocation, size = 22 }: { allocation: Allocation[]
 }
 
 /** Currency with faded cents, e.g. $1,840.25 */
-export function Money({ value, className = "" }: { value: number; className?: string }) {
+export function Money({ value, className = "", count = false }: { value: number; className?: string; count?: boolean }) {
   const [int, dec = "00"] = value.toFixed(2).split(".");
   return (
     <span className={`tabular-nums ${className}`}>
-      ${Number(int).toLocaleString("en-US")}
+      {count ? <CountUp to={Number(int)} from={Math.round(Number(int) * 0.6)} separator="," prefix="$" mode="roll" easing="spring" duration={1.4} /> : `$${Number(int).toLocaleString("en-US")}`}
       <span className="opacity-40">.{dec}</span>
     </span>
   );
@@ -108,6 +109,9 @@ export function Row({ label, value, chevron }: { label: ReactNode; value?: React
   );
 }
 
+/** Monochrome ramp for allocation slices: ink at full strength fading toward the surface. */
+export const shade = (i: number) => `color-mix(in oklab, var(--text) ${[90, 62, 42, 28, 18, 11][i] ?? 8}%, var(--surface))`;
+
 /** Allocation donut, pure SVG. */
 export function Donut({ allocation, size = 120, label }: { allocation: Allocation[]; size?: number; label?: ReactNode }) {
   const r = 42;
@@ -121,14 +125,14 @@ export function Donut({ allocation, size = 120, label }: { allocation: Allocatio
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" className="size-full -rotate-90" role="img" aria-label="Allocation">
         <circle cx="50" cy="50" r={r} fill="none" stroke="var(--fill)" strokeWidth="12" />
-        {arcs.map((a) => (
+        {arcs.map((a, i) => (
           <circle
             key={a.token}
             cx="50"
             cy="50"
             r={r}
             fill="none"
-            stroke={TOKENS[a.token].color}
+            stroke={shade(i)}
             strokeWidth="12"
             strokeDasharray={`${Math.max(a.len - 1.2, 0)} ${c}`}
             strokeDashoffset={-a.offset}
@@ -199,12 +203,12 @@ export function ActionCircle({ icon, label, href, onClick }: { icon: IconName; l
 }
 
 /** "Daily check-in" style stat tile. */
-export function StatTile({ icon, tone, label, value, children }: { icon: IconName; tone: Pastel; label: string; value: ReactNode; children?: ReactNode }) {
+export function StatTile({ icon, label, value, children }: { icon: IconName; label: string; value: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-col gap-2 rounded-[20px] bg-fill p-3.5">
       <span className="flex items-center gap-2 text-[13px] font-semibold">
-        <span className={`grid size-6 place-items-center rounded-full ${PASTEL[tone].bg} ${PASTEL[tone].ink}`}>
-          <Sym name={icon} size={13} stroke={2.4} />
+        <span className="grid size-6 place-items-center rounded-full bg-surface text-text">
+          <Sym name={icon} size={13} weight="bold" />
         </span>
         {label}
       </span>

@@ -202,12 +202,12 @@ export function Explore() {
             <span className="rounded-full bg-fill px-2.5 py-1 text-[12px] font-medium text-muted">mock</span>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
-            <StatTile icon="vault" tone="lilac" label="Value locked" value={<Money value={ETFS.reduce((s, e) => s + e.navUsd, 0)} />} />
-            <StatTile icon="pulse" tone="sky" label="24h volume" value={<Money value={12_480.5} />} />
-            <StatTile icon="layers" tone="peach" label="Vaults" value={`${ETFS.length} live`} />
-            <StatTile icon="person" tone="mint" label="Holders" value={new Set(ETFS.map((e) => e.owner)).size} />
+            <StatTile icon="vault" label="Value locked" value={<Money value={ETFS.reduce((s, e) => s + e.navUsd, 0)} />} />
+            <StatTile icon="pulse" label="24h volume" value={<Money value={12_480.5} />} />
+            <StatTile icon="layers" label="Vaults" value={`${ETFS.length} live`} />
+            <StatTile icon="person" label="Holders" value={new Set(ETFS.map((e) => e.owner)).size} />
             <div className="col-span-2">
-              <StatTile icon="swap" tone="pink" label="Rebalanced this week" value={`${ETFS.filter((e) => e.rebalance !== "Monthly").length} of ${ETFS.length}`}>
+              <StatTile icon="swap" label="Rebalanced this week" value={`${ETFS.filter((e) => e.rebalance !== "Monthly").length} of ${ETFS.length}`}>
                 <span className="flex h-2 overflow-hidden rounded-full bg-line">
                   <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.rebalance !== "Monthly").length / ETFS.length) * 100}%` }} />
                 </span>

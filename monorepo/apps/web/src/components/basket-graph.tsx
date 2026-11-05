@@ -32,8 +32,8 @@ export function BasketGraph({ etf }: { etf: Etf }) {
                 key={a.token}
                 d={`M${x1},${y1} C${mid},${y1} ${mid},${vaultMid} ${VAULT_X},${vaultMid}`}
                 fill="none"
-                stroke={TOKENS[a.token].color}
-                strokeOpacity="0.8"
+                stroke="var(--text)"
+                strokeOpacity="0.22"
                 strokeWidth="2"
               />
             );
@@ -63,7 +63,7 @@ export function BasketGraph({ etf }: { etf: Etf }) {
                 </div>
                 <div className="text-muted">{fmtUsd(usd)}</div>
               </div>
-              <span className="absolute -right-1.5 size-3 rounded-full border-2 border-surface" style={{ background: t.color }} />
+              <span className="absolute -right-1.5 size-3 rounded-full border-2 border-surface" style={{ background: "var(--text)" }} />
             </div>
           );
         })}

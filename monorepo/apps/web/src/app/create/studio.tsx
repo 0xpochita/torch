@@ -189,12 +189,12 @@ export function Studio() {
                     initial={{ opacity: 0, scaleX: 0.6 }}
                     animate={{ opacity: 1, scaleX: 1 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="flex min-w-[44px] items-center gap-1.5 overflow-hidden rounded-full pl-1 pr-2.5 text-[12px] font-bold text-white"
-                    style={{ flexGrow: a.weight, flexBasis: 0, background: TOKENS[a.token].color }}
+                    className="flex min-w-[44px] items-center gap-1.5 overflow-hidden rounded-full bg-text/10 pl-1 pr-2.5 text-[12px] font-bold text-text"
+                    style={{ flexGrow: a.weight, flexBasis: 0 }}
                     title={`${TOKENS[a.token].symbol} ${a.weight}%`}
                   >
                     <TokenIcon token={a.token} size={26} />
-                    <span className="truncate drop-shadow-[0_1px_1px_#00000040]">
+                    <span className="truncate">
                       {a.weight >= 12 && <span className="mr-1 font-semibold opacity-90">{TOKENS[a.token].symbol}</span>}
                       {a.weight}%
                     </span>

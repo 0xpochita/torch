@@ -73,7 +73,7 @@ export function Activity() {
               <span className="pb-2 text-[13px] text-muted">{new Set(week.map((a) => a.etf.id)).size} vaults touched</span>
             </div>
             <div className="flex gap-1.5">
-              {counts.map(({ t }) => ({ t, n: week.filter((a) => a.type === t).length })).map(({ t, n }) => (
+              {counts.map(({ t }) => ({ t, n: week.filter((a) => a.type === t).length })).filter(({ n }) => n > 0).map(({ t, n }) => (
                 <button
                   key={t}
                   onClick={() => setFilter(filter === t ? "All" : t)}

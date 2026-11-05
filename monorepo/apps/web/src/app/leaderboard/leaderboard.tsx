@@ -100,10 +100,10 @@ export function Leaderboard() {
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
-            <StatTile icon="person" tone="lilac" label="Creators" value={rows.length} />
-            <StatTile icon="vault" tone="sky" label="Vaults" value={rows.reduce((s, c) => s + c.vaults, 0)} />
-            <StatTile icon="layers" tone="mint" label="Total value" value={<Money value={total} />} />
-            <StatTile icon="pulse" tone="pink" label={`Avg ${period}`} value={<Change value={avg} />} />
+            <StatTile icon="person" label="Creators" value={rows.length} />
+            <StatTile icon="vault" label="Vaults" value={rows.reduce((s, c) => s + c.vaults, 0)} />
+            <StatTile icon="layers" label="Total value" value={<Money value={total} />} />
+            <StatTile icon="pulse" label={`Avg ${period}`} value={<Change value={avg} />} />
           </div>
         </aside>
       </div>
@@ -116,7 +116,7 @@ type Row = CreatorStat & { ret: number };
 function metric(c: Row, sort: (typeof SORTS)[number]) {
   if (sort === "Return") return <Change value={c.ret} />;
   if (sort === "Holders") return <>{c.holders} holders</>;
-  return <Money value={c.valueUsd} />;
+  return <Money value={c.valueUsd} count />;
 }
 
 function PodiumCard({ c, rank, sort }: { c: Row; rank: number; sort: (typeof SORTS)[number] }) {
