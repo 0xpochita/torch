@@ -1,9 +1,7 @@
 @import "tailwindcss";
 
-/* Light dashboard: white canvas on a lavender→pink backdrop, ink-black actions, pastel cards. */
+/* Light dashboard: full-bleed white canvas, ink-black actions, pastel cards. */
 :root {
-  --backdrop-a: #d9d6f5;
-  --backdrop-b: #f0dbe4;
   --bg: #ffffff;
   --panel: #f5f5f8;
   --panel-2: #ffffff;
@@ -34,8 +32,7 @@
 }
 
 body {
-  background: linear-gradient(120deg, var(--backdrop-a), var(--backdrop-b));
-  background-attachment: fixed;
+  background: var(--bg);
   color: var(--text);
   font-family: var(--font-golos), system-ui, sans-serif;
   letter-spacing: -0.02em;
