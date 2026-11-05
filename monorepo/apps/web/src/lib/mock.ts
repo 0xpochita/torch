@@ -117,3 +117,42 @@ export const ALL_ACTIVITY = ETFS.flatMap((e) => e.history.map((h) => ({ ...h, et
 
 export const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: n < 1 ? 6 : 0 });
+
+/* ---------- Creator leaderboard (mock) ---------- */
+
+export type CreatorStat = {
+  account: string;
+  vaults: number;
+  valueUsd: number;
+  return30d: number;
+  holders: number;
+  followers: number;
+  /** positions moved since last period; positive = climbed */
+  move: number;
+  etf?: Etf;
+};
+
+// Real creators come from the ETFs above; a few extra accounts make the table feel lived-in.
+const EXTRA: Omit<CreatorStat, "etf">[] = [
+  { account: "nearwhale.near", vaults: 4, valueUsd: 3_920, return30d: 6.4, holders: 11, followers: 412, move: 2 },
+  { account: "intents.near", vaults: 2, valueUsd: 2_740, return30d: 9.1, holders: 7, followers: 298, move: 5 },
+  { account: "kat.near", vaults: 3, valueUsd: 1_480, return30d: -2.3, holders: 5, followers: 156, move: -1 },
+  { account: "degen.near", vaults: 5, valueUsd: 960, return30d: 21.7, holders: 14, followers: 804, move: 3 },
+  { account: "rhea-maxi.near", vaults: 1, valueUsd: 640, return30d: 3.2, holders: 2, followers: 64, move: -2 },
+  { account: "staker.near", vaults: 2, valueUsd: 2_100, return30d: 1.9, holders: 6, followers: 120, move: 0 },
+];
+
+export const CREATOR_STATS: CreatorStat[] = [
+  ...Object.values(
+    ETFS.reduce<Record<string, CreatorStat>>((acc, e, i) => {
+      const c = (acc[e.creator] ??= { account: e.creator, vaults: 0, valueUsd: 0, return30d: 0, holders: 0, followers: 120 + e.likes * 2, move: (i % 3) - 1, etf: e });
+      const first = e.nav30d[0];
+      c.vaults += 1;
+      c.valueUsd += e.navUsd;
+      c.return30d = ((e.navUsd - first) / first) * 100;
+      c.holders += 1 + (e.likes % 5);
+      return acc;
+    }, {}),
+  ),
+  ...EXTRA,
+];

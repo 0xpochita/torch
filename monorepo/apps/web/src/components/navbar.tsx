@@ -24,6 +24,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: "Library",
     items: [
       { href: "/vaults", label: "My Vaults", icon: "vault" },
+      { href: "/leaderboard", label: "Leaders", icon: "trophy" },
       { href: "/activity", label: "Activity", icon: "pulse" },
       { href: "/favorites", label: "Favorites", icon: "heart" },
     ],
@@ -47,7 +48,7 @@ function useActive() {
 /** Minimal floating rail: icon + label, a black "create" key, appearance and account at the foot. */
 export function Sidebar() {
   const isActive = useActive();
-  const items = [NAV[0].items[0], NAV[1].items[0], NAV[1].items[1], NAV[1].items[2]];
+  const items = [NAV[0].items[0], ...NAV[1].items];
 
   return (
     <div className="sticky top-0 hidden h-screen shrink-0 p-3 pr-0 md:block">
@@ -103,7 +104,7 @@ function RailItem({ item, active }: { item: NavItem; active: boolean }) {
 /** Floating glass tab bar for phones (iOS 26). */
 export function TabBar() {
   const isActive = useActive();
-  const tabs = [NAV[0].items[0], NAV[0].items[1], NAV[1].items[0], NAV[1].items[2]];
+  const tabs = [NAV[0].items[0], NAV[0].items[1], NAV[1].items[0], NAV[1].items[1]];
   return (
     <nav className="material fixed inset-x-4 bottom-[max(env(safe-area-inset-bottom),12px)] z-30 grid grid-cols-4 rounded-full p-1.5 md:hidden">
       {tabs.map((t) => {

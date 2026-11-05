@@ -172,10 +172,12 @@ export function Explore() {
         </section>
 
         <section className="card flex flex-col gap-4 p-5">
-          <div className="flex items-center justify-between">
+          <Link href="/leaderboard" className="flex items-center justify-between">
             <h2 className="text-[20px] font-bold">Top creators</h2>
-            <Sym name="chevron" size={16} className="text-muted" />
-          </div>
+            <span className="flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-text">
+              Leaderboard <Sym name="chevron" size={14} stroke={2.4} />
+            </span>
+          </Link>
           <ol className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1">
             {CREATORS.map((c, i) => (
               <li key={c.name}>

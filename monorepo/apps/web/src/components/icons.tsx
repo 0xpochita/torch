@@ -26,6 +26,9 @@ const PATHS = {
   check: "M5 12.5l4.5 4.5L19 7",
   wallet: "M4 7a2 2 0 0 1 2-2h11v4M4 7v10a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2zM16.5 14h.01",
   ellipsis: "M6 12h.01M12 12h.01M18 12h.01",
+  trophy: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4v3h-4z",
+  arrowUp: "M12 19V5M6 11l6-6 6 6",
+  arrowDown: "M12 5v14M6 13l6 6 6-6",
 } as const;
 
 export type IconName = keyof typeof PATHS;
