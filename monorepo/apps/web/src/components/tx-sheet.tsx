@@ -124,7 +124,8 @@ function Frame({ title, locked = false, onClose, children }: { title: string; lo
         animate={{ y: 0, scale: 1 }}
         exit={{ y: 30, scale: 0.97, opacity: 0 }}
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        className="relative flex max-h-full w-full max-w-[440px] flex-col overflow-y-auto overscroll-contain rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080] outline-none"
+        className="relative flex max-h-full w-full max-w-[440px] flex-col overflow-y-auto overscroll-contain rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080] focus-visible:outline-none"
+        style={{ outline: "none" }} // the container only holds focus for screen readers; controls show their own ring
       >
         {children}
       </motion.div>
@@ -357,7 +358,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
 
               {(tx.kind === "offer" || tx.kind === "list") && (
                 <>
-                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5">
+                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5 ring-2 ring-transparent transition focus-within:ring-text/20">
                     <span className="text-[12px] font-semibold text-muted">{tx.kind === "offer" ? "Your offer" : "Your price"}</span>
                     <span className="flex items-center gap-2">
                       <TokenIcon token="NEAR" size={30} />
@@ -470,7 +471,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                       </button>
                     ))}
                   </div>
-                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5">
+                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5 ring-2 ring-transparent transition focus-within:ring-text/20">
                     <span className="text-[12px] font-semibold text-muted">{tx.kind === "deposit" ? "You deposit" : "You withdraw"}</span>
                     <span className="flex items-center gap-2">
                       <TokenIcon token={ftKey} size={30} />
@@ -572,7 +573,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                 </button>
                 {!account ? (
                   <button onClick={signIn} disabled={!ready} className="btn-ink h-12 flex-1 text-[15px]">
-                    {ready ? `Connect wallet to ${m.title.toLowerCase()}` : "Loading wallets…"}
+                    {ready ? "Connect wallet" : "Loading wallets…"}
                   </button>
                 ) : phase === "pending" ? (
                   <div className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full bg-fill text-[15px] font-semibold">

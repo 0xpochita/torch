@@ -110,7 +110,7 @@ export function Activity() {
 
         {/* toolbar */}
         <div className="flex flex-wrap items-center gap-2 border-y border-line-soft px-6 py-3">
-          <label className="flex h-9 w-64 items-center gap-2 rounded-full bg-fill px-3 text-muted">
+          <label className="flex h-10 w-64 items-center gap-2 rounded-full bg-fill px-3 text-muted focus-within:ring-2 focus-within:ring-tint/40">
             <Sym name="search" size={15} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search account or vault" className="w-full bg-transparent text-[14px] text-text outline-none placeholder:text-muted" />
           </label>

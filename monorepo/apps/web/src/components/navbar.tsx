@@ -240,7 +240,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
         ) : (
           <PagePill />
         )}
-        <label className="material hidden h-12 w-[260px] items-center gap-2 rounded-full px-4 text-muted lg:flex">
+        <label className="material hidden h-12 w-[260px] items-center gap-2 rounded-full px-4 text-muted focus-within:ring-2 focus-within:ring-tint/40 lg:flex">
           <Sym name="search" size={16} />
           <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
         </label>

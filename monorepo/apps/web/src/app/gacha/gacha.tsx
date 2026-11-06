@@ -206,24 +206,24 @@ export function Gacha() {
           <GachaMachine ref={machine} className="absolute inset-0" />
 
           {/* HUD: mono type, hairlines, no pills */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-6 px-6 pt-5 font-mono text-[11px] uppercase tracking-[0.14em] text-white/70">
-            <span className="flex flex-col gap-1">
-              <span className="flex items-center gap-2 text-white">
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-white/75 sm:gap-6 sm:px-6 sm:pt-5 sm:text-[11px] sm:tracking-[0.14em]">
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="flex items-center gap-2 whitespace-nowrap text-white">
                 <span className="relative flex size-1.5">
                   <span className="absolute inset-0 animate-ping rounded-full bg-[#ff8a00]" />
                   <span className="relative size-1.5 rounded-full bg-[#ff8a00]" />
                 </span>
                 Live · {today === undefined ? "…" : `${today === 100 ? "100+" : today.toLocaleString("en-US")} pulls today`}
               </span>
-              <span className="text-white/60">Vault machine Nº 01 · {price} NEAR / pull</span>
+              <span className="truncate text-white/60"><span className="hidden sm:inline">Vault machine Nº 01 · </span>{price} NEAR / pull</span>
             </span>
-            <span className="flex flex-col items-end gap-1.5">
-              <span>
+            <span className="flex shrink-0 flex-col items-end gap-1.5">
+              <span className="whitespace-nowrap">
                 Pity <span className="text-white">{String(pity).padStart(2, "0")}</span>/{PITY}
               </span>
-              <span className="flex gap-[2px]" aria-label={`${pity} of ${PITY} pulls to a guaranteed Legendary`}>
+              <span className="flex gap-px sm:gap-[2px]" role="img" aria-label={`${pity} of ${PITY} pulls to a guaranteed Legendary`}>
                 {Array.from({ length: PITY }, (_, i) => (
-                  <span key={i} className={`h-2.5 w-[3px] rounded-[1px] transition-colors ${i < pity ? "bg-[#ff8a00]" : "bg-white/15"}`} />
+                  <span key={i} className={`h-2.5 w-[2px] rounded-[1px] transition-colors sm:w-[3px] ${i < pity ? "bg-[#ff8a00]" : "bg-white/15"}`} />
                 ))}
               </span>
               <span className="text-white/60">Legendary in {PITY - pity}</span>
@@ -253,11 +253,11 @@ export function Gacha() {
           </AnimatePresence>
 
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-6">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => pull(1)}
                 disabled={busy}
-                className="flex h-14 items-center gap-2 rounded-full bg-white px-7 text-[16px] font-semibold text-[#121212] transition active:scale-95 disabled:opacity-60"
+                className="flex h-14 items-center gap-2 whitespace-nowrap rounded-full bg-white px-5 text-[15px] font-semibold text-[#121212] transition active:scale-95 disabled:opacity-60 sm:px-7 sm:text-[16px]"
               >
                 <Icon3D name="gift" size={22} /> Pull ×1 · <NearAmount amount={price} />
               </button>
@@ -267,7 +267,7 @@ export function Gacha() {
                   onClick={() => pull(10)}
                   disabled={busy || x10Blocked}
                   aria-describedby={x10Blocked ? "x10-gas" : undefined}
-                  className="flex h-14 items-center gap-2 rounded-full bg-[#ff8a00] px-7 text-[16px] font-semibold text-white shadow-[0_10px_30px_-10px_#ff8a00] transition active:scale-95 disabled:opacity-60"
+                  className="flex h-14 items-center gap-2 whitespace-nowrap rounded-full bg-[#ff8a00] px-5 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_#ff8a00] transition active:scale-95 disabled:opacity-60 sm:px-7 sm:text-[16px]"
                 >
                   Pull ×10 · <NearAmount amount={Math.round(price * 9 * 1e4) / 1e4} />
                   <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px]">−10%</span>
