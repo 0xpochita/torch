@@ -41,7 +41,8 @@ impl MockNft {
 
     pub fn mint(&mut self, token_id: TokenId, owner_id: AccountId, creator_id: AccountId) {
         self.creators.insert(&token_id, &creator_id);
-        self.tokens.internal_mint_with_refund(token_id, owner_id, None, None);
+        self.tokens
+            .internal_mint_with_refund(token_id, owner_id, None, None);
     }
 
     /// Simulates a vault withdraw in flight.
@@ -62,7 +63,8 @@ impl MockNft {
         let _ = max_len_payout;
         require!(!self.locked.contains(&token_id), "token busy");
         let owner_id = self.tokens.owner_by_id.get(&token_id).expect("no token");
-        self.tokens.nft_transfer(receiver_id, token_id.clone(), approval_id, memo);
+        self.tokens
+            .nft_transfer(receiver_id, token_id.clone(), approval_id, memo);
         let creator = self.creators.get(&token_id).unwrap();
         let royalty = balance.0 * 250 / 10_000;
         let mut payout = HashMap::new();
@@ -81,7 +83,8 @@ impl MockNft {
         approval_id: Option<u64>,
         memo: Option<String>,
     ) {
-        self.tokens.nft_transfer(receiver_id, token_id, approval_id, memo)
+        self.tokens
+            .nft_transfer(receiver_id, token_id, approval_id, memo)
     }
 
     pub fn nft_token(&self, token_id: TokenId) -> Option<Token> {
@@ -104,7 +107,8 @@ impl MockNft {
         approved_account_id: AccountId,
         approval_id: Option<u64>,
     ) -> bool {
-        self.tokens.nft_is_approved(token_id, approved_account_id, approval_id)
+        self.tokens
+            .nft_is_approved(token_id, approved_account_id, approval_id)
     }
 
     #[payable]

@@ -93,6 +93,8 @@ export type GachaPull = {
   pityAfter: number;
   price: string;
   at: number;
+  /** false when the gacha logged gacha_fund_failed: the vault was minted but part of its basket went back to the treasury. */
+  funded: boolean;
   vault: VaultSummary | null;
 };
 

@@ -1,3 +1,5 @@
+import { config } from "./config.ts";
+
 // Mock token -> real asset it mirrors. Keyed by the first label of the account id
 // (`tusdc.torchvault.testnet` -> `tusdc`). `usd` is the fallback when CoinGecko fails.
 const TOKENS: Record<string, { symbol: string; decimals: number; gecko: string; usd: number }> = {
@@ -21,11 +23,18 @@ const TOKENS: Record<string, { symbol: string; decimals: number; gecko: string; 
 /** USD price per whole token, keyed like TOKENS. */
 export type Prices = Record<string, number>;
 
-const key = (ftId: string) => ftId.split(".")[0];
+// ponytail: process-wide allow-list (config.ftIds); the e2e swaps in its sandbox ids with allowFts.
+let known = new Set(config.ftIds);
+/** Only these exact token accounts are priced or indexed: anyone can deploy `tusdc.<their account>`. */
+export const allowFts = (ids: string[]) => void (known = new Set(ids));
+export const isKnownFt = (ftId: string) => known.has(ftId);
+
+/** TOKENS key of an allow-listed token account; "" (no entry, price 0) for anything else. */
+const key = (ftId: string) => (known.has(ftId) ? ftId.split(".")[0] : "");
 
 export function tokenInfo(ftId: string) {
   const t = TOKENS[key(ftId)];
-  return { symbol: t?.symbol ?? key(ftId).toUpperCase(), decimals: t?.decimals ?? 18 };
+  return { symbol: t?.symbol ?? ftId, decimals: t?.decimals ?? 18 };
 }
 
 export const priceOf = (px: Prices, ftId: string) => px[key(ftId)] ?? 0;

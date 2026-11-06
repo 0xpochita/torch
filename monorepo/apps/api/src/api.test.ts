@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import { createApp } from "./app.ts";
 import { config } from "./config.ts";
 import { openDb } from "./db.ts";
@@ -155,4 +155,84 @@ test("fixture snapshots: hourly history ending at today's NAV", async () => {
   assert.ok(hist[0].at >= d.mintedAt, "nothing before the mint");
   assert.ok(Math.abs(hist.at(-2)!.navUsd - d.navUsd) < 1e-6, "last snapshot = live NAV");
   assert.ok((await get<LeaderboardRow[]>("/leaderboard?period=30d")).every((r) => typeof r.return === "number"));
+});
+
+/* ---------- xcheck X-1 / X-3 / X-5: synthetic blocks through applyBlock ---------- */
+
+describe("xcheck fixes", async () => {
+  const { applyBlock } = await import("./indexer.ts");
+  const { priceOf, tokenInfo } = await import("./prices.ts");
+  const NFT = config.collectionId;
+  const USDC = config.ftIds.find((id) => id.startsWith("tusdc."))!;
+  const FAKE = "tusdc.mallory.testnet";
+  let height = 1;
+  const ev = (standard: string, event: string, data: object) => `EVENT_JSON:${JSON.stringify({ standard, version: "1.0.0", event, data: [data] })}`;
+  const block = (db: ReturnType<typeof openDb>, executorId: string, ...logs: string[]) =>
+    applyBlock(db, config, { height: height++, timestamp: height * 1000, outcomes: [{ receiptId: `r${height}`, txHash: `t${height}`, executorId, logs }] });
+  const fresh = () => {
+    const db = openDb(":memory:");
+    block(db, NFT, ev("torch", "vault_created", { token_id: "0", vault_id: `0.${NFT}`, owner_id: "alice.testnet", creator: "alice.testnet", extra: "{}" }));
+    block(db, NFT, ev("nep171", "nft_mint", { owner_id: "alice.testnet", token_ids: ["0"] }));
+    const app = createApp(db, async () => staticPrices());
+    const get = async <T>(path: string) => (await (await app.request(path)).json()) as T;
+    return { db, get };
+  };
+
+  test("X-1: only allow-listed token accounts are indexed or priced", async () => {
+    const { db } = fresh();
+    const vault = `0.${NFT}`;
+    const fake = block(db, vault, ev("torch", "vault_deposit", { token_id: "0", ft_id: FAKE, amount: "1000000000000", sender_id: "mallory.testnet" }));
+    const fakeOut = block(db, NFT, ev("torch", "vault_withdraw", { token_id: "0", ft_id: FAKE, amount: "1", owner_id: "alice.testnet" }));
+    assert.deepEqual([fake.balances, fakeOut.balances], [[], []], "no balance refresh for an unknown token");
+    const real = block(db, vault, ev("torch", "vault_deposit", { token_id: "0", ft_id: USDC, amount: "5", sender_id: "alice.testnet" }));
+    assert.deepEqual(real.balances, [{ tokenId: "0", ftId: USDC }]);
+    const px = staticPrices();
+    assert.deepEqual([priceOf(px, FAKE), tokenInfo(FAKE).symbol], [0, FAKE], "a look-alike id is not priced as USDC");
+    assert.deepEqual([priceOf(px, USDC), tokenInfo(USDC).symbol], [1, "USDC"]);
+  });
+
+  test("X-3: offer_cancel removes only the offer it refers to", async () => {
+    const { db, get } = fresh();
+    const offer = (created_at: number) => ev("torch", "offer", { token_id: "0", buyer_id: "bob.testnet", amount: "100", expires_at: Date.now() + DAY, created_at });
+    const cancel = (data: object) => ev("torch", "offer_cancel", { token_id: "0", buyer_id: "bob.testnet", amount: "100", ...data });
+    block(db, config.marketId, offer(2000));
+    // The refund of an older in-flight offer (failed accept) must not delete the live one.
+    block(db, config.marketId, cancel({ created_at: 1000 }));
+    assert.deepEqual((await get<VaultDetail>("/vaults/0")).offers.map((o) => o.createdAt), [2000]);
+    block(db, config.marketId, cancel({ created_at: 2000 }));
+    assert.deepEqual((await get<VaultDetail>("/vaults/0")).offers, []);
+    // Events without created_at (pre wave 2) still match on token + buyer.
+    block(db, config.marketId, offer(3000));
+    block(db, config.marketId, cancel({}));
+    assert.deepEqual((await get<VaultDetail>("/vaults/0")).offers, []);
+  });
+
+  test("gacha_fund_failed marks the pull unfunded; a plain gacha_pull stays funded", async () => {
+    const { db, get } = fresh();
+    const pull = (token_id: string) => ev("torch", "gacha_pull", { player_id: "bob.testnet", token_id, rarity: "Rare", pity_after: 3, price: "100" });
+    // Same receipt order as the contract's on_funded: failures first, then gacha_pull.
+    block(db, config.gachaId, ev("torch", "gacha_fund_failed", { player_id: "bob.testnet", token_id: "7", ft_id: USDC, amount: "5" }), pull("7"));
+    block(db, config.gachaId, pull("8"));
+    block(db, "evil.testnet", ev("torch", "gacha_fund_failed", { player_id: "bob.testnet", token_id: "8", ft_id: USDC, amount: "5" }));
+    const recent = await get<GachaPull[]>("/gacha/recent");
+    assert.deepEqual(
+      recent.map((p) => [p.tokenId, p.rarity, p.pityAfter, p.price, p.funded]).sort(),
+      [["7", "Rare", 3, "100", false], ["8", "Rare", 3, "100", true]],
+    );
+  });
+
+  test("X-5: a reverted nft_transfer_call keeps the listing, a real transfer hides it", async () => {
+    const { db, get } = fresh();
+    block(db, config.marketId, ev("torch", "list", { token_id: "0", seller_id: "alice.testnet", price: "7" }));
+    const transfer = (from: string, to: string) => ev("nep171", "nft_transfer", { old_owner_id: from, new_owner_id: to, token_ids: ["0"] });
+    block(db, NFT, transfer("alice.testnet", "bob.testnet"));
+    block(db, NFT, transfer("bob.testnet", "alice.testnet")); // nft_resolve_transfer handed it back
+    assert.deepEqual((await get<MarketListing[]>("/market/listings")).map((l) => [l.sellerId, l.price]), [["alice.testnet", "7"]]);
+    assert.equal((await get<Orderbook>("/market/orderbook/0")).ask?.price, "7");
+    block(db, NFT, transfer("alice.testnet", "carol.testnet"));
+    assert.deepEqual(await get<MarketListing[]>("/market/listings"), []);
+    assert.equal((await get<Orderbook>("/market/orderbook/0")).ask, null);
+    assert.equal((await get<Stats>("/stats")).listings, 0);
+    assert.equal((await get<VaultSummary[]>("/vaults"))[0].listing, null);
+  });
 });

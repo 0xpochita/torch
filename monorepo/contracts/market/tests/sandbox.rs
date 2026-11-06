@@ -31,7 +31,12 @@ fn build(manifest_dir: &Path, wasm: &str) -> Vec<u8> {
         .status()
         .unwrap();
     assert!(status.success(), "wasm build failed in {manifest_dir:?}");
-    std::fs::read(manifest_dir.join("target/wasm32-unknown-unknown/release").join(wasm)).unwrap()
+    std::fs::read(
+        manifest_dir
+            .join("target/wasm32-unknown-unknown/release")
+            .join(wasm),
+    )
+    .unwrap()
 }
 
 struct Env {
@@ -57,7 +62,12 @@ async fn setup() -> Env {
     let creator = worker.dev_create_account().await.unwrap();
     let fee = worker.dev_create_account().await.unwrap();
 
-    nft.call("new").transact().await.unwrap().into_result().unwrap();
+    nft.call("new")
+        .transact()
+        .await
+        .unwrap()
+        .into_result()
+        .unwrap();
     market
         .call("new")
         .args_json(json!({ "collection_id": nft.id(), "fee_receiver_id": fee.id() }))
@@ -73,14 +83,24 @@ async fn setup() -> Env {
         .unwrap()
         .into_result()
         .unwrap();
-    Env { worker, nft, market, alice, bob, creator, fee }
+    Env {
+        worker,
+        nft,
+        market,
+        alice,
+        bob,
+        creator,
+        fee,
+    }
 }
 
 impl Env {
     async fn approve(&self, msg: Value) -> near_workspaces::result::ExecutionFinalResult {
         self.alice
             .call(self.nft.id(), "nft_approve")
-            .args_json(json!({ "token_id": "0", "account_id": self.market.id(), "msg": msg.to_string() }))
+            .args_json(
+                json!({ "token_id": "0", "account_id": self.market.id(), "msg": msg.to_string() }),
+            )
             .deposit(NearToken::from_millinear(10))
             .gas(Gas::from_tgas(250))
             .transact()
@@ -89,9 +109,14 @@ impl Env {
     }
 
     async fn list(&self) {
-        let r = self.approve(json!({ "list": { "price": PRICE.to_string() } })).await;
+        let r = self
+            .approve(json!({ "list": { "price": PRICE.to_string() } }))
+            .await;
         assert!(r.is_success(), "{r:#?}");
-        assert!(self.view("get_listing", json!({ "token_id": "0" })).await.is_object());
+        assert!(self
+            .view("get_listing", json!({ "token_id": "0" }))
+            .await
+            .is_object());
         // Let the approve's gas refund land before tests snapshot balances.
         self.worker.fast_forward(5).await.unwrap();
     }
@@ -111,7 +136,9 @@ impl Env {
         let r = self
             .bob
             .call(self.market.id(), "offer")
-            .args_json(json!({ "token_id": "0", "amount": PRICE.to_string(), "expires_at": expires_at }))
+            .args_json(
+                json!({ "token_id": "0", "amount": PRICE.to_string(), "expires_at": expires_at }),
+            )
             .deposit(NearToken::from_yoctonear(PRICE + OFFER_STORAGE))
             .transact()
             .await
@@ -120,7 +147,13 @@ impl Env {
     }
 
     async fn view(&self, method: &str, args: Value) -> Value {
-        self.market.view(method).args_json(args).await.unwrap().json().unwrap()
+        self.market
+            .view(method)
+            .args_json(args)
+            .await
+            .unwrap()
+            .json()
+            .unwrap()
     }
 
     async fn owner(&self) -> String {
@@ -145,15 +178,20 @@ impl Env {
 }
 
 fn has_event(r: &near_workspaces::result::ExecutionFinalResult, event: &str) -> bool {
-    r.logs().iter().any(|l| l.contains(&format!(r#""event":"{event}""#)))
+    r.logs()
+        .iter()
+        .any(|l| l.contains(&format!(r#""event":"{event}""#)))
 }
 
 #[tokio::test]
 async fn buy_pays_seller_creator_and_fee() {
     let e = setup().await;
     e.list().await;
-    let (alice0, creator0, fee0) =
-        (e.balance(&e.alice).await, e.balance(&e.creator).await, e.balance(&e.fee).await);
+    let (alice0, creator0, fee0) = (
+        e.balance(&e.alice).await,
+        e.balance(&e.creator).await,
+        e.balance(&e.fee).await,
+    );
 
     let r = e.buy().await;
     assert!(r.is_success() && has_event(&r, "sale"), "{r:#?}");
@@ -161,7 +199,10 @@ async fn buy_pays_seller_creator_and_fee() {
     assert_eq!(e.balance(&e.fee).await - fee0, FEE);
     assert_eq!(e.balance(&e.creator).await - creator0, ROYALTY);
     assert_eq!(e.balance(&e.alice).await - alice0, PRICE - FEE - ROYALTY);
-    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_null());
+    assert!(e
+        .view("get_listing", json!({ "token_id": "0" }))
+        .await
+        .is_null());
 }
 
 #[tokio::test]
@@ -181,8 +222,14 @@ async fn accept_offer_through_approve() {
     assert_eq!(e.balance(&e.fee).await - fee0, FEE);
     // Alice paid gas for the approve, so only check she got close to her 95.55%.
     let gained = e.balance(&e.alice).await - alice0;
-    assert!(gained > PRICE - FEE - ROYALTY - NEAR / 100, "alice gained {gained}");
-    assert_eq!(e.view("get_offers", json!({ "token_id": "0" })).await, json!([]));
+    assert!(
+        gained > PRICE - FEE - ROYALTY - NEAR / 100,
+        "alice gained {gained}"
+    );
+    assert_eq!(
+        e.view("get_offers", json!({ "token_id": "0" })).await,
+        json!([])
+    );
 }
 
 #[tokio::test]
@@ -208,7 +255,11 @@ async fn expired_offer_is_refundable_by_anyone() {
     let r = refund().await;
     assert!(r.is_success() && has_event(&r, "offer_cancel"), "{r:#?}");
     assert_eq!(e.balance(&e.bob).await - bob0, PRICE + OFFER_STORAGE);
-    assert_eq!(e.view("get_offers_by_buyer", json!({ "account_id": e.bob.id() })).await, json!([]));
+    assert_eq!(
+        e.view("get_offers_by_buyer", json!({ "account_id": e.bob.id() }))
+            .await,
+        json!([])
+    );
 }
 
 #[tokio::test]
@@ -233,7 +284,10 @@ async fn failed_sale_refunds_buyer() {
     let spent = bob0 - e.balance(&e.bob).await;
     assert!(spent < NEAR / 100, "bob spent {spent}");
     assert_eq!(e.balance(&e.fee).await, fee0);
-    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_null());
+    assert!(e
+        .view("get_listing", json!({ "token_id": "0" }))
+        .await
+        .is_null());
 }
 
 #[tokio::test]
@@ -255,7 +309,10 @@ async fn stale_listing_after_transfer_refunds_buyer() {
     assert!(!has_event(&r, "sale"), "{r:#?}");
     assert_eq!(e.owner().await, e.creator.id().as_str());
     assert!(bob0 - e.balance(&e.bob).await < NEAR / 100);
-    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_null());
+    assert!(e
+        .view("get_listing", json!({ "token_id": "0" }))
+        .await
+        .is_null());
 }
 
 #[tokio::test]
@@ -273,7 +330,10 @@ async fn stale_listing_can_be_pruned_by_anyone() {
     };
     let r = prune().await;
     assert!(!has_event(&r, "delist"), "a live listing stays: {r:#?}");
-    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_object());
+    assert!(e
+        .view("get_listing", json!({ "token_id": "0" }))
+        .await
+        .is_object());
     e.alice
         .call(e.nft.id(), "nft_revoke")
         .args_json(json!({ "token_id": "0", "account_id": e.market.id() }))
@@ -285,5 +345,8 @@ async fn stale_listing_can_be_pruned_by_anyone() {
         .unwrap();
     let r = prune().await;
     assert!(has_event(&r, "delist"), "{r:#?}");
-    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_null());
+    assert!(e
+        .view("get_listing", json!({ "token_id": "0" }))
+        .await
+        .is_null());
 }

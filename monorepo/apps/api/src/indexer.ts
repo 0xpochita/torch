@@ -32,10 +32,13 @@ const MARKET_EVENTS = ["list", "delist", "sale", "offer", "offer_cancel", "offer
 /** Only trust an event when it comes from the contract that is allowed to emit it. */
 function trusted(cfg: Config, executor: string, ev: Event, d: Record<string, any>): boolean {
   if (ev.standard === "nep171") return executor === cfg.collectionId && (ev.event === "nft_mint" || ev.event === "nft_transfer");
-  if (ev.event === "vault_created" || ev.event === "vault_withdraw") return executor === cfg.collectionId;
-  if (ev.event === "vault_deposit") return executor === `${d.token_id}.${cfg.collectionId}`;
+  if (ev.event === "vault_created") return executor === cfg.collectionId;
+  // `ft_id` is chosen by the caller (any account can call the vault's ft_on_transfer, and the owner
+  // picks it in withdraw), so only allow-listed token accounts count.
+  if (ev.event === "vault_withdraw") return executor === cfg.collectionId && cfg.ftIds.includes(d.ft_id);
+  if (ev.event === "vault_deposit") return executor === `${d.token_id}.${cfg.collectionId}` && cfg.ftIds.includes(d.ft_id);
   if (MARKET_EVENTS.includes(ev.event)) return executor === cfg.marketId;
-  if (ev.event === "gacha_pull") return executor === cfg.gachaId;
+  if (ev.event === "gacha_pull" || ev.event === "gacha_fund_failed") return executor === cfg.gachaId;
   return false;
 }
 
@@ -46,8 +49,10 @@ function applyEvent(db: Db, cfg: Config, event: string, d: Record<string, any>, 
   switch (event) {
     case "nft_mint":
     case "nft_transfer":
+      // Listings are not dropped here: a reverted nft_transfer_call moves the token out and back
+      // (two nft_transfer events) and the market listing stays valid. Reads only show a listing
+      // while its seller still owns the token; sale/delist/offer_accept delete it.
       run(db, "INSERT INTO tokens (token_id, owner_id) VALUES (?, ?) ON CONFLICT (token_id) DO UPDATE SET owner_id = excluded.owner_id", tokenId, str(d.owner_id ?? d.new_owner_id));
-      if (event === "nft_transfer") run(db, "DELETE FROM listings WHERE token_id = ?", tokenId);
       break;
     case "vault_created": {
       const extra = (typeof d.extra === "string" ? JSON.parse(d.extra) : d.extra) ?? {};
@@ -81,11 +86,29 @@ function applyEvent(db: Db, cfg: Config, event: string, d: Record<string, any>, 
       break;
     case "offer_cancel":
     case "offer_accept":
-      run(db, "DELETE FROM offers WHERE token_id = ? AND buyer_id = ?", tokenId, str(d.buyer_id));
+      // Match created_at: a refunded in-flight offer shares (token, buyer) with the buyer's newer live one.
+      run(db, "DELETE FROM offers WHERE token_id = ? AND buyer_id = ? AND (? IS NULL OR created_at = ?)", tokenId, str(d.buyer_id), d.created_at ?? null, d.created_at ?? null);
       if (event === "offer_accept") run(db, "DELETE FROM listings WHERE token_id = ?", tokenId);
       break;
     case "gacha_pull":
-      run(db, "INSERT OR REPLACE INTO pulls (token_id, player_id, rarity, pity_after, price, ts) VALUES (?, ?, ?, ?, ?, ?)", tokenId, str(d.player_id), str(d.rarity), Number(d.pity_after), str(d.price), ts);
+      // Upsert that keeps `funded`: gacha_fund_failed for the same vault is logged just before it.
+      run(
+        db,
+        `INSERT INTO pulls (token_id, player_id, rarity, pity_after, price, ts) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (token_id) DO UPDATE SET player_id = excluded.player_id, rarity = excluded.rarity,
+           pity_after = excluded.pity_after, price = excluded.price, ts = excluded.ts`,
+        tokenId, str(d.player_id), str(d.rarity), Number(d.pity_after), str(d.price), ts,
+      );
+      break;
+    case "gacha_fund_failed":
+      // One per basket item that did not reach the vault ({player_id, token_id, ft_id, amount}); the
+      // following gacha_pull fills in rarity, pity and price.
+      run(
+        db,
+        `INSERT INTO pulls (token_id, player_id, rarity, pity_after, price, ts, funded) VALUES (?, ?, ?, 0, '0', ?, 0)
+         ON CONFLICT (token_id) DO UPDATE SET funded = 0`,
+        tokenId, str(d.player_id), str(d.rarity ?? ""), ts,
+      );
       break;
   }
 }
