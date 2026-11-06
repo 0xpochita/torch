@@ -135,7 +135,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
             <div className="no-scrollbar flex h-11 max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-fill p-1">{children}</div>
           </div>
         ) : (
-          <div className="flex-1" />
+          <PagePill />
         )}
         <label className="material hidden h-12 w-[260px] items-center gap-2 rounded-full px-4 text-muted lg:flex">
           <Sym name="search" size={16} />
@@ -151,6 +151,25 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
         </div>
       )}
     </>
+  );
+}
+
+/** Fills the toolbar on pages without filter chips: where you are, and who you are. */
+function PagePill() {
+  const path = usePathname();
+  const item = NAV.flatMap((g) => g.items).find((it) => (it.href === "/" ? path === "/" : path.startsWith(it.href)));
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex h-11 items-center gap-1 rounded-full bg-fill p-1 pr-4">
+        <span className="grid size-9 place-items-center rounded-full bg-raised shadow-[0_0_0_1px_var(--line)]">
+          <Sym name={item?.icon ?? "house"} size={17} weight="bold" />
+        </span>
+        <span className="pl-1.5 text-[14px] font-semibold">{item?.label ?? "Torch"}</span>
+      </div>
+      <span className="hidden items-center gap-2 text-[14px] text-muted md:flex">
+        <Avatar account={ME} size={22} /> gm, <span className="font-medium text-text">{ME}</span>
+      </span>
+    </div>
   );
 }
 

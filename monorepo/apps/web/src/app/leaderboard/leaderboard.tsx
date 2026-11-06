@@ -54,9 +54,6 @@ export function Leaderboard() {
             <Countdown />
           </div>
           <div className="flex flex-wrap items-end gap-5">
-            <div className="grid size-20 shrink-0 place-items-center rounded-full bg-tint text-white shadow-[0_10px_30px_-10px_var(--tint)]">
-              <Sym name="trophy" size={38} weight="fill" />
-            </div>
             <div className="min-w-0 flex-1">
               <h1 className="title-chunky text-[34px]">Creator Season 1</h1>
               <p className="max-w-[560px] text-[14px] text-muted">Creators ranked by the baskets they build on Torch. Value, returns and holders are read from every vault they minted.</p>
