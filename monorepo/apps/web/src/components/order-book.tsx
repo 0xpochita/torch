@@ -5,52 +5,61 @@ import { Artwork } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { useTx } from "@/components/tx-sheet";
 import { NearAmount } from "@/components/ui";
-import { NEAR_USD, offersFor, type Etf } from "@/lib/mock";
+import { ErrorState, Skeleton } from "@/components/load-state";
+import { toNear, useApi, type Orderbook } from "@/lib/api";
+import type { Etf } from "@/lib/mock";
 import { useAccount } from "@/providers/near-provider";
 
-// ponytail: synthetic depth around the vault's ask and its open offers; replace with the indexer's order book
-function bookFor(etf: Etf, tick: number, ask?: number) {
-  const ref = ask ?? (etf.listed ? etf.priceNear : Math.round((etf.navUsd / NEAR_USD) * 1.05));
-  const offers = offersFor(etf).map((o) => ({ ...o, priceNear: Math.round((o.priceNear / etf.priceNear) * ref) }));
-  const floor = ref;
-  const n = Number(etf.id);
-  const round = (v: number, up: boolean) => (up ? Math.ceil(v / tick) : Math.floor(v / tick)) * tick;
-  const group = (rows: { price: number; qty: number }[], up: boolean) =>
-    Object.values(
-      rows.reduce<Record<number, { price: number; qty: number }>>((m, r) => {
-        const p = round(r.price, up);
-        (m[p] ??= { price: p, qty: 0 }).qty += r.qty;
-        return m;
-      }, {}),
-    );
-  const asks = group(
-    Array.from({ length: 9 }, (_, i) => ({ price: floor * (1 + i * 0.035), qty: 1 + ((n * 7 + i * 5) % 17) })),
-    true,
+// One NFT per vault, so the ask side is the single listing (if any) and the bids are the open offers,
+// grouped into price levels of `tick` NEAR.
+function bookFor(ob: Orderbook, tick: number) {
+  const offers = ob.bids.map((o) => ({ from: o.buyerId, priceNear: toNear(o.amount) }));
+  const level = (v: number) => Math.round(Math.floor(v / tick) * tick * 1000) / 1000;
+  const bids = Object.values(
+    offers.reduce<Record<number, { price: number; qty: number }>>((m, o) => {
+      const p = level(o.priceNear);
+      (m[p] ??= { price: p, qty: 0 }).qty += 1;
+      return m;
+    }, {}),
   ).sort((a, b) => b.price - a.price);
-  const bids = group(
-    offers.map((o, i) => ({ price: o.priceNear, qty: 1 + ((n + i * 3) % 9) })),
-    false,
-  ).sort((a, b) => b.price - a.price);
-  return { asks, bids, floor: asks[asks.length - 1].price, offers };
+  const asks = ob.ask ? [{ price: toNear(ob.ask.price), qty: 1 }] : [];
+  return { asks, bids, floor: asks[0]?.price ?? 0, offers, lastSale: ob.sales[0] ? toNear(ob.sales[0].price) : null };
 }
 
-const TICKS = [1, 5, 10, 25] as const;
+const TICKS = [0.1, 0.5, 1, 5] as const;
 
 /** Order book for this basket: asks above the floor band, bids below, trade ticket on the side. */
-export function OrderBook({ etf, header, ask }: { etf: Etf; header?: React.ReactNode; ask?: number }) {
+export function OrderBook({ etf, header }: { etf: Etf; header?: React.ReactNode }) {
   const open = useTx();
-  const [tick, setTick] = useState<(typeof TICKS)[number]>(5);
+  const [tick, setTick] = useState<(typeof TICKS)[number]>(0.5);
   const [buyQty, setBuyQty] = useState(1);
   const [sellQty, setSellQty] = useState(0);
-  const { asks, bids, floor, offers } = bookFor(etf, tick, ask);
-  const bestBid = bids[0]?.price ?? 0;
-  const max = Math.max(...asks.map((a) => a.qty), ...bids.map((b) => b.qty));
   const account = useAccount();
-  const mine = etf.owner === account;
-  const change = etf.change24h;
+  const q = useApi<Orderbook>(`/market/orderbook/${encodeURIComponent(etf.id)}`);
 
-  const accept = () => open({ kind: "accept", etfId: etf.id, offer: { from: offers[0].from, priceNear: offers[0].priceNear } });
-  const trade = () => (sellQty > 0 && mine ? accept() : buyQty > 0 ? open({ kind: etf.listed ? "buy" : "offer", etfId: etf.id }) : open({ kind: "offer", etfId: etf.id }));
+  if (q.error)
+    return (
+      <section className="card flex flex-col gap-3 p-3">
+        {header}
+        <ErrorState error={q.error} className="rounded-[20px] bg-fill" />
+      </section>
+    );
+  if (!q.data)
+    return (
+      <section className="card flex flex-col gap-3 p-3">
+        {header}
+        <Skeleton className="h-14" />
+        <Skeleton className="h-[260px]" />
+      </section>
+    );
+
+  const { asks, bids, floor, offers, lastSale } = bookFor(q.data, tick);
+  const bestBid = bids[0]?.price ?? 0;
+  const max = Math.max(1, ...asks.map((a) => a.qty), ...bids.map((b) => b.qty));
+  const mine = etf.owner === account;
+
+  const accept = () => offers[0] && open({ kind: "accept", etfId: etf.id, tokenId: etf.id, offer: { from: offers[0].from, priceNear: offers[0].priceNear } });
+  const trade = () => (sellQty > 0 && mine ? accept() : buyQty > 0 ? open({ kind: etf.listed ? "buy" : "offer", etfId: etf.id, tokenId: etf.id }) : open({ kind: "offer", etfId: etf.id, tokenId: etf.id }));
 
   return (
     <section className="card flex flex-col gap-3 p-3">
@@ -58,8 +67,14 @@ export function OrderBook({ etf, header, ask }: { etf: Etf; header?: React.React
       <header className="flex items-center gap-3 rounded-[20px] bg-fill p-2 pr-4">
         <Artwork etf={etf} size={40} />
         <span className="flex min-w-0 flex-1 items-center gap-2 text-[14px]">
-          <NearAmount amount={offers[0].priceNear} className="font-semibold" />
-          <span className="truncate text-muted">Top bid · {offers[0].from}</span>
+          {offers[0] ? (
+            <>
+              <NearAmount amount={offers[0].priceNear} className="font-semibold" />
+              <span className="truncate text-muted">Top bid · {offers[0].from}</span>
+            </>
+          ) : (
+            <span className="truncate text-muted">No bids yet</span>
+          )}
         </span>
         <span className="text-[12px] font-semibold uppercase tracking-wide text-muted">
           Depth <span className="text-text">{asks.reduce((s, a) => s + a.qty, 0) + bids.reduce((s, b) => s + b.qty, 0)}</span>
@@ -71,44 +86,41 @@ export function OrderBook({ etf, header, ask }: { etf: Etf; header?: React.React
         <div className="flex flex-col overflow-hidden rounded-[20px] bg-fill/50">
           <ol className="flex flex-col">
             {asks.map((a) => (
-              <Level key={`a${a.price}`} etf={etf} price={a.price} qty={a.qty} max={max} side="ask" onClick={() => open({ kind: etf.listed ? "buy" : "offer", etfId: etf.id })} />
+              <Level key={`a${a.price}`} etf={etf} price={a.price} qty={a.qty} max={max} side="ask" onClick={() => open({ kind: etf.listed ? "buy" : "offer", etfId: etf.id, tokenId: etf.id })} />
             ))}
           </ol>
           <div className="flex items-center justify-between bg-fill px-3 py-2.5 text-[13px]">
             <span>
-              <span className="block text-muted">Floor price</span>
-              <NearAmount amount={floor} className="font-semibold" />
+              <span className="block text-muted">{asks.length ? "Ask" : "Not listed"}</span>
+              {asks.length ? <NearAmount amount={floor} className="font-semibold" /> : <span className="text-muted">—</span>}
             </span>
             <span className="text-right">
-              <span className="block text-muted">24h change</span>
-              <span className={change >= 0 ? "text-up" : "text-down"}>
-                ({change >= 0 ? "+" : "−"}
-                {Math.abs(change).toFixed(2)}%)
-              </span>
+              <span className="block text-muted">Last sale</span>
+              {lastSale !== null ? <NearAmount amount={lastSale} className="justify-end font-semibold" /> : <span className="text-muted">—</span>}
             </span>
           </div>
           <ol className="flex flex-col">
             {bids.map((b) => (
-              <Level key={`b${b.price}`} etf={etf} price={b.price} qty={b.qty} max={max} side="bid" onClick={mine ? accept : () => open({ kind: "offer", etfId: etf.id })} />
+              <Level key={`b${b.price}`} etf={etf} price={b.price} qty={b.qty} max={max} side="bid" onClick={mine ? accept : () => open({ kind: "offer", etfId: etf.id, tokenId: etf.id })} />
             ))}
           </ol>
         </div>
 
         {/* ticket */}
         <div className="flex flex-col gap-2 rounded-[20px] bg-fill/50 p-2">
-          <Qty label="Buy" value={buyQty} onChange={setBuyQty} />
+          <Qty label="Buy" value={buyQty} onChange={setBuyQty} max={1} />
           <div className="flex flex-1 flex-col justify-end px-2 pb-1 text-right">
-            <span className="text-[12px] text-muted">at floor</span>
+            <span className="text-[12px] text-muted">{asks.length ? "at ask" : "no ask"}</span>
             <NearAmount amount={buyQty * floor} className="title-chunky justify-end text-[30px]" />
           </div>
           <div className="grid h-10 place-items-center rounded-[12px] bg-fill text-[13px] font-semibold text-muted">
-            Spread <NearAmount amount={Math.max(0, floor - bestBid)} className="ml-1 inline-flex text-text" />
+            Spread <NearAmount amount={Math.round(Math.max(0, floor - bestBid) * 1000) / 1000} className="ml-1 inline-flex text-text" />
           </div>
           <div className="flex flex-1 flex-col px-2 pt-1 text-right">
             <NearAmount amount={sellQty * bestBid} className="title-chunky justify-end text-[30px]" />
-            <span className="text-[12px] text-muted">{mine ? "at best bid" : "you own none"}</span>
+            <span className="text-[12px] text-muted">{mine ? (bids.length ? "at best bid" : "no bids") : "you own none"}</span>
           </div>
-          <Qty label="Sell" value={sellQty} onChange={setSellQty} max={mine ? 1 : 0} />
+          <Qty label="Sell" value={sellQty} onChange={setSellQty} max={mine && bids.length ? 1 : 0} />
         </div>
       </div>
 

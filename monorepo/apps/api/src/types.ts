@@ -32,6 +32,8 @@ export type VaultSummary = {
   rarity: Rarity | null;
   basket: BasketItem[];
   navUsd: number;
+  /** Price-only % change over 24h (today's balances at then vs now prices); null until snapshots exist. */
+  change24h: number | null;
   mintedAt: number;
   listing: Listing | null;
 };
@@ -42,7 +44,7 @@ export type Holder = { accountId: string; since: number; until: number | null };
 
 export type VaultDetail = VaultSummary & {
   balances: Balance[];
-  /** NAV after each deposit/withdraw, valued at current prices. */
+  /** NAV snapshots over the last 30 days ending with the live NAV; before any snapshot, NAV after each deposit/withdraw at current prices. */
   navHistory: NavPoint[];
   holders: Holder[];
   offers: Offer[];
@@ -69,7 +71,7 @@ export type ActivityItem = {
 };
 
 export type LeaderboardPeriod = "24h" | "7d" | "30d" | "all";
-export type LeaderboardSort = "value" | "volume" | "sales" | "vaults" | "holders";
+export type LeaderboardSort = "value" | "return" | "volume" | "sales" | "vaults" | "holders";
 
 export type LeaderboardRow = {
   rank: number;
@@ -77,6 +79,8 @@ export type LeaderboardRow = {
   vaults: number;
   valueUsd: number;
   holders: number;
+  /** Price-only % return of this creator's vaults over the period (value-weighted); null until snapshots exist. */
+  return: number | null;
   /** Sales of this creator's vaults within the period. */
   sales: number;
   volume: string;

@@ -28,6 +28,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: "/leaderboard", label: "Leaders", icon: "trophy", img: "/icons/3d/leaders.png" },
       { href: "/activity", label: "Activity", icon: "pulse", img: "/icons/3d/activity.png" },
       { href: "/gacha", label: "Gacha", icon: "gift", img: "/icons/3d/gacha.png" },
+      { href: "/faucet", label: "Faucet", icon: "down", img: "/icons/3d/deposit.png" },
     ],
   },
 ];

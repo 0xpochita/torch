@@ -1,4 +1,5 @@
 import { TokenIcon } from "@/components/ui";
+import { vaultOf } from "@/lib/contracts";
 import { TOKENS, fmtUsd, type Etf } from "@/lib/mock";
 
 const NODE_H = 64;
@@ -69,7 +70,7 @@ export function BasketGraph({ etf }: { etf: Etf }) {
         })}
 
         <Node title="Vault account" x={VAULT_X} y={vaultY} w={VAULT_W} glow>
-          <Row k="Account" v={`${etf.id}.torch.near`} mono />
+          <Row k="Account" v={vaultOf(etf.id)} mono />
           <Row k="Owner" v={etf.owner} mono />
           <Row k="Access keys" v="None" accent />
           <Row k="Status" v={etf.listed ? "Listed · withdraw locked" : "Active"} />

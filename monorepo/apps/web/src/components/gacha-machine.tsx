@@ -7,11 +7,12 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 /**
  * Capsule machine in plain three.js: gold body and a glass dome of glossy capsules (the stage is the page background).
  * pull(): the machine shakes, one capsule drops out and floats in front of the camera with a rarity glow.
+ *   `color` may be a promise (the wallet result): the machine keeps shaking until it settles, rejects with it.
  * crack(): the floating capsule splits, shards burst out, and the light flares.
  * ponytail: hand-rolled sphere physics (O(n²) over ~30 capsules); swap for rapier if the count grows.
  */
 
-export type GachaHandle = { pull: (color: string) => Promise<void>; crack: () => Promise<void>; pause: (paused: boolean) => void };
+export type GachaHandle = { pull: (color: string | Promise<string>) => Promise<void>; crack: () => Promise<void>; pause: (paused: boolean) => void };
 
 const DOME_R = 1.5;
 const CAP_R = 0.26;
@@ -238,6 +239,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
     resize();
 
     let shake = 0;
+    let waiting = false; // a wallet round trip is in flight: keep rattling
     type Stage = "drop" | "float" | "crack";
     let active: { cap: Capsule; t: number; stage: Stage; color: THREE.Color; done?: () => void } | null = null;
     let burst = 0;
@@ -389,18 +391,27 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
       glow.intensity = 0;
     };
 
-    api.current.pull = (color: string) =>
-      new Promise<void>((resolve) => {
-        reset();
-        if (reduce) return resolve();
-        shake = 1.3;
-        setTimeout(() => {
-          const lowest = [...caps].sort((a, b) => a.group.position.y - b.group.position.y)[0];
-          lowest.mat.uniforms.uTint.value.set(color);
-          lowest.v.set(0, 0, 0);
-          active = { cap: lowest, t: 0, stage: "drop", color: new THREE.Color(color), done: resolve };
-        }, 1300);
+    api.current.pull = async (pending) => {
+      reset();
+      const started = performance.now();
+      shake = 1.3;
+      waiting = true;
+      let color: string;
+      try {
+        color = await pending;
+      } finally {
+        waiting = false;
+      }
+      if (reduce) return;
+      // at least the original 1.3 s of shaking before the drop
+      await new Promise((r) => setTimeout(r, Math.max(0, 1300 - (performance.now() - started))));
+      return new Promise<void>((resolve) => {
+        const lowest = [...caps].sort((a, b) => a.group.position.y - b.group.position.y)[0];
+        lowest.mat.uniforms.uTint.value.set(color);
+        lowest.v.set(0, 0, 0);
+        active = { cap: lowest, t: 0, stage: "drop", color: new THREE.Color(color), done: resolve };
       });
+    };
 
     api.current.crack = () =>
       new Promise<void>((resolve) => {
@@ -432,6 +443,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
       last = now;
       if (paused || !visible || document.hidden) return;
       for (let i = 0; i < 2; i++) step(dt / 2);
+      if (waiting && !reduce) shake = Math.max(shake, 0.6);
       if (shake > 0) {
         shake -= dt;
         machine.rotation.z = Math.sin(now / 38) * 0.04 * Math.min(1, shake * 2);
