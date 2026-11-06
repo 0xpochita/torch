@@ -2,6 +2,7 @@
 
 import type { Icon } from "@phosphor-icons/react";
 import { Desktop, Moon, Sun } from "@phosphor-icons/react/ssr";
+import Image from "next/image";
 import { useSyncExternalStore } from "react";
 
 const MODES = ["system", "light", "dark"] as const;
@@ -55,9 +56,14 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       <button
         onClick={() => apply(next)}
         title={`Appearance: ${LABEL[mode]}`}
-        className="grid size-10 place-items-center rounded-full text-muted hover:bg-fill"
+        className="group grid size-10 place-items-center rounded-full text-muted hover:bg-fill"
       >
-        <Current size={20} />
+        <span className="relative">
+          <Image src="/icons/nav/theme.png" alt="" width={26} height={26} className="opacity-80 transition group-hover:scale-110 group-hover:opacity-100" />
+          <span className="absolute -bottom-1 -right-1.5 grid size-4 place-items-center rounded-full bg-surface text-muted shadow-[0_0_0_1px_var(--line)]">
+            <Current size={10} weight="bold" />
+          </span>
+        </span>
       </button>
     );
   }

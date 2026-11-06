@@ -10,24 +10,24 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, Title } from "@/components/ui";
 import { ME } from "@/lib/mock";
 
-type NavItem = { href: string; label: string; icon: IconName; badge?: string };
+type NavItem = { href: string; label: string; icon: IconName; img: string; badge?: string };
 
 const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Marketplace",
     items: [
-      { href: "/", label: "Explore", icon: "house" },
-      { href: "/market", label: "Market", icon: "store" },
-      { href: "/create", label: "Create ETF", icon: "plusCircle", badge: "New" },
+      { href: "/", label: "Explore", icon: "house", img: "/icons/nav/explore.png" },
+      { href: "/market", label: "Market", icon: "store", img: "/icons/nav/market.png" },
+      { href: "/create", label: "Create ETF", icon: "plusCircle", img: "/icons/nav/create.png", badge: "New" },
     ],
   },
   {
     group: "Library",
     items: [
-      { href: "/vaults", label: "My Vaults", icon: "vault" },
-      { href: "/leaderboard", label: "Leaders", icon: "trophy" },
-      { href: "/activity", label: "Activity", icon: "pulse" },
-      { href: "/gacha", label: "Gacha", icon: "gift" },
+      { href: "/vaults", label: "My Vaults", icon: "vault", img: "/icons/nav/vaults.png" },
+      { href: "/leaderboard", label: "Leaders", icon: "trophy", img: "/icons/nav/leaders.png" },
+      { href: "/activity", label: "Activity", icon: "pulse", img: "/icons/nav/activity.png" },
+      { href: "/gacha", label: "Gacha", icon: "gift", img: "/icons/nav/gacha.png" },
     ],
   },
 ];
@@ -66,9 +66,9 @@ export function Sidebar() {
             href="/create"
             title="Create ETF"
             aria-current={isActive("/create") ? "page" : undefined}
-            className={`my-2 grid size-12 place-items-center rounded-[16px] bg-ink text-on-ink transition active:scale-95 ${isActive("/create") ? "ring-4 ring-fill" : ""}`}
+            className={`my-2 grid size-12 place-items-center rounded-[16px] transition hover:scale-105 active:scale-95 ${isActive("/create") ? "bg-fill" : ""}`}
           >
-            <Sym name="plus" size={22} stroke={2.4} />
+            <NavIcon src="/icons/nav/create.png" size={46} active />
             <span className="sr-only">Create ETF</span>
           </Link>
           {items.slice(2).map((it) => (
@@ -88,15 +88,28 @@ export function Sidebar() {
   );
 }
 
+/** 3D clay nav icon; inactive ones sit back a little so the current page reads first. */
+function NavIcon({ src, size, active }: { src: string; size: number; active: boolean }) {
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={size}
+      height={size}
+      className={`transition duration-200 group-hover:scale-110 ${active ? "scale-105 drop-shadow-[0_4px_10px_#ff8a0055]" : "opacity-85 group-hover:opacity-100"}`}
+    />
+  );
+}
+
 function RailItem({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      className={`relative isolate flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-2.5 text-[11px] font-medium transition-colors ${active ? "text-text" : "text-muted hover:text-text"}`}
+      className={`group relative isolate flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-2 text-[11px] font-medium transition-colors ${active ? "text-text" : "text-muted hover:text-text"}`}
     >
       {active && <motion.span layoutId="rail-active" className="absolute inset-0 -z-10 rounded-[18px] bg-fill" />}
-      <Sym name={item.icon} size={22} weight={active ? "fill" : "regular"} />
+      <NavIcon src={item.img} size={34} active={active} />
       {item.label.replace("My ", "")}
     </Link>
   );
@@ -111,9 +124,9 @@ export function TabBar() {
       {tabs.map((t) => {
         const active = isActive(t.href);
         return (
-          <Link key={t.label} href={t.href} className={`relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
+          <Link key={t.label} href={t.href} className={`group relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
             {active && <motion.span layoutId="tabbar-active" className="absolute inset-0 -z-10 rounded-full bg-fill" />}
-            <Sym name={t.icon} size={22} weight={active ? "fill" : "regular"} />
+            <NavIcon src={t.img} size={26} active={active} />
             {t.label}
           </Link>
         );
