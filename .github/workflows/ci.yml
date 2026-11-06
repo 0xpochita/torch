@@ -116,7 +116,7 @@ jobs:
         working-directory: monorepo/apps/api
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: monorepo/package.json
       - uses: actions/setup-node@v4
@@ -150,7 +150,7 @@ jobs:
         working-directory: monorepo/apps/web
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: monorepo/package.json
       - uses: actions/setup-node@v4
@@ -178,7 +178,7 @@ jobs:
         working-directory: monorepo/scripts
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: monorepo/package.json
       - uses: actions/setup-node@v4
