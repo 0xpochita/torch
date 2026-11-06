@@ -6,39 +6,43 @@ import { BasketGraph } from "@/components/basket-graph";
 import { AllocationBar, Change, EVENT } from "@/components/etf-card";
 import { SymTile } from "@/components/icons";
 import { NavChart } from "@/components/nav-chart";
+import { EmptyState, Skeleton } from "@/components/load-state";
 import { Avatar, Money, Segmented, TokenIcon, shade } from "@/components/ui";
+import { tokenKey, toUnits, type Balance, type Holder, type NavPoint, type VaultEvent } from "@/lib/api";
 import { TOKENS, type Etf } from "@/lib/mock";
 
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
 const PERIODS = ["7D", "14D", "30D"] as const;
+const DAY = 86_400_000;
+const date = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-
-// Deterministic per-token drift and 24h move so SSR and client agree.
-const jitter = (s: string, span: number) => ((s.split("").reduce((a, c) => a * 31 + c.charCodeAt(0), 7) % 1000) / 1000 - 0.5) * span;
-
-export function DetailTabs({ etf }: { etf: Etf }) {
+export function DetailTabs({ etf, balances, holders: owners, events }: { etf: Etf; balances: Balance[]; holders: Holder[]; events?: VaultEvent[] }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Basket");
 
-  const drifted = etf.allocation.map((a) => Math.max(0, a.weight + jitter(etf.id + a.token, 4)));
-  const driftSum = drifted.reduce((s, w) => s + w, 0);
-  const holdings = etf.allocation.map((a, i) => {
-    const t = TOKENS[a.token];
-    const actual = (drifted[i] / driftSum) * 100; // actual weights always sum to 100% of the vault value
-    const value = (etf.navUsd * actual) / 100;
-    return { ...a, t, actual, value, amount: value / t.price, change: jitter(a.token, 12) };
+  const total = balances.reduce((s, b) => s + b.valueUsd, 0);
+  const holdings = balances.map((b) => {
+    const token = tokenKey(b.ftId);
+    return {
+      key: b.ftId,
+      token,
+      symbol: b.symbol,
+      name: token ? TOKENS[token].name : b.ftId,
+      weight: etf.allocation.find((a) => a.token === token)?.weight ?? 0,
+      actual: total ? (b.valueUsd / total) * 100 : 0,
+      value: b.valueUsd,
+      price: b.priceUsd,
+      amount: toUnits(b.ftId, b.amount),
+    };
   });
 
-  const holders = [
-    ...new Map(
-      etf.history.filter((h) => h.type === "mint" || h.type === "transfer").map((h) => [h.account, { account: h.account, since: h.at }]),
-    ).values(),
-  ].reverse();
+  // Current owner first.
+  const holders = [...owners].reverse().map((h) => ({ account: h.accountId, since: date(h.since) }));
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented options={TABS} value={tab} onChange={setTab} />
-        <span className="text-[13px] text-muted">Mock data · refreshes every block</span>
+        <span className="text-[13px] text-muted">Live from the indexer</span>
       </div>
 
       <AnimatePresence mode="wait" initial={false}>
@@ -70,7 +74,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
           <table className="w-full min-w-[640px] text-sm">
             <thead className="text-left text-[12px] text-muted">
               <tr>
-                {["Token", "Target", "Actual", "Amount", "Price", "Value", "24h"].map((h, i) => (
+                {["Token", "Target", "Actual", "Amount", "Price", "Value"].map((h, i) => (
                   <th key={h} className={`px-4 py-3 font-medium ${i ? "text-right" : ""}`}>
                     {h}
                   </th>
@@ -79,13 +83,13 @@ export function DetailTabs({ etf }: { etf: Etf }) {
             </thead>
             <tbody>
               {holdings.map((h) => (
-                <tr key={h.token} className="border-t border-line-soft">
+                <tr key={h.key} className="border-t border-line-soft">
                   <td className="px-4 py-3">
                     <span className="flex items-center gap-3">
-                      <TokenIcon token={h.token} size={30} />
+                      {h.token ? <TokenIcon token={h.token} size={30} /> : <span className="size-[30px] rounded-full bg-fill" />}
                       <span>
-                        <span className="block font-medium">{h.t.symbol}</span>
-                        <span className="text-xs text-muted">{h.t.name}</span>
+                        <span className="block font-medium">{h.symbol}</span>
+                        <span className="text-xs text-muted">{h.name}</span>
                       </span>
                     </span>
                   </td>
@@ -98,17 +102,15 @@ export function DetailTabs({ etf }: { etf: Etf }) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{h.amount < 1 ? h.amount.toFixed(5) : h.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">${h.t.price < 1 ? h.t.price.toPrecision(3) : h.t.price.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">${h.price < 1 ? h.price.toPrecision(3) : h.price.toLocaleString("en-US")}</td>
                   <td className="px-4 py-3 text-right font-medium">
                     <Money value={h.value} />
-                  </td>
-                  <td className="px-4 py-3 text-right text-xs">
-                    <Change value={h.change} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {!holdings.length && <EmptyState title="Empty vault" body="No tokens deposited yet." />}
           <div className="flex items-center justify-between border-t border-line px-4 py-3 text-xs text-muted">
             <span>Live balances read from the vault account.</span>
             <span className="font-medium text-text">
@@ -118,9 +120,11 @@ export function DetailTabs({ etf }: { etf: Etf }) {
         </div>
       )}
 
-      {tab === "History" && (
+      {tab === "History" && !events && <Skeleton className="h-[240px] !rounded-[28px]" />}
+      {tab === "History" && events?.length === 0 && <EmptyState title="No events yet" body="Mints, deposits, withdrawals and sales show up here." className="card" />}
+      {tab === "History" && !!events?.length && (
         <ol id="history" className="card flex flex-col py-1">
-          {[...etf.history].reverse().map((h, i) => (
+          {[...events].reverse().map((h, i) => (
             <li key={i} className="flex items-center gap-4 border-b border-line-soft px-4 py-3 last:border-0">
               <SymTile name={EVENT[h.type].icon} size={36} />
               <span className="min-w-0 flex-1">
@@ -156,10 +160,15 @@ export function DetailTabs({ etf }: { etf: Etf }) {
   );
 }
 
-export function NavPanel({ etf }: { etf: Etf }) {
+export function NavPanel({ etf, history }: { etf: Etf; history: NavPoint[] }) {
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("30D");
-  const values = etf.nav30d.slice(-Number(period.replace("D", "")));
-  const delta = ((values[values.length - 1] - values[0]) / values[0]) * 100;
+  // Points inside the window, plus the last one before it so the line starts at the window edge.
+  const end = history.at(-1)?.at ?? 0;
+  const from = end - Number(period.replace("D", "")) * DAY;
+  const firstIn = history.findIndex((p) => p.at >= from);
+  const values = history.slice(Math.max(0, firstIn - 1)).map((p) => p.navUsd);
+  if (values.length < 2) values.unshift(values[0] ?? etf.navUsd);
+  const delta = values[0] ? ((values[values.length - 1] - values[0]) / values[0]) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4 card p-4">
