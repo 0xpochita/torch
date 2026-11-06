@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Change } from "@/components/etf-card";
@@ -37,18 +38,19 @@ export function Leaderboard() {
     sort === "Value" ? b.valueUsd - a.valueUsd : sort === "Return" ? b.ret - a.ret : b.holders - a.holders,
   );
   const max = { vaults: Math.max(...rows.map((r) => r.vaults)), ret: Math.max(...rows.map((r) => Math.abs(r.ret))), holders: Math.max(...rows.map((r) => r.holders)) };
-  const leader = rows[0];
 
   return (
     <>
       <Topbar />
 
       {/* hero */}
-      <section className="grain relative mt-5 overflow-hidden rounded-[28px] bg-fill">
-        <div aria-hidden className="absolute inset-[-30%] opacity-60 blur-[80px] [&_svg]:!size-full">
-          <Avatar account={leader.account} size={400} />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/70 to-transparent" />
+      <section
+        className="relative mt-5 overflow-hidden rounded-[28px] bg-[#120d0a] text-text"
+        // the banner is always dark, so pin dark-theme tokens here regardless of the app theme
+        style={{ "--text": "#f5f5f7", "--muted": "#a1a1aa", "--surface": "#1c1c1e", "--fill": "#2c2c2e", "--line": "#3a3a3c", "--ink": "#f5f5f7", "--on-ink": "#121212" } as React.CSSProperties}
+      >
+        <Image src="/brand/leaderboard-banner.png" alt="" fill priority sizes="100vw" className="object-cover object-right" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
         <div className="relative flex flex-col gap-6 p-6 pt-5">
           <div className="flex justify-end">
             <Countdown />

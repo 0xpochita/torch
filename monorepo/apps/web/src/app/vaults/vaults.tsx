@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { BasketArt } from "@/components/basket-art";
@@ -66,11 +67,9 @@ export function Vaults() {
     <>
       <Topbar />
 
-      {/* banner: the wallet's own identicon, blown up and blurred */}
-      <div className="grain relative mt-4 h-[180px] overflow-hidden rounded-[28px] bg-fill md:h-[220px]">
-        <div aria-hidden className="absolute inset-[-20%] scale-125 opacity-80 blur-[70px] [&_svg]:!size-full">
-          <Avatar account={ME} size={400} />
-        </div>
+      {/* banner */}
+      <div className="relative mt-4 h-[180px] overflow-hidden rounded-[28px] bg-fill md:h-[220px]">
+        <Image src="/brand/myvault-banner.png" alt="" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-bg/70" />
       </div>
 

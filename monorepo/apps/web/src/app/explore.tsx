@@ -76,37 +76,21 @@ export function Explore() {
 
         <section className="card flex flex-col gap-4 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-[20px] font-bold">Browse</h2>
-            <span className="text-[13px] text-muted">{CATEGORIES.length} categories</span>
+            <h2 className="text-[20px] font-bold">Market today</h2>
+            <span className="rounded-full bg-fill px-2.5 py-1 text-[12px] font-medium text-muted">mock</span>
           </div>
-          <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3">
-            {CATEGORIES.map((c) => {
-              const art = CATEGORY_ART[c];
-              const change = ETFS.filter((e) => e.category === c).reduce((sum, e, _, all) => sum + e.change24h / all.length, 0);
-              return (
-                <motion.button
-                  key={c}
-                  onClick={() => setTab(c)}
-                  whileHover={{ y: -3 }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`grain relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
-                  style={{ background: art.bg }}
-                >
-                  {/* basket logos sit on the right of the tile */}
-                  <span className="absolute inset-y-0 -right-2 w-[64%]">
-                    <BasketArt allocation={art.allocation} className="!bg-none" />
-                  </span>
-                  <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
-                  <span className="relative">
-                    <span className={`block text-[22px] font-bold tabular-nums leading-none ${change >= 0 ? "text-[#138a4b]" : "text-[#d92d2d]"}`}>
-                      {change >= 0 ? "+" : "−"}
-                      {Math.abs(change).toFixed(2)}%
-                    </span>
-                    <span className="text-[12px] font-medium text-[#121212]/55">24h change</span>
-                  </span>
-                </motion.button>
-              );
-            })}
+          <div className="grid grid-cols-2 gap-2.5">
+            <StatTile icon="vault" label="Value locked" value={<Money value={ETFS.reduce((s, e) => s + e.navUsd, 0)} />} />
+            <StatTile icon="pulse" label="24h volume" value={<Money value={12_480.5} />} />
+            <StatTile icon="layers" label="Vaults" value={`${ETFS.length} live`} />
+            <StatTile icon="person" label="Holders" value={new Set(ETFS.map((e) => e.owner)).size} />
+            <div className="col-span-2">
+              <StatTile icon="tag" label="Listed for sale" value={`${ETFS.filter((e) => e.listed).length} of ${ETFS.length}`}>
+                <span className="flex h-2 overflow-hidden rounded-full bg-line">
+                  <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.listed).length / ETFS.length) * 100}%` }} />
+                </span>
+              </StatTile>
+            </div>
           </div>
         </section>
 
@@ -199,21 +183,37 @@ export function Explore() {
 
         <section className="card flex flex-col gap-4 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-[20px] font-bold">Market today</h2>
-            <span className="rounded-full bg-fill px-2.5 py-1 text-[12px] font-medium text-muted">mock</span>
+            <h2 className="text-[20px] font-bold">Browse</h2>
+            <span className="text-[13px] text-muted">{CATEGORIES.length} categories</span>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <StatTile icon="vault" label="Value locked" value={<Money value={ETFS.reduce((s, e) => s + e.navUsd, 0)} />} />
-            <StatTile icon="pulse" label="24h volume" value={<Money value={12_480.5} />} />
-            <StatTile icon="layers" label="Vaults" value={`${ETFS.length} live`} />
-            <StatTile icon="person" label="Holders" value={new Set(ETFS.map((e) => e.owner)).size} />
-            <div className="col-span-2">
-              <StatTile icon="tag" label="Listed for sale" value={`${ETFS.filter((e) => e.listed).length} of ${ETFS.length}`}>
-                <span className="flex h-2 overflow-hidden rounded-full bg-line">
-                  <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.listed).length / ETFS.length) * 100}%` }} />
-                </span>
-              </StatTile>
-            </div>
+          <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3">
+            {CATEGORIES.map((c) => {
+              const art = CATEGORY_ART[c];
+              const change = ETFS.filter((e) => e.category === c).reduce((sum, e, _, all) => sum + e.change24h / all.length, 0);
+              return (
+                <motion.button
+                  key={c}
+                  onClick={() => setTab(c)}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`grain relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
+                  style={{ background: art.bg }}
+                >
+                  {/* basket logos sit on the right of the tile */}
+                  <span className="absolute inset-y-0 -right-2 w-[64%]">
+                    <BasketArt allocation={art.allocation} className="!bg-none" />
+                  </span>
+                  <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
+                  <span className="relative">
+                    <span className={`block text-[22px] font-bold tabular-nums leading-none ${change >= 0 ? "text-[#138a4b]" : "text-[#d92d2d]"}`}>
+                      {change >= 0 ? "+" : "−"}
+                      {Math.abs(change).toFixed(2)}%
+                    </span>
+                    <span className="text-[12px] font-medium text-[#121212]/55">24h change</span>
+                  </span>
+                </motion.button>
+              );
+            })}
           </div>
         </section>
 
