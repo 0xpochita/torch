@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["seed-testnet.ts"]
+  "include": ["seed-testnet.ts", "templates.ts"]
 }

@@ -58,7 +58,7 @@ jobs:
             scripts:
               - *ci
               - monorepo/scripts/**
-              - monorepo/apps/web/src/lib/mock.ts # imported by seed-testnet.ts
+              - monorepo/apps/web/src/lib/tokens.ts # imported by seed-testnet.ts and templates.ts
 
   contracts:
     name: Contracts

@@ -1,4 +1,4 @@
-// Seed the testnet deploy so the app is not empty: 6 template vaults (apps/web lib/mock.ts ETFS)
+// Seed the testnet deploy so the app is not empty: 6 template vaults (templates.ts)
 // from up to 3 creators, funded via faucet + ft_transfer_call, 4 listed on the market, 2 offers
 // (pinned to the vault balances, INTERFACES "Wave 2 market changes"), a prune_listing run on a
 // stale listing, and one gacha 10-pull (so /gacha/recent has rows).
@@ -13,7 +13,8 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { Account, JsonRpcProvider, actions, nearToYocto, teraToGas, type KeyPairString } from "near-api-js";
-import { ETFS, type Etf, type TokenKey } from "../apps/web/src/lib/mock.ts";
+import type { TokenKey } from "../apps/web/src/lib/tokens.ts";
+import { TEMPLATES as ETFS, type Template as Etf } from "./templates.ts";
 
 const env = process.env;
 const DRY_RUN = env.DRY_RUN === "1";
@@ -41,7 +42,7 @@ const WEEK_MS = 7 * 86_400_000;
 const listPrice = (e: Etf) => nearToYocto(Number((e.priceNear / 1000).toFixed(3)));
 const offerPrice = (e: Etf) => nearToYocto(Number((e.priceNear / 2000).toFixed(3)));
 
-/** mock.ts token key -> testnet FT account and decimals. */
+/** tokens.ts token key -> testnet FT account and decimals. */
 function ft(key: TokenKey): { id: string; decimals: number } {
   if (key === "NEAR") return { id: WRAP, decimals: 24 };
   const decimals = key === "USDC" || key === "USDT" ? 6 : key === "BTC" ? 8 : 18;
@@ -283,7 +284,7 @@ for (const [i, e] of ETFS.entries()) {
   minted.push({ e, creator, tokenId });
 }
 
-console.log("\n== market: list the 4 templates mock.ts marks as listed");
+console.log("\n== market: list the 4 templates marked as listed");
 for (const { e, creator, tokenId } of minted.filter((m) => m.e.listed).slice(0, 4)) await list(e, creator, tokenId);
 
 console.log("\n== market: 2 offers on unlisted vaults from another creator");
