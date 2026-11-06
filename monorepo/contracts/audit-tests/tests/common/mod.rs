@@ -23,7 +23,11 @@ pub fn wasm(krate: &str) -> Vec<u8> {
 }
 
 /// near-workspaces has no helper for DeployGlobalContract (same as collection/tests/sandbox.rs).
-pub async fn deploy_global_by_hash(worker: &Worker<Sandbox>, account: &Account, code: Vec<u8>) -> String {
+pub async fn deploy_global_by_hash(
+    worker: &Worker<Sandbox>,
+    account: &Account,
+    code: Vec<u8>,
+) -> String {
     use near_jsonrpc_client::methods;
     use near_primitives::action::{Action, DeployGlobalContractAction, GlobalContractDeployMode};
     use near_primitives::transaction::{Transaction, TransactionV0};
@@ -128,7 +132,14 @@ pub async fn setup() -> Env {
         .await
         .unwrap());
     let (alice, bob) = (sub(&root, "alice", 50).await, sub(&root, "bob", 50).await);
-    let e = Env { worker, root, nft, usdc, alice, bob };
+    let e = Env {
+        worker,
+        root,
+        nft,
+        usdc,
+        alice,
+        bob,
+    };
     for who in [e.root.id(), e.alice.id(), e.bob.id()] {
         register(&e, who).await;
     }
@@ -211,4 +222,3 @@ pub async fn deploy_market(e: &Env, near: u128) -> Contract {
         .unwrap());
     market
 }
-

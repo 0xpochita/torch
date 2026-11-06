@@ -12,7 +12,10 @@ const TGAS: u64 = 1_000_000_000_000;
 fn burnt(r: &ExecutionFinalResult, executor: &AccountId, needle: &str) -> Vec<u64> {
     r.receipt_outcomes()
         .iter()
-        .filter(|o| &o.executor_id == executor && (needle.is_empty() || o.logs.iter().any(|l| l.contains(needle))))
+        .filter(|o| {
+            &o.executor_id == executor
+                && (needle.is_empty() || o.logs.iter().any(|l| l.contains(needle)))
+        })
         .map(|o| o.gas_burnt.as_gas())
         .collect()
 }
@@ -63,7 +66,10 @@ async fn w2_resolve_transfer_at_the_approval_cap() {
     println!("cap = {approvals} approvals (62-char ids): nft_resolve_transfer revert burnt {:.2} Tgas of 5", resolve as f64 / TGAS as f64);
     assert_eq!(owner_of(&e, "0").await, *e.alice.id());
     assert!(!is_locked(&e, "0").await, "I9: unlocked after the revert");
-    assert!(resolve < 4 * TGAS, "keep >= 1 Tgas headroom under the fixed 5 Tgas");
+    assert!(
+        resolve < 4 * TGAS,
+        "keep >= 1 Tgas headroom under the fixed 5 Tgas"
+    );
 }
 
 /// L-8 / I4: `on_vault_created` (GAS_CALLBACK, now 10 Tgas) with the largest metadata to a new
@@ -107,7 +113,11 @@ async fn w2_on_vault_created_worst_case_with_minimum_gas() {
         cb as f64 / TGAS as f64
     );
     let id = token_id.expect("mint resolves to the token id");
-    assert_eq!(owner_of(&e, &id).await, *owner.id(), "I4: the vault's token exists");
+    assert_eq!(
+        owner_of(&e, &id).await,
+        *owner.id(),
+        "I4: the vault's token exists"
+    );
     assert!(cb < 6 * TGAS, "keep >= 4 Tgas headroom under GAS_CALLBACK");
 }
 
@@ -140,11 +150,17 @@ async fn w2_on_vault_op_unlocks_with_minimum_gas() {
         if r.is_success() {
             break r;
         }
-        assert!(!is_locked(&e, "0").await, "a rejected withdraw never leaves a lock");
+        assert!(
+            !is_locked(&e, "0").await,
+            "a rejected withdraw never leaves a lock"
+        );
         tgas += 2;
     };
     let cb = *burnt(&r, e.nft.id(), "").last().unwrap();
-    println!("withdraw accepted at {tgas} Tgas: on_vault_op burnt {:.2} Tgas of 10", cb as f64 / TGAS as f64);
+    println!(
+        "withdraw accepted at {tgas} Tgas: on_vault_op burnt {:.2} Tgas of 10",
+        cb as f64 / TGAS as f64
+    );
     assert!(!is_locked(&e, "0").await, "I9: unlocked");
     assert!(cb < 5 * TGAS);
 }
@@ -171,7 +187,10 @@ async fn gacha_env() -> Gacha {
     }
     fts.insert(0, e.usdc.clone());
     let gacha = deploy(&e.root, "gacha", 20, "gacha").await;
-    let items: Vec<_> = fts.iter().map(|ft| json!({ "token": ft.id(), "amount": "1000" })).collect();
+    let items: Vec<_> = fts
+        .iter()
+        .map(|ft| json!({ "token": ft.id(), "amount": "1000" }))
+        .collect();
     let tiers: Vec<_> = [("Common", 6000), ("Rare", 2800), ("Epic", 1000), ("Legendary", 200)]
         .iter()
         .map(|(rarity, w)| json!({ "rarity": rarity, "weight_bps": w, "baskets": [{ "name": rarity, "category": "Blue Chip", "bg": "#fff", "items": items }] }))
@@ -184,9 +203,20 @@ async fn gacha_env() -> Gacha {
         .unwrap());
     for ft in &fts {
         for who in [e.root.id(), gacha.id()] {
-            ok(e.root.call(ft.id(), "storage_deposit").args_json(json!({ "account_id": who })).deposit(STORAGE).transact().await.unwrap());
+            ok(e.root
+                .call(ft.id(), "storage_deposit")
+                .args_json(json!({ "account_id": who }))
+                .deposit(STORAGE)
+                .transact()
+                .await
+                .unwrap());
         }
-        ok(e.root.call(ft.id(), "mint").args_json(json!({ "account_id": e.root.id(), "amount": "1000000" })).transact().await.unwrap());
+        ok(e.root
+            .call(ft.id(), "mint")
+            .args_json(json!({ "account_id": e.root.id(), "amount": "1000000" }))
+            .transact()
+            .await
+            .unwrap());
         ok(e.root
             .call(ft.id(), "ft_transfer_call")
             .args_json(json!({ "receiver_id": gacha.id(), "amount": "1000000", "msg": "fund" }))
@@ -206,7 +236,15 @@ async fn pull_with_minimum_gas(g: &Gacha, count: u8, from_tgas: u64) -> u64 {
     let mut tgas = from_tgas;
     let r = loop {
         assert!(tgas <= 1000, "pull({count}) does not fit 1 PGas");
-        let r = g.e.bob.call(g.gacha.id(), "pull").args_json(json!({ "count": count })).deposit(price).gas(Gas::from_tgas(tgas)).transact().await.unwrap();
+        let r =
+            g.e.bob
+                .call(g.gacha.id(), "pull")
+                .args_json(json!({ "count": count }))
+                .deposit(price)
+                .gas(Gas::from_tgas(tgas))
+                .transact()
+                .await
+                .unwrap();
         if r.is_success() {
             break r;
         }
@@ -220,12 +258,27 @@ async fn pull_with_minimum_gas(g: &Gacha, count: u8, from_tgas: u64) -> u64 {
         failed.len(),
         r.total_gas_burnt.as_gas() as f64 / TGAS as f64
     );
-    assert_eq!(pulls.len(), count as usize, "every pull minted and logged after funding");
-    assert!(failed.is_empty(), "a minimum-gas pull must not starve funding: {failed:?}");
+    assert_eq!(
+        pulls.len(),
+        count as usize,
+        "every pull minted and logged after funding"
+    );
+    assert!(
+        failed.is_empty(),
+        "a minimum-gas pull must not starve funding: {failed:?}"
+    );
     for p in pulls {
-        let vault: AccountId = format!("{}.{}", p["token_id"].as_str().unwrap(), g.e.nft.id()).parse().unwrap();
+        let vault: AccountId = format!("{}.{}", p["token_id"].as_str().unwrap(), g.e.nft.id())
+            .parse()
+            .unwrap();
         for ft in &g.fts {
-            let b: String = ft.view("ft_balance_of").args_json(json!({ "account_id": vault })).await.unwrap().json().unwrap();
+            let b: String = ft
+                .view("ft_balance_of")
+                .args_json(json!({ "account_id": vault }))
+                .await
+                .unwrap()
+                .json()
+                .unwrap();
             assert_eq!(b, "1000", "{vault} funded with {}", ft.id());
         }
     }
@@ -237,8 +290,13 @@ async fn w2_gacha_minimum_gas_pulls_fund_every_vault() {
     let g = gacha_env().await;
     pull_with_minimum_gas(&g, 1, 60).await;
     pull_with_minimum_gas(&g, 10, 900).await;
-    let treasury: Vec<(String, String)> = g.gacha.view("get_treasury").await.unwrap().json().unwrap();
+    let treasury: Vec<(String, String)> =
+        g.gacha.view("get_treasury").await.unwrap().json().unwrap();
     for (token, amount) in treasury {
-        assert_eq!(amount, (1_000_000 - 11 * 1000).to_string(), "treasury of {token} debited exactly once per pull");
+        assert_eq!(
+            amount,
+            (1_000_000 - 11 * 1000).to_string(),
+            "treasury of {token} debited exactly once per pull"
+        );
     }
 }
