@@ -1,11 +1,15 @@
 name: Deploy Contract
 
+# Manual only: builds the contracts workspace and runs monorepo/scripts/deploy-testnet.sh.
+# Needs GitHub environment `testnet` with secret NEAR_PRIVATE_KEY (ed25519:... full-access key of
+# the root account) and optional variable NEAR_ROOT_ID (default torchvault.testnet).
 on:
-  push:
-    branches: [main]
-    paths:
-      - monorepo/contracts/**
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the plan only (no transactions)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -15,31 +19,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-
   deploy:
     name: Deploy to NEAR testnet
-    needs: ci
     runs-on: ubuntu-latest
     environment: testnet
-    if: vars.NEAR_CONTRACT_ID != ''
     defaults:
       run:
-        working-directory: monorepo/contracts/torch
+        working-directory: monorepo
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - name: Install cargo-near
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.15.0/cargo-near-installer.sh | sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install cargo-near and near-cli-rs
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/latest/download/cargo-near-installer.sh | sh
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/near-cli-rs/releases/latest/download/near-cli-rs-installer.sh | sh
+      - name: Build workspace
+        working-directory: monorepo/contracts
+        run: for m in */Cargo.toml; do cargo near build non-reproducible-wasm --manifest-path "$m"; done
       - name: Deploy
         env:
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          SKIP_BUILD: '1'
+          NEAR_ROOT_ID: ${{ vars.NEAR_ROOT_ID || 'torchvault.testnet' }}
           NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
-        run: |
-          cargo near deploy build-non-reproducible-wasm "${{ vars.NEAR_CONTRACT_ID }}" \
-            without-init-call \
-            network-config testnet \
-            sign-with-plaintext-private-key "$NEAR_PRIVATE_KEY" \
-            send
+        run: ./scripts/deploy-testnet.sh
+      - name: Upload contract ids
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-env
+          include-hidden-files: true
+          path: |
+            monorepo/apps/web/.env.local
+            monorepo/apps/api/.env
