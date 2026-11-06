@@ -17,16 +17,16 @@ import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
 const STEPS = ["Theme", "Basket", "Weights", "Deposit", "Review"] as const;
-type Template = { id: string; name: string; bg: string; category: Category; slippageBps: number; allocation: Allocation[] };
+type Template = { id: string; name: string; bg: string; category: Category; allocation: Allocation[] };
 
 // Fallback presets until the API has vaults to learn from (fresh testnet, API down).
 const STATIC_TEMPLATES: Template[] = [
-  { id: "s0", name: "NEAR Blue Chip", bg: "#9fd3ff", category: "Blue Chip", slippageBps: 50, allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] },
-  { id: "s1", name: "Stable Harbor", bg: "#b8f0d8", category: "Stable", slippageBps: 10, allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] },
-  { id: "s2", name: "DeFi Engine", bg: "#ffd8a8", category: "DeFi", slippageBps: 100, allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] },
-  { id: "s3", name: "Meme Lab", bg: "#e5c8ff", category: "Meme", slippageBps: 300, allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] },
-  { id: "s4", name: "Omni Hot", bg: "#ffc2a8", category: "Chain Abstraction", slippageBps: 80, allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] },
-  { id: "s5", name: "Staked Garden", bg: "#c5f5b0", category: "Liquid Staking", slippageBps: 30, allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] },
+  { id: "s0", name: "NEAR Blue Chip", bg: "#9fd3ff", category: "Blue Chip", allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] },
+  { id: "s1", name: "Stable Harbor", bg: "#b8f0d8", category: "Stable", allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] },
+  { id: "s2", name: "DeFi Engine", bg: "#ffd8a8", category: "DeFi", allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] },
+  { id: "s3", name: "Meme Lab", bg: "#e5c8ff", category: "Meme", allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] },
+  { id: "s4", name: "Omni Hot", bg: "#ffc2a8", category: "Chain Abstraction", allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] },
+  { id: "s5", name: "Staked Garden", bg: "#c5f5b0", category: "Liquid Staking", allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] },
 ];
 const basketKey = (a: Allocation[]) => a.map((x) => x.token).sort().join();
 
@@ -37,7 +37,7 @@ function toTemplates(vaults: VaultSummary[] | undefined): Template[] {
     .map((v) => toVault(v))
     .filter((v) => v.allocation.length >= 2 && !seen.has(basketKey(v.allocation)) && seen.add(basketKey(v.allocation)))
     .slice(0, 6)
-    .map((v): Template => ({ id: `v${v.id}`, name: v.name, bg: v.bg, category: v.category, slippageBps: v.slippageBps, allocation: v.allocation }));
+    .map((v): Template => ({ id: `v${v.id}`, name: v.name, bg: v.bg, category: v.category, allocation: v.allocation }));
   return [...live, ...STATIC_TEMPLATES.filter((t) => !seen.has(basketKey(t.allocation)))].slice(0, 6);
 }
 const BACKGROUNDS = ["#9fd3ff", "#b8f0d8", "#ffd8a8", "#e5c8ff", "#ffc2a8", "#c5f5b0", "#d7d7e0"];
@@ -76,7 +76,6 @@ export function Studio() {
   const [name, setName] = useState("My NEAR Index");
   const [allocation, setAllocation] = useState<Allocation[]>(STATIC_TEMPLATES[0].allocation);
   const [bg, setBg] = useState(BACKGROUNDS[0]);
-  const [slippage, setSlippage] = useState(50);
   const [deposit, setDeposit] = useState(0);
   const balances = near.useFtBalances(accountId, FT_IDS, minted ? 1 : 0);
 
@@ -105,7 +104,6 @@ export function Studio() {
     setAllocation(etf.allocation);
     setBg(etf.bg);
     setName(etf.name);
-    setSlippage(etf.slippageBps);
     setCategory(etf.category);
   };
 
@@ -446,12 +444,7 @@ export function Studio() {
             )}
 
             {step === 3 && (
-              <div className="flex flex-col gap-5 text-sm">                <label className="flex flex-col gap-2">
-                  <span className="flex justify-between font-medium">
-                    Max slippage per swap <span className="tabular-nums text-muted">{(slippage / 100).toFixed(2)}%</span>
-                  </span>
-                  <input type="range" min={10} max={300} step={10} value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
-                </label>
+              <div className="flex flex-col gap-5 text-sm">
                 <label className="flex flex-col gap-2">
                   <span className="flex justify-between font-medium">
                     Initial deposit <span className="text-xs font-normal text-muted">{accountId ? <>max <Money value={maxDeposit} /></> : "connect to fund"}</span>
@@ -512,10 +505,8 @@ export function Studio() {
                     <dd className="truncate font-medium">{name}</dd>
                     <dt className="text-muted">Vault</dt>
                     <dd className="truncate font-mono">{NEXT_VAULT}</dd>
-                    <dt className="text-muted">Swaps</dt>
-                    <dd>
-                      ≤{(slippage / 100).toFixed(2)}% slippage
-                    </dd>
+                    <dt className="text-muted">Category</dt>
+                    <dd>{category}</dd>
                   </dl>
                 </div>
                 <dl className="flex flex-col gap-2">
@@ -554,10 +545,8 @@ export function Studio() {
               <dl className="grid min-w-0 flex-1 grid-cols-[auto_1fr] gap-x-3 text-[12px]">
                 <dt className="text-muted">Tokens</dt>
                 <dd className="truncate font-medium">{allocation.map((a) => TOKENS[a.token].symbol).join(", ") || "—"}</dd>
-                <dt className="text-muted">Swaps</dt>
-                <dd className="truncate font-medium">
-                  ≤{(slippage / 100).toFixed(2)}% slippage
-                </dd>
+                <dt className="text-muted">Category</dt>
+                <dd className="truncate font-medium">{category}</dd>
                 <dt className="text-muted">Deposit</dt>
                 <dd className="font-medium">
                   <Money value={deposit} />
