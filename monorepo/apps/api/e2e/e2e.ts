@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { createServer } from "node:net";
 import { existsSync, globSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -21,8 +22,15 @@ import { staticPrices } from "../src/prices.ts";
 import type { ActivityItem, GachaPull, LeaderboardRow, MarketListing, Stats, VaultDetail, VaultSummary } from "../src/types.ts";
 
 const CONTRACTS = resolve(import.meta.dirname, "../../../contracts");
-const RPC_PORT = Number(process.env.SANDBOX_RPC_PORT ?? 3130);
-const RPC = `http://127.0.0.1:${RPC_PORT}`;
+// Free ports picked at start (other sandboxes, e.g. near-workspaces tests, may be running).
+const freePort = () =>
+  new Promise<number>((ok) => {
+    const s = createServer().listen(0, "127.0.0.1", () => {
+      const { port } = s.address() as { port: number };
+      s.close(() => ok(port));
+    });
+  });
+let RPC = "";
 const NEAR = (n: number) => nearToYocto(n).toString();
 const log = (...a: unknown[]) => console.log("·", ...a);
 
@@ -43,12 +51,14 @@ function sandboxBin() {
 async function startSandbox(): Promise<{ proc: ChildProcess; home: string; key: KeyPairString }> {
   const bin = sandboxBin();
   const home = mkdtempSync(join(tmpdir(), "torch-e2e-"));
+  const [rpcPort, netPort] = [Number(process.env.SANDBOX_RPC_PORT) || (await freePort()), await freePort()];
+  RPC = `http://127.0.0.1:${rpcPort}`;
   execFileSync(bin, ["--home", home, "init"], { stdio: "ignore" });
-  const proc = spawn(bin, ["--home", home, "run", "--archive", "--rpc-addr", `127.0.0.1:${RPC_PORT}`, "--network-addr", `127.0.0.1:${RPC_PORT + 1}`], { stdio: "ignore" });
+  const proc = spawn(bin, ["--home", home, "run", "--archive", "--rpc-addr", `127.0.0.1:${rpcPort}`, "--network-addr", `127.0.0.1:${netPort}`], { stdio: "ignore" });
   for (let i = 0; i < 120; i++) {
     const ok = await fetch(`${RPC}/status`).then((r) => r.ok, () => false);
     if (ok) break;
-    if (proc.exitCode !== null) throw new Error(`near-sandbox exited with ${proc.exitCode}`);
+    if (proc.exitCode !== null) throw new Error(`near-sandbox exited with ${proc.exitCode} (port ${rpcPort} busy?)`);
     await new Promise((r) => setTimeout(r, 500));
   }
   const key = JSON.parse(readFileSync(join(home, "validator_key.json"), "utf8")).secret_key as KeyPairString;
