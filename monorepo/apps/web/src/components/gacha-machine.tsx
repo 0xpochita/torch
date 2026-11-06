@@ -11,7 +11,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
  * ponytail: hand-rolled sphere physics (O(n²) over ~30 capsules); swap for rapier if the count grows.
  */
 
-export type GachaHandle = { pull: (color: string) => Promise<void>; crack: () => Promise<void> };
+export type GachaHandle = { pull: (color: string) => Promise<void>; crack: () => Promise<void>; pause: (paused: boolean) => void };
 
 const DOME_R = 1.5;
 const CAP_R = 0.26;
@@ -48,11 +48,11 @@ float noise(vec3 x) {
   return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x), mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
 }
-float fbm(vec3 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
+float fbm(vec3 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
 void main() {
   float speed = 1.2 + uHeat * 3.0;
   vec3 q = vPos * 9.0 + vec3(uSeed, -uTime * speed, uSeed * 0.7);
-  float n = fbm(q + fbm(q * 0.6) * 1.5);
+  float n = fbm(q + noise(q * 0.6) * 1.5);
   float fres = pow(1.0 - max(dot(normalize(vNormal), normalize(vView)), 0.0), 2.2);
   vec3 col = mix(vec3(0.35, 0.04, 0.0), vec3(1.0, 0.38, 0.02), smoothstep(0.25, 0.6, n));
   col = mix(col, vec3(1.0, 0.82, 0.38), smoothstep(0.55, 0.85, n));
@@ -91,9 +91,9 @@ function makeFireball(geo: THREE.SphereGeometry, haloTex: THREE.Texture): Capsul
 
 export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; className?: string }) {
   const host = useRef<HTMLDivElement>(null);
-  const api = useRef<GachaHandle>({ pull: async () => {}, crack: async () => {} });
+  const api = useRef<GachaHandle>({ pull: async () => {}, crack: async () => {}, pause: () => {} });
 
-  useImperativeHandle(ref, () => ({ pull: (c) => api.current.pull(c), crack: () => api.current.crack() }), []);
+  useImperativeHandle(ref, () => ({ pull: (c) => api.current.pull(c), crack: () => api.current.crack(), pause: (v) => api.current.pause(v) }), []);
 
   useEffect(() => {
     const el = host.current;
@@ -101,7 +101,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -138,8 +138,8 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
 
     // glass dome
     const glass = new THREE.Mesh(
-      new THREE.SphereGeometry(DOME_R, 64, 40),
-      new THREE.MeshPhysicalMaterial({ color: "#ffffff", metalness: 0, roughness: 0.02, transmission: 1, thickness: 0.15, ior: 1.3, transparent: true, opacity: 0.35, envMapIntensity: 1.4, depthWrite: false }),
+      new THREE.SphereGeometry(DOME_R, 48, 32),
+      new THREE.MeshPhysicalMaterial({ color: "#ffffff", metalness: 0, roughness: 0.02, clearcoat: 1, transparent: true, opacity: 0.16, envMapIntensity: 1.6, depthWrite: false }),
     );
     glass.position.copy(CENTER);
     machine.add(glass);
@@ -201,7 +201,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
     machine.add(knob);
 
     // fireballs
-    const ballGeo = new THREE.SphereGeometry(CAP_R, 40, 24);
+    const ballGeo = new THREE.SphereGeometry(CAP_R, 28, 18);
     const haloTex = glowTexture();
     const caps: Capsule[] = Array.from({ length: COUNT }, () => {
       const c = makeFireball(ballGeo, haloTex);
@@ -422,13 +422,15 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
     let raf = 0;
     let last = performance.now();
     let visible = true;
+    let paused = false;
+    api.current.pause = (v) => (paused = v);
     const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
     io.observe(el);
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = Math.min((now - last) / 1000, 1 / 30);
       last = now;
-      if (!visible || document.hidden) return;
+      if (paused || !visible || document.hidden) return;
       for (let i = 0; i < 2; i++) step(dt / 2);
       if (shake > 0) {
         shake -= dt;

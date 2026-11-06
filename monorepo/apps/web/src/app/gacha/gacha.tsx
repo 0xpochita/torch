@@ -94,6 +94,11 @@ export function Gacha() {
     setBusy(false);
   };
 
+  // nothing behind the reveal needs to render; pausing the 3D scene keeps the reveal smooth
+  useEffect(() => {
+    machine.current?.pause(!!result);
+  }, [result]);
+
   const claim = () => {
     if (result) setCollected((c) => [...result, ...c]);
     setResult(null);
@@ -276,15 +281,16 @@ function Reveal({ pulls, onClaim, onAgain }: { pulls: Pull[]; onClaim: () => voi
   const best = pulls.map((p) => p.rarity).sort((a, b) => TIERS.indexOf(b) - TIERS.indexOf(a))[0];
   const c = RARITY[best].color;
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 grid place-items-center overflow-hidden bg-[#0b0806]/90 p-6 backdrop-blur-md">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 grid place-items-center overflow-hidden bg-[#0b0806]/95 p-6">
       {/* god rays, fire glow from below, embers */}
-      <div
-        aria-hidden
-        className="absolute left-1/2 top-1/2 size-[160vmax] -translate-x-1/2 -translate-y-1/2 opacity-40 [animation:rays_40s_linear_infinite] [mask-image:radial-gradient(circle,#000_10%,transparent_45%)]"
-        style={{ background: `repeating-conic-gradient(from 0deg, ${c}55 0deg 4deg, transparent 4deg 14deg)` }}
-      />
+      <div aria-hidden className="absolute inset-0 overflow-hidden opacity-40 [mask-image:radial-gradient(circle_at_50%_50%,#000_10%,transparent_60%)]">
+        <div
+          className="absolute left-1/2 top-1/2 size-[120vmax] -translate-x-1/2 -translate-y-1/2 will-change-transform [animation:rays_40s_linear_infinite]"
+          style={{ background: `repeating-conic-gradient(from 0deg, ${c}55 0deg 4deg, transparent 4deg 14deg)` }}
+        />
+      </div>
       <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-[radial-gradient(60%_80%_at_50%_100%,#ff5a0088,#ff8a0022_45%,transparent_70%)]" />
-      <Embers color={best === "Legendary" ? "#ffb347" : "#ff7a1a"} count={best === "Legendary" ? 120 : 70} className="absolute inset-0 size-full" />
+      <Embers color={best === "Legendary" ? "#ffb347" : "#ff7a1a"} count={best === "Legendary" ? 80 : 45} className="absolute inset-0 size-full" />
 
       <div className="relative flex w-full max-w-[760px] flex-col items-center gap-5">
         <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="flex flex-col items-center gap-1">
@@ -347,7 +353,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
           <Sym name="fire" size={big ? 72 : 28} weight="fill" className="text-[#ffd36b] drop-shadow-[0_0_20px_#ff8a00]" />
         </div>
         {/* front */}
-        <div className="burn-frame flex flex-col gap-2 rounded-[22px] bg-[#140d09] p-2 [backface-visibility:hidden]" style={{ "--rarity": c } as React.CSSProperties}>
+        <div className={`burn-frame flex flex-col gap-2 rounded-[22px] bg-[#140d09] p-2 [backface-visibility:hidden] ${big ? "" : "burn-still"}`} style={{ "--rarity": c } as React.CSSProperties}>
           <div className="grain relative aspect-square overflow-hidden rounded-[16px]" style={{ background: p.etf.bg }}>
             <BasketArt allocation={p.etf.allocation} />
             <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#ff5a0055] to-transparent" />

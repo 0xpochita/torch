@@ -340,14 +340,20 @@ input[type="radio"],
   animation: burn 3s linear infinite;
 }
 .burn-frame::after {
+  /* static blurred glow: only its opacity animates, which stays on the compositor */
   content: "";
   position: absolute;
-  inset: -18px;
+  inset: -16px;
   z-index: -2;
   border-radius: inherit;
-  background: conic-gradient(from var(--burn), #ff3d0066, #ff8a0099, #ffd36b55, var(--rarity, #ff8a00), #ff3d0066);
-  filter: blur(22px);
-  animation: burn 3s linear infinite, flicker 1.6s ease-in-out infinite;
+  background: radial-gradient(closest-side, var(--rarity, #ff8a00), #ff5a00aa 55%, transparent);
+  filter: blur(14px);
+  opacity: 0.6;
+  will-change: opacity;
+  animation: flicker 1.6s ease-in-out infinite;
+}
+.burn-frame.burn-still::before {
+  animation: none;
 }
 @keyframes burn {
   to {
@@ -355,8 +361,8 @@ input[type="radio"],
   }
 }
 @keyframes flicker {
-  0%, 100% { opacity: 0.75; }
-  50% { opacity: 1; }
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.75; }
 }
 @keyframes rays {
   to { transform: rotate(360deg); }
