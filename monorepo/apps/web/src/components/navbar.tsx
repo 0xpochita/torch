@@ -27,7 +27,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { href: "/vaults", label: "My Vaults", icon: "vault" },
       { href: "/leaderboard", label: "Leaders", icon: "trophy" },
       { href: "/activity", label: "Activity", icon: "pulse" },
-      { href: "/favorites", label: "Favorites", icon: "heart" },
+      { href: "/gacha", label: "Gacha", icon: "gift" },
     ],
   },
 ];

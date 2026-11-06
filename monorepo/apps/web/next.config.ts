@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
     agentFeedback: true,
   },
   cacheComponents: true,
+  // Favorites became the Gacha page.
+  async redirects() {
+    return [{ source: "/favorites", destination: "/gacha", permanent: false }];
+  },
   partialPrefetching: true,
   reactCompiler: true,
   turbopack: {

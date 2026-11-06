@@ -108,7 +108,6 @@ export const getEtf = (id: string) => ETFS.find((e) => e.id === id);
 export const ME = "bob.near";
 /** Vaults the mock wallet holds (owner) plus ones it created. */
 export const MY_VAULTS = { owned: ["0", "2", "5"], created: ["0"] } as const;
-export const MY_FAVORITES = ["3", "4", "0"];
 
 /** Every vault event across the marketplace, newest first. */
 export const ALL_ACTIVITY = ETFS.flatMap((e) => e.history.map((h) => ({ ...h, etf: e }))).sort((a, b) => b.at.localeCompare(a.at));
@@ -211,3 +210,34 @@ export function offersFor(etf: Etf): Offer[] {
     placedHoursAgo: 1 + ((n * 5 + i * 7) % 40),
   })).sort((a, b) => b.priceNear - a.priceNear);
 }
+
+/* ---------- Gacha (mock) ---------- */
+
+export type Rarity = "Common" | "Rare" | "Epic" | "Legendary";
+
+export const RARITY: Record<Rarity, { rate: number; color: string; vault: [number, number] }> = {
+  Common: { rate: 0.6, color: "#9aa0a8", vault: [8, 15] },
+  Rare: { rate: 0.28, color: "#4f9dff", vault: [15, 40] },
+  Epic: { rate: 0.1, color: "#b06bff", vault: [40, 120] },
+  Legendary: { rate: 0.02, color: "#ff8a00", vault: [120, 500] },
+};
+
+/** Which template basket each tier mints from. */
+export const GACHA_POOL: Record<Rarity, string[]> = {
+  Common: ["1", "5"],
+  Rare: ["2", "4"],
+  Epic: ["3"],
+  Legendary: ["0"],
+};
+
+export const GACHA_PRICE_NEAR = 5;
+export const PITY = 50;
+
+export const RECENT_PULLS: { account: string; rarity: Rarity; etfId: string; ago: string }[] = [
+  { account: "degen.near", rarity: "Legendary", etfId: "0", ago: "2m" },
+  { account: "kat.near", rarity: "Rare", etfId: "4", ago: "6m" },
+  { account: "intents.near", rarity: "Common", etfId: "1", ago: "9m" },
+  { account: "staker.near", rarity: "Epic", etfId: "3", ago: "14m" },
+  { account: "nearwhale.near", rarity: "Common", etfId: "5", ago: "21m" },
+  { account: "rhea-maxi.near", rarity: "Rare", etfId: "2", ago: "33m" },
+];

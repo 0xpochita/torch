@@ -294,7 +294,7 @@ function Hero() {
         <ActionCircle icon="plus" label="Create" href="/create" />
         <ActionCircle icon="vault" label="Vaults" href="/vaults" />
         <ActionCircle icon="pulse" label="Activity" href="/activity" />
-        <ActionCircle icon="ellipsis" label="More" href="/favorites" />
+        <ActionCircle icon="gift" label="Gacha" href="/gacha" />
       </div>
     </section>
   );
