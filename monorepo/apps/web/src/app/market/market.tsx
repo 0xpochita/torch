@@ -6,7 +6,6 @@ import { BasketArt } from "@/components/basket-art";
 import { useState } from "react";
 import { Artwork, Group, tint } from "@/components/etf-card";
 import ShinyText from "@/components/react-bits/ShinyText";
-import BorderGlow from "@/components/react-bits/BorderGlow";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { OrderBook } from "@/components/order-book";
@@ -152,8 +151,8 @@ export function Market() {
 
         <main className="flex min-w-0 flex-col gap-3">
           <div className="grid gap-3 xl:grid-cols-2">
-            <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes} likes`} sub="Most saved basket this week" active={book === "popular"} onSelect={() => setBook("popular")} />
-            <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% below value`} sub={`Buy the basket for less than the tokens inside`} active={book === "best"} onSelect={() => setBook("best")} />
+            <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes}`} sub="this week" active={book === "popular"} onSelect={() => setBook("popular")} />
+            <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% off`} sub="below basket value" active={book === "best"} onSelect={() => setBook("best")} />
           </div>
           <OrderBook
             etf={bookListing.etf}
@@ -232,45 +231,67 @@ export function Market() {
   );
 }
 
-/** Highlighted listing: grainy basket art, React Bits BorderGlow edge that lights toward the cursor, ShinyText label. */
+/** Highlighted listing: full-bleed basket art with a glass info panel on top (NFT drop card style). */
 function Featured({ l, label, stat, sub, active, onSelect }: { l: Listing; label: string; stat: string; sub: string; active: boolean; onSelect: () => void }) {
   const open = useTx();
-  const bg = l.etf.bg;
+  const stop = (fn: () => void) => (e: React.MouseEvent) => (e.stopPropagation(), fn());
   return (
-    <div onClick={onSelect} className="cursor-pointer">
-    <BorderGlow backgroundColor="var(--surface)" borderRadius={28} glowColor="32 100 60" colors={["#ff8a00", "#ffb340", "#ffd9a0"]} glowIntensity={0.9} edgeSensitivity={24} fillOpacity={0.35} className={`w-full transition ${active ? "outline-2 outline-offset-2 outline-tint" : "outline-0"}`}>
-      <div className="flex gap-4 p-3">
-      <Link href={`/etf/${l.etf.id}`} className="relative isolate aspect-square w-[132px] shrink-0 overflow-hidden rounded-[22px] sm:w-[160px]" style={{ background: bg }}>
-        <BasketArt allocation={l.etf.allocation} />
-      </Link>
-      <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 py-1 pr-1">
-        <div>
-          <ShinyText color="#84848c" shineColor="#ff8a00" speed={2.4} className="text-[12px] font-bold uppercase tracking-[0.08em]">
+    <article
+      onClick={onSelect}
+      className={`grain group relative isolate flex min-h-[230px] cursor-pointer overflow-hidden rounded-[28px] p-3 text-[#121212] transition ${active ? "" : "opacity-80 hover:opacity-100"}`}
+      style={{ background: l.etf.bg }}
+    >
+      {/* basket art fills the right side of the card */}
+      <span className="absolute inset-y-6 left-[364px] right-4 transition duration-500 group-hover:scale-[1.04] max-sm:hidden">
+        <BasketArt allocation={l.etf.allocation} className="!bg-none" />
+      </span>
+
+      <div className="relative flex w-full max-w-[340px] flex-col justify-between gap-3 rounded-[22px] bg-white/55 p-4 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-2">
+          <ShinyText color="#5c5c66" shineColor="#ff8a00" speed={2.4} className="text-[11px] font-bold uppercase tracking-[0.1em]">
             {label}
           </ShinyText>
-          <Link href={`/etf/${l.etf.id}`} className="title-chunky block truncate text-[24px] leading-tight">
+          <span className="flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold">
+            <Sym name={l.status === "buy" ? "tag" : "swap"} size={11} weight="bold" />
+            {l.status === "buy" ? "Buy now" : "Offers"}
+          </span>
+        </div>
+        <div>
+          <Link href={`/etf/${l.etf.id}`} onClick={(e) => e.stopPropagation()} className="title-chunky block truncate text-[24px] leading-tight hover:underline">
             {l.name}
           </Link>
-          <span className="text-[13px] text-muted">{sub}</span>
+          <span className="flex items-center gap-1.5 text-[12px] text-[#121212]/65">
+            <Avatar account={l.seller} size={16} /> {l.seller} · {sub}
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-tint/15 px-2.5 py-1 text-[13px] font-bold text-tint">{stat}</span>
-          <NearAmount amount={l.priceNear} className="text-[17px] font-bold" />
+        <div className="grid grid-cols-2 gap-2 border-t border-[#121212]/10 pt-3">
+          <span>
+            <span className="block text-[11px] text-[#121212]/60">Price</span>
+            <NearAmount amount={l.priceNear} className="text-[17px] font-bold" />
+          </span>
+          <span>
+            <span className="block text-[11px] text-[#121212]/60">{label === "Most popular" ? "Saved by" : "Discount"}</span>
+            <span className="text-[17px] font-bold">{stat}</span>
+          </span>
         </div>
         <div className="flex gap-2">
           {l.status === "buy" && (
-            <button onClick={() => open({ kind: "buy", listingId: l.id })} className="btn-ink h-10 flex-1 text-[14px]">
+            <button onClick={stop(() => open({ kind: "buy", listingId: l.id }))} className="h-10 flex-1 rounded-full bg-[#121212] text-[14px] font-semibold text-white transition active:scale-95">
               Buy now
             </button>
           )}
-          <button onClick={() => open({ kind: "offer", listingId: l.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
+          <button onClick={stop(() => open({ kind: "offer", listingId: l.id }))} className="h-10 rounded-full bg-white/80 px-4 text-[14px] font-semibold transition hover:bg-white active:scale-95">
             Make offer
           </button>
         </div>
       </div>
-      </div>
-    </BorderGlow>
-    </div>
+
+      {active && (
+        <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-[#121212] px-3 py-1.5 text-[12px] font-semibold text-white">
+          <Sym name="pulse" size={13} weight="bold" /> In order book
+        </span>
+      )}
+    </article>
   );
 }
 
