@@ -108,7 +108,8 @@ create() {
     sign-as "$ROOT" "${NET[@]}" "${SIGN[@]}"
 }
 create "$NFT" '3.5 NEAR'
-create "$MARKET" '2.5 NEAR'
+# 2.55 NEAR stakes the 255 KB wasm; the rest pays listings (offers bring their own storage deposit).
+create "$MARKET" '3 NEAR'
 create "$GACHA" '2.5 NEAR'
 # Token code comes from the global mock_ft, so token accounts only stake their own state.
 for t in "${TOKENS[@]}"; do create "$t.$ROOT" '0.3 NEAR'; done
