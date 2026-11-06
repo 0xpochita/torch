@@ -4,8 +4,6 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { BasketArt } from "@/components/basket-art";
-import Grainient from "@/components/react-bits/Grainient";
-import { mixHex } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Donut, Money, RadioRow, Switch, Title, TokenIcon } from "@/components/ui";
@@ -140,10 +138,7 @@ export function Studio() {
             </div>
           </div>
 
-          <div className="relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: bg }}>
-            <div className="absolute inset-0">
-              <Grainient colors={[mixHex(bg, -0.35), bg, mixHex(bg, 0.55), mixHex(bg, -0.15)]} speed={0} grainAnimated={false} interactive={false} clickSwirl={false} dpr={1} grainAmount={0.06} softness={0.8} intro={false} />
-            </div>
+          <div className="grain relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: `color-mix(in oklab, ${bg}, #000 12%)` }}>
             <div className="absolute inset-0 grid place-items-center p-6 pb-24 pt-14">
               <div className="relative aspect-square h-full max-w-full [container-type:inline-size]">
                 <AnimatePresence mode="popLayout" initial={false}>

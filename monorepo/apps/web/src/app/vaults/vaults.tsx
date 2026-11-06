@@ -309,11 +309,11 @@ function VaultCard({ etf }: { etf: Etf }) {
         className="!grid w-full !place-items-stretch"
       >
         <div
-          className="relative isolate flex h-[132px] items-start justify-between overflow-hidden rounded-[20px] p-4"
+          className="grain relative isolate flex h-[132px] items-start justify-between overflow-hidden rounded-[20px] p-4"
           style={{ background: tint(etf.bg, 35) }}
         >
           <span className="absolute inset-y-0 right-2 -z-10 w-[52%] transition duration-500 group-hover:scale-105">
-            <BasketArt allocation={etf.allocation} />
+            <BasketArt allocation={etf.allocation} className="!bg-none" />
           </span>
           <span
             className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${etf.listed ? "bg-surface text-text" : "bg-surface/60 text-muted"}`}

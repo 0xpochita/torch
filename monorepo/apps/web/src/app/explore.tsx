@@ -89,12 +89,12 @@ export function Explore() {
                   onClick={() => setTab(c)}
                   whileHover={{ y: -3 }}
                   whileTap={{ scale: 0.97 }}
-                  className={`relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
+                  className={`grain relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
                   style={{ background: art.bg }}
                 >
                   {/* basket logos sit on the right of the tile */}
                   <span className="absolute inset-y-0 -right-2 w-[64%]">
-                    <BasketArt allocation={art.allocation} />
+                    <BasketArt allocation={art.allocation} className="!bg-none" />
                   </span>
                   <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
                   <span className="relative">

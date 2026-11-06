@@ -15,7 +15,7 @@ export function BasketArt({ allocation, className = "" }: { allocation: Allocati
   const row = sized.reduce<typeof sized>((r, x, i) => (i % 2 ? [...r, x] : [x, ...r]), []);
 
   return (
-    <div className={`absolute inset-0 flex items-center justify-center [container-type:inline-size] ${className}`}>
+    <div className={`grain absolute inset-0 flex items-center justify-center [container-type:inline-size] ${className}`}>
       {row.map(({ a, rank, w }, i) => (
         <span
           key={a.token}
@@ -24,7 +24,7 @@ export function BasketArt({ allocation, className = "" }: { allocation: Allocati
             width: `${w * fit}%`,
             marginLeft: i ? `${-w * fit * 0.16}%` : 0,
             zIndex: 10 - rank,
-            boxShadow: "0 0 0 max(1.5px, 1.2cqw) #ffffff, 0 3cqw 7cqw -3cqw #00000052",
+            boxShadow: "0 0 0 max(1.5px, 1.2cqw) #ffffff",
           }}
         >
           <Image src={TOKENS[a.token].logo} alt={TOKENS[a.token].symbol} fill sizes="240px" className="object-cover" />

@@ -4,8 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { BasketArt } from "@/components/basket-art";
 import { useState } from "react";
-import { Artwork, Group, mixHex, tint } from "@/components/etf-card";
-import Grainient from "@/components/react-bits/Grainient";
+import { Artwork, Group, tint } from "@/components/etf-card";
 import ShinyText from "@/components/react-bits/ShinyText";
 import BorderGlow from "@/components/react-bits/BorderGlow";
 import { Sym } from "@/components/icons";
@@ -225,17 +224,14 @@ export function Market() {
   );
 }
 
-/** Highlighted listing: React Bits Grainient art, BorderGlow edge that lights toward the cursor, ShinyText label. */
+/** Highlighted listing: grainy basket art, React Bits BorderGlow edge that lights toward the cursor, ShinyText label. */
 function Featured({ l, label, stat, sub }: { l: Listing; label: string; stat: string; sub: string }) {
   const open = useTx();
   const bg = l.etf.bg;
   return (
     <BorderGlow backgroundColor="var(--surface)" borderRadius={28} glowColor="32 100 60" colors={["#ff8a00", "#ffb340", "#ffd9a0"]} glowIntensity={0.9} edgeSensitivity={24} fillOpacity={0.35} className="w-full">
       <div className="flex gap-4 p-3">
-      <Link href={`/etf/${l.etf.id}`} className="relative isolate aspect-square w-[132px] shrink-0 overflow-hidden rounded-[22px] sm:w-[160px]">
-        <span className="absolute inset-0 -z-10">
-          <Grainient colors={[mixHex(bg, -0.3), bg, mixHex(bg, 0.6)]} speed={0} grainAnimated={false} interactive={false} clickSwirl={false} dpr={1} grainAmount={0.07} intro={false} />
-        </span>
+      <Link href={`/etf/${l.etf.id}`} className="relative isolate aspect-square w-[132px] shrink-0 overflow-hidden rounded-[22px] sm:w-[160px]" style={{ background: bg }}>
         <BasketArt allocation={l.etf.allocation} />
       </Link>
       <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 py-1 pr-1">
