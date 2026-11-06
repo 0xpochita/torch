@@ -118,7 +118,7 @@ export function formatUnits(raw: string | bigint, decimals: number): string {
 }
 
 /** Base units → number for display (float is fine here, never sent back on-chain). */
-export const fromUnits = (raw: string | bigint, decimals: number) => Number(BigInt(raw)) / 10 ** decimals;
+export const fromUnits = (raw: string | bigint, decimals: number) => Number(formatUnits(raw, decimals)); // via the exact string: 1e23/1e24 is 0.09999…
 
 /* ---------- send + read results ---------- */
 

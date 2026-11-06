@@ -89,6 +89,7 @@ test("toUnits / fromUnits", () => {
   assert.equal(tx.toUnits(0.9, 24), "900000000000000000000000");
   assert.equal(tx.toUnits(1e-7, 8), "10");
   assert.equal(tx.fromUnits("1500000", 6), 1.5);
+  assert.equal(tx.fromUnits("100000000000000000000000", 24), 0.1);
   assert.equal(tx.formatUnits("1500000", 6), "1.5");
   assert.equal(tx.formatUnits("7", 8), "0.00000007");
   assert.equal(tx.formatUnits("100000000000000000000000", 24), "0.1");
