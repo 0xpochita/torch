@@ -1,10 +1,9 @@
 "use client";
 
 import { motion } from "motion/react";
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { Change, Group } from "@/components/etf-card";
+import { Artwork, Change, Group } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { Avatar, Money, PASTEL, Segmented, StatTile, type Pastel } from "@/components/ui";
@@ -15,11 +14,7 @@ const SORTS = ["Value", "Return", "Holders"] as const;
 // ponytail: mock period scaling; replace with indexed per-period NAV once the indexer exists
 const SCALE: Record<(typeof PERIODS)[number], number> = { "7D": 0.35, "30D": 1, "All time": 2.4 };
 
-const PODIUM: { tone: Pastel; medal: string }[] = [
-  { tone: "peach", medal: "#ff9f0a" },
-  { tone: "sky", medal: "#8e9bb0" },
-  { tone: "lilac", medal: "#c27c4e" },
-];
+const PODIUM: { tone: Pastel }[] = [{ tone: "peach" }, { tone: "sky" }, { tone: "lilac" }];
 
 // Season 1 runs until the hackathon deadline; mock "today" is 2026-11-05.
 const SEASON_DAYS_LEFT = 9;
@@ -130,20 +125,8 @@ function PodiumCard({ c, rank, sort }: { c: Row; rank: number; sort: (typeof SOR
       transition={{ type: "spring", stiffness: 380, damping: 26 }}
       className={`relative isolate flex flex-col overflow-hidden rounded-[28px] p-5 ${PASTEL[p.tone].bg} ${rank === 1 ? "min-h-[300px]" : "min-h-[260px]"}`}
     >
-      {c.etf ? (
-        <span className="absolute -bottom-6 -right-6 -z-10 size-40 rotate-[-8deg] [mask-image:radial-gradient(circle_at_60%_60%,#000_55%,transparent_75%)]">
-          <Image src={c.etf.image} alt="" fill sizes="160px" className="object-cover" />
-        </span>
-      ) : (
-        <Sym name="trophy" size={150} stroke={1.2} className={`absolute -bottom-5 -right-5 -z-10 rotate-[-10deg] opacity-25 ${PASTEL[p.tone].ink}`} />
-      )}
       <div className="flex items-start justify-between">
-        <span className="relative">
-          <Avatar account={c.account} size={rank === 1 ? 64 : 56} />
-          <span className="absolute -bottom-1 -right-1 grid size-6 place-items-center rounded-full text-[12px] font-bold text-white ring-2 ring-surface" style={{ background: p.medal }}>
-            {rank}
-          </span>
-        </span>
+        <Avatar account={c.account} size={rank === 1 ? 64 : 56} />
         <span className={`title-chunky ${rank === 1 ? "text-[64px]" : "text-[52px]"} leading-none ${PASTEL[p.tone].ink}`}>{rank}</span>
       </div>
       <div className="mt-auto pt-6">
@@ -156,6 +139,16 @@ function PodiumCard({ c, rank, sort }: { c: Row; rank: number; sort: (typeof SOR
           </span>
           <span className="rounded-full bg-surface/70 px-2.5 py-1">{c.followers} followers</span>
         </div>
+        {c.etf && (
+          <Link href={`/etf/${c.etf.id}`} className="mt-3 flex items-center gap-3 rounded-[18px] bg-surface/70 p-2 pr-3 transition hover:bg-surface">
+            <Artwork etf={c.etf} size={40} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-semibold text-muted">Top vault</span>
+              <span className="block truncate text-[14px] font-semibold">{c.etf.name}</span>
+            </span>
+            <Sym name="chevron" size={14} weight="bold" className="text-muted" />
+          </Link>
+        )}
       </div>
     </motion.article>
   );
