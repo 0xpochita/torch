@@ -4,7 +4,7 @@
 import type { NearWalletBase } from "@hot-labs/near-connect";
 import { JsonRpcProvider, nearToYocto } from "near-api-js";
 import { useEffect, useState } from "react";
-import { COLLECTION, GACHA, MARKET, NETWORK, RPC, WNEAR, vaultOf } from "./contracts";
+import { COLLECTION, GACHA, MARKET, NETWORK, RPC, WNEAR, ftById, vaultOf } from "./contracts";
 
 export type Action = { type: "FunctionCall"; params: { methodName: string; args: object; gas: string; deposit: string } };
 export type Tx = { receiverId: string; actions: Action[] };
@@ -311,6 +311,42 @@ export function useEach<T>(contractIds: string[] | null, method: string, args: R
 
 /** `ft_balance_of` (raw base units) for every token; missing when unreadable. */
 export const useFtBalances = (accountId: string | null, ftIds: string[], nonce = 0) => useEach<string>(accountId ? ftIds : null, "ft_balance_of", { account_id: accountId }, nonce);
+
+type View = <T>(contractId: string, method: string, args?: Record<string, unknown>) => Promise<T>;
+
+/**
+ * Offer pins from on-chain truth only: the token's `extra.basket` (collection `nft_token`) and each basket
+ * token's live `ft_balance_of(vault)`. Never from API balances, which a seller can pad with look-alike tokens.
+ * Only token ids from our FT list count, every one of them is pinned (≤ 4, the basket cap), zero balances skipped.
+ */
+export async function pinsFor(tokenId: string, read: View = view): Promise<MinBalance[]> {
+  const token = await read<{ metadata?: { extra?: string | null } } | null>(COLLECTION, "nft_token", { token_id: tokenId });
+  let basket: { token?: unknown }[] = [];
+  try {
+    basket = JSON.parse(token?.metadata?.extra ?? "{}").basket ?? [];
+  } catch {}
+  const ids = [...new Set(basket.map((b) => String(b.token)).filter((id) => ftById(id)))].slice(0, 4);
+  const bals = await Promise.all(ids.map((id) => read<string>(id, "ft_balance_of", { account_id: vaultOf(tokenId) })));
+  return ids.flatMap((ft_id, i) => (BigInt(bals[i] ?? "0") > BigInt(0) ? [{ ft_id, amount: String(bals[i]) }] : []));
+}
+
+/** `pinsFor` as React state for the sheet (`tokenId: null` skips). */
+export function usePins(tokenId: string | null) {
+  const [state, setState] = useState<{ tokenId: string; data?: MinBalance[]; error?: string } | null>(null);
+  useEffect(() => {
+    if (!tokenId) return;
+    let live = true;
+    pinsFor(tokenId).then(
+      (data) => live && setState({ tokenId, data }),
+      (e) => live && setState({ tokenId, error: walletError(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [tokenId]);
+  const s = state?.tokenId === tokenId ? state : null;
+  return { data: s?.data, error: s?.error ?? null, loading: !!tokenId && !s };
+}
 
 /**
  * Re-reads a tx with every receipt (wait for FINAL). Wallets that return early can miss logs from

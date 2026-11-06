@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Artwork } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
 import { ConnectPrompt } from "@/components/navbar";
@@ -11,7 +11,7 @@ import { ActionCircle, Avatar, Money, NearAmount, Segmented, TokenIcon } from "@
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { useNear } from "@/providers/near-provider";
 import { TOKENS, type Etf, type TokenKey } from "@/lib/tokens";
-import { FTS, MARKET, ftByKey, vaultOf } from "@/lib/contracts";
+import { FTS, MARKET, ftById, ftByKey, vaultOf } from "@/lib/contracts";
 import { toNear, toVault, tokenKey, useApi, type Stats, type VaultDetail, type VaultSummary } from "@/lib/api";
 import * as near from "@/lib/near-tx";
 
@@ -78,16 +78,45 @@ const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n 
 const DECIMAL = /^\d*\.?\d*$/;
 
 /** Overlay + dialog card shared by every sheet state. `locked` while the wallet is open. */
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
+
 function Frame({ title, locked = false, onClose, children }: { title: string; locked?: boolean; onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  // Modal focus: move in on open, keep Tab inside, give focus back to the opener on close.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    const t = setTimeout(() => {
+      if (!box.current?.contains(document.activeElement)) (box.current?.querySelector<HTMLElement>("[autofocus]") ?? box.current)?.focus();
+    });
+    return () => (clearTimeout(t), opener?.focus?.());
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !locked) onClose();
+      if (e.key !== "Tab" || !box.current) return;
+      const list = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (!list.length) return;
+      const [first, last] = [list[0], list[list.length - 1]];
+      const wrapTo = e.shiftKey ? (document.activeElement === first || document.activeElement === box.current ? last : null) : document.activeElement === last ? first : null;
+      if (wrapTo) {
+        e.preventDefault();
+        wrapTo.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [locked, onClose]);
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <button aria-label="Close" onClick={() => !locked && onClose()} className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" />
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] sm:items-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <button aria-label="Close" tabIndex={-1} onClick={() => !locked && onClose()} className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" />
       <motion.div
+        ref={box}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -95,7 +124,8 @@ function Frame({ title, locked = false, onClose, children }: { title: string; lo
         animate={{ y: 0, scale: 1 }}
         exit={{ y: 30, scale: 0.97, opacity: 0 }}
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        className="relative flex max-h-[92dvh] w-full max-w-[440px] flex-col overflow-y-auto rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080]"
+        className="relative flex max-h-full w-full max-w-[440px] flex-col overflow-y-auto overscroll-contain rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080] focus-visible:outline-none"
+        style={{ outline: "none" }} // the container only holds focus for screen readers; controls show their own ring
       >
         {children}
       </motion.div>
@@ -156,12 +186,10 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
   const liveOffers = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1));
   const picked = tx.offer ? liveOffers.find((o) => o.buyerId === tx.offer!.from) : liveOffers[0];
   const offerIn = picked && { from: picked.buyerId, amount: picked.amount, priceNear: toNear(picked.amount) };
-  // Offers pin up to 4 basket tokens at the vault's current balance (largest value first), so a drained vault cannot be sold.
-  const pins: near.MinBalance[] = detail.balances
-    .filter((b) => BigInt(b.amount) > BigInt(0))
-    .sort((a, b) => b.valueUsd - a.valueUsd)
-    .slice(0, 4)
-    .map((b) => ({ ft_id: b.ftId, amount: b.amount }));
+  // Offers pin every basket token at the vault's live on-chain balance (shown here, re-read at sign time),
+  // so a vault drained before acceptance cannot be sold. Never from API balances (xcheck X-2).
+  const pinsQ = near.usePins(tx.kind === "offer" ? tokenId : null);
+  const pins = pinsQ.data ?? [];
   const storage = near.useView<string>(tx.kind === "offer" ? MARKET : null, "offer_storage_cost").data ?? near.OFFER_STORAGE_FALLBACK;
 
   // The live listing decides the buy price (it must match exactly) and blocks withdraw while listed.
@@ -197,13 +225,13 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
     }
   })();
 
-  const build = (): near.Tx[] => {
+  const build = (signPins: near.MinBalance[]): near.Tx[] => {
     const yocto = (n: number) => near.toUnits(n, 24);
     switch (tx.kind) {
       case "buy":
         return [near.buyTx(tokenId, onChain!.price)];
       case "offer":
-        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)), pins, storage)];
+        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)), signPins, storage)];
       case "list":
         return [near.listTx(tokenId, yocto(offer))];
       case "delist":
@@ -227,7 +255,9 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
     setPhase("pending");
     try {
       // wallets without batch signing get one prompt per tx; say which one is up
-      const outcomes = await near.send(wallet, build(), { onStep: (i, n) => setStep(`step ${i + 1} of ${n}`) });
+      // pins are re-read from the chain right before the wallet opens
+      const signPins = tx.kind === "offer" ? await near.pinsFor(tokenId) : [];
+      const outcomes = await near.send(wallet, build(signPins), { onStep: (i, n) => setStep(`step ${i + 1} of ${n}`) });
       setHash(outcomes[outcomes.length - 1].transaction.hash);
       setPhase("done");
     } catch (e) {
@@ -242,7 +272,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
     (tx.kind === "buy"
       ? !!onChain && onChain.seller_id !== account
       : tx.kind === "offer"
-        ? offer >= 0.01
+        ? offer >= 0.01 && !pinsQ.loading && !pinsQ.error
         : tx.kind === "list"
           ? offer > 0 && !live.loading
           : tx.kind === "delist"
@@ -328,7 +358,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
 
               {(tx.kind === "offer" || tx.kind === "list") && (
                 <>
-                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5">
+                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5 ring-2 ring-transparent transition focus-within:ring-text/20">
                     <span className="text-[12px] font-semibold text-muted">{tx.kind === "offer" ? "Your offer" : "Your price"}</span>
                     <span className="flex items-center gap-2">
                       <TokenIcon token="NEAR" size={30} />
@@ -376,8 +406,32 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                             ? "Not listed: the owner sees your offer and can accept it any time before it expires."
                             : offer >= price * 0.95
                               ? "Within 5% of the asking price — offers like this usually get accepted."
-                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires, plus {fmt(near.fromUnits(storage, 24))} NEAR offer storage that comes back with it.{pins.length > 0 && ` It only goes through if the vault still holds today's ${pins.map((p) => TOKENS[tokenKey(p.ft_id) ?? "NEAR"].symbol).join(", ")} balance.`}
+                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires, plus {fmt(near.fromUnits(storage, 24))} NEAR offer storage that comes back with it.
                       </Note>
+                      <div className="flex flex-col gap-2 rounded-[20px] border border-line-soft p-3 text-[14px]">
+                        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-muted">
+                          <Sym name="lock" size={13} weight="bold" /> Pinned vault balances · read on-chain, re-checked at signing
+                        </span>
+                        {pinsQ.loading ? (
+                          <span className="text-muted">Reading the vault on-chain…</span>
+                        ) : pinsQ.error ? (
+                          <span className="text-down">Could not read the vault on-chain ({pinsQ.error}). The offer stays disabled until it can be pinned.</span>
+                        ) : !pins.length ? (
+                          <span className="text-muted">The vault holds none of its basket tokens yet, so nothing is pinned.</span>
+                        ) : (
+                          pins.map((p) => {
+                            const ft = ftById(p.ft_id)!;
+                            return (
+                              <span key={p.ft_id} className="flex items-center gap-2.5">
+                                <TokenIcon token={ft.key} size={22} />
+                                <span className="flex-1 font-medium">{TOKENS[ft.key].symbol}</span>
+                                <span className="font-semibold tabular-nums">≥ {near.formatUnits(p.amount, ft.decimals)}</span>
+                              </span>
+                            );
+                          })
+                        )}
+                        {pins.length > 0 && <span className="text-[12px] text-muted">The sale only settles if the vault still holds at least these amounts.</span>}
+                      </div>
                     </>
                   ) : (
                     <>
@@ -417,7 +471,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                       </button>
                     ))}
                   </div>
-                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5">
+                  <label className="flex flex-col items-center gap-1 rounded-[20px] bg-fill px-4 py-5 ring-2 ring-transparent transition focus-within:ring-text/20">
                     <span className="text-[12px] font-semibold text-muted">{tx.kind === "deposit" ? "You deposit" : "You withdraw"}</span>
                     <span className="flex items-center gap-2">
                       <TokenIcon token={ftKey} size={30} />
@@ -519,7 +573,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                 </button>
                 {!account ? (
                   <button onClick={signIn} disabled={!ready} className="btn-ink h-12 flex-1 text-[15px]">
-                    {ready ? `Connect wallet to ${m.title.toLowerCase()}` : "Loading wallets…"}
+                    {ready ? "Connect wallet" : "Loading wallets…"}
                   </button>
                 ) : phase === "pending" ? (
                   <div className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full bg-fill text-[15px] font-semibold">

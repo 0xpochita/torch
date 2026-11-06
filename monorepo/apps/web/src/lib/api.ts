@@ -83,7 +83,6 @@ export function toVault(v: VaultSummary, navHistory?: NavPoint[]): Vault {
     change24h: v.change24h ?? 0,
     priceNear: v.listing ? toNear(v.listing.price) : 0,
     listed: !!v.listing,
-    slippageBps: 50,
     allocation,
     nav30d: navHistory?.length ? navHistory.map((p) => p.navUsd) : [v.navUsd, v.navUsd],
     history: [],

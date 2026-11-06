@@ -52,7 +52,7 @@ export function DetailTabs({ etf, balances, holders: owners, events }: { etf: Et
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               { k: "Access keys on vault", icon: "key" as const, v: "None", ok: true, d: "Only the collection contract can move funds" },
-              { k: "Withdrawals while listed", icon: "lock" as const, v: etf.listed ? "Locked" : "Open", ok: true, d: "Seller can't drain the basket mid-sale" },
+              { k: "Withdrawals while listed", icon: "lock" as const, v: "Locked", ok: true, d: "Seller can't drain the basket mid-sale" },
               { k: "Vault code", icon: "shield" as const, v: "Immutable", ok: true, d: "Global contract deployed by hash" },
             ].map((s) => (
               <div key={s.k} className="flex flex-col gap-1 card p-4">

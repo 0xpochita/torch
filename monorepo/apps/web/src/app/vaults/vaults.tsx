@@ -208,7 +208,7 @@ export function Vaults() {
                     ariaLabel="Sort holdings"
                     className="text-[13px] font-semibold"
                   />
-                  <label className="flex h-9 w-44 items-center gap-2 rounded-full bg-fill px-3 text-muted">
+                  <label className="flex h-10 w-44 items-center gap-2 rounded-full bg-fill px-3 text-muted focus-within:ring-2 focus-within:ring-tint/40">
                     <Sym name="search" size={15} />
                     <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="w-full bg-transparent text-[14px] text-text outline-none placeholder:text-muted" />
                   </label>

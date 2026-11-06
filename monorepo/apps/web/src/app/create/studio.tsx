@@ -17,16 +17,16 @@ import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
 const STEPS = ["Theme", "Basket", "Weights", "Deposit", "Review"] as const;
-type Template = { id: string; name: string; bg: string; category: Category; slippageBps: number; allocation: Allocation[] };
+type Template = { id: string; name: string; bg: string; category: Category; allocation: Allocation[] };
 
 // Fallback presets until the API has vaults to learn from (fresh testnet, API down).
 const STATIC_TEMPLATES: Template[] = [
-  { id: "s0", name: "NEAR Blue Chip", bg: "#9fd3ff", category: "Blue Chip", slippageBps: 50, allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] },
-  { id: "s1", name: "Stable Harbor", bg: "#b8f0d8", category: "Stable", slippageBps: 10, allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] },
-  { id: "s2", name: "DeFi Engine", bg: "#ffd8a8", category: "DeFi", slippageBps: 100, allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] },
-  { id: "s3", name: "Meme Lab", bg: "#e5c8ff", category: "Meme", slippageBps: 300, allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] },
-  { id: "s4", name: "Omni Hot", bg: "#ffc2a8", category: "Chain Abstraction", slippageBps: 80, allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] },
-  { id: "s5", name: "Staked Garden", bg: "#c5f5b0", category: "Liquid Staking", slippageBps: 30, allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] },
+  { id: "s0", name: "NEAR Blue Chip", bg: "#9fd3ff", category: "Blue Chip", allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] },
+  { id: "s1", name: "Stable Harbor", bg: "#b8f0d8", category: "Stable", allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] },
+  { id: "s2", name: "DeFi Engine", bg: "#ffd8a8", category: "DeFi", allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] },
+  { id: "s3", name: "Meme Lab", bg: "#e5c8ff", category: "Meme", allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] },
+  { id: "s4", name: "Omni Hot", bg: "#ffc2a8", category: "Chain Abstraction", allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] },
+  { id: "s5", name: "Staked Garden", bg: "#c5f5b0", category: "Liquid Staking", allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] },
 ];
 const basketKey = (a: Allocation[]) => a.map((x) => x.token).sort().join();
 
@@ -37,8 +37,9 @@ function toTemplates(vaults: VaultSummary[] | undefined): Template[] {
     .map((v) => toVault(v))
     .filter((v) => v.allocation.length >= 2 && !seen.has(basketKey(v.allocation)) && seen.add(basketKey(v.allocation)))
     .slice(0, 6)
-    .map((v): Template => ({ id: `v${v.id}`, name: v.name, bg: v.bg, category: v.category, slippageBps: v.slippageBps, allocation: v.allocation }));
-  return [...live, ...STATIC_TEMPLATES.filter((t) => !seen.has(basketKey(t.allocation)))].slice(0, 6);
+    .map((v): Template => ({ id: `v${v.id}`, name: v.name, bg: v.bg, category: v.category, allocation: v.allocation }));
+  const names = new Set(live.map((t) => t.name));
+  return [...live, ...STATIC_TEMPLATES.filter((t) => !seen.has(basketKey(t.allocation)) && !names.has(t.name))].slice(0, 6);
 }
 const BACKGROUNDS = ["#9fd3ff", "#b8f0d8", "#ffd8a8", "#e5c8ff", "#ffc2a8", "#c5f5b0", "#d7d7e0"];
 const MAX_TOKENS = 6;
@@ -76,7 +77,6 @@ export function Studio() {
   const [name, setName] = useState("My NEAR Index");
   const [allocation, setAllocation] = useState<Allocation[]>(STATIC_TEMPLATES[0].allocation);
   const [bg, setBg] = useState(BACKGROUNDS[0]);
-  const [slippage, setSlippage] = useState(50);
   const [deposit, setDeposit] = useState(0);
   const balances = near.useFtBalances(accountId, FT_IDS, minted ? 1 : 0);
 
@@ -105,7 +105,6 @@ export function Studio() {
     setAllocation(etf.allocation);
     setBg(etf.bg);
     setName(etf.name);
-    setSlippage(etf.slippageBps);
     setCategory(etf.category);
   };
 
@@ -140,6 +139,8 @@ export function Studio() {
       const extra = { basket: live.map((a) => ({ token: ftByKey(a.token).id, weight: a.weight })), bg, category, creator: accountId, rarity: null };
       const outs = await near.send(wallet, [near.mintTx({ title: name.trim() || "Untitled ETF", description: `${category} basket vault`, extra: JSON.stringify(extra) })]);
       const ret = near.lastResult(outs[0]);
+      // mint resolves to the token id, or null when the vault account could not be created (deposit refunded)
+      if (ret === null) throw new Error("The vault could not be created; your 0.11 NEAR was refunded. Nothing was funded.");
       const tokenId = typeof ret === "string" ? ret : (near.events(outs, "vault_created", { from: COLLECTION })[0]?.token_id as string | undefined);
       if (!tokenId) throw new Error("Minted, but the token id was not in the result. Check My Vaults.");
       m = { tokenId, hash: outs[0].transaction.hash, funded: 0 };
@@ -446,12 +447,7 @@ export function Studio() {
             )}
 
             {step === 3 && (
-              <div className="flex flex-col gap-5 text-sm">                <label className="flex flex-col gap-2">
-                  <span className="flex justify-between font-medium">
-                    Max slippage per swap <span className="tabular-nums text-muted">{(slippage / 100).toFixed(2)}%</span>
-                  </span>
-                  <input type="range" min={10} max={300} step={10} value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
-                </label>
+              <div className="flex flex-col gap-5 text-sm">
                 <label className="flex flex-col gap-2">
                   <span className="flex justify-between font-medium">
                     Initial deposit <span className="text-xs font-normal text-muted">{accountId ? <>max <Money value={maxDeposit} /></> : "connect to fund"}</span>
@@ -512,10 +508,8 @@ export function Studio() {
                     <dd className="truncate font-medium">{name}</dd>
                     <dt className="text-muted">Vault</dt>
                     <dd className="truncate font-mono">{NEXT_VAULT}</dd>
-                    <dt className="text-muted">Swaps</dt>
-                    <dd>
-                      ≤{(slippage / 100).toFixed(2)}% slippage
-                    </dd>
+                    <dt className="text-muted">Category</dt>
+                    <dd>{category}</dd>
                   </dl>
                 </div>
                 <dl className="flex flex-col gap-2">
@@ -554,10 +548,8 @@ export function Studio() {
               <dl className="grid min-w-0 flex-1 grid-cols-[auto_1fr] gap-x-3 text-[12px]">
                 <dt className="text-muted">Tokens</dt>
                 <dd className="truncate font-medium">{allocation.map((a) => TOKENS[a.token].symbol).join(", ") || "—"}</dd>
-                <dt className="text-muted">Swaps</dt>
-                <dd className="truncate font-medium">
-                  ≤{(slippage / 100).toFixed(2)}% slippage
-                </dd>
+                <dt className="text-muted">Category</dt>
+                <dd className="truncate font-medium">{category}</dd>
                 <dt className="text-muted">Deposit</dt>
                 <dd className="font-medium">
                   <Money value={deposit} />
@@ -658,7 +650,7 @@ function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint
               </div>
               <div className="px-2 pb-1.5 pt-3">
                 <div className="truncate text-[17px] font-semibold text-white">{name}</div>
-                <div className="font-mono text-[11px] text-white/45">by {account ?? "you"}</div>
+                <div className="font-mono text-[11px] text-white/60">by {account ?? "you"}</div>
                 <div className="mt-3 grid grid-cols-3 gap-1.5">
                   {[
                     ["Value", <Money key="v" value={m.funded} />],
@@ -666,7 +658,7 @@ function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint
                     ["Owner", "you"],
                   ].map(([k, v]) => (
                     <div key={k as string} className="rounded-[12px] bg-white/[0.06] px-2.5 py-2">
-                      <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/40">{k}</div>
+                      <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/60">{k}</div>
                       <div className="text-[13px] font-semibold text-white">{v}</div>
                     </div>
                   ))}
@@ -683,13 +675,13 @@ function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint
             <p className="mt-1 text-[15px] text-white/60">Your basket now lives inside its own vault NFT.</p>
           </motion.div>
           <motion.dl {...rise(1.05)} className="grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-[18px] border border-white/10 bg-black/35 px-4 py-3 text-left font-mono text-[12px] backdrop-blur-md">
-            <dt className="text-white/40">Vault</dt>
+            <dt className="text-white/60">Vault</dt>
             <dd className="truncate text-right text-white">{vaultOf(m.tokenId)}</dd>
-            <dt className="text-white/40">Mint</dt>
+            <dt className="text-white/60">Mint</dt>
             <dd className="flex justify-end">
               <TxLink hash={m.hash} className="text-white" />
             </dd>
-            <dt className="text-white/40">Funded</dt>
+            <dt className="text-white/60">Funded</dt>
             <dd className="flex justify-end text-right text-white">
               {m.fundHash ? <TxLink hash={m.fundHash} className="text-white" /> : onFund ? <span className="text-[#ffb766]">not yet</span> : "empty vault"}
             </dd>

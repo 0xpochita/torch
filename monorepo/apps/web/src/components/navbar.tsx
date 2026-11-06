@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Icon3D, Sym, type IconName } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, NearAmount, Title } from "@/components/ui";
@@ -40,6 +40,38 @@ export function Logo({ size = 36 }: { size?: number }) {
       <Image src="/brand/torch-mark.png" alt="Torch" fill sizes={`${size * 2}px`} className="object-contain" priority />
     </span>
   );
+}
+
+/**
+ * Menu keyboard model: focus moves into the menu on open, Arrow keys walk the items, Escape (or Tab out)
+ * closes and returns focus to the trigger.
+ */
+function useMenuKeys(open: boolean, close: () => void, menu: RefObject<HTMLElement | null>, trigger: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (!open) return;
+    const items = () => [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const first = setTimeout(() => items()[0]?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      const list = items();
+      const i = list.indexOf(document.activeElement as HTMLElement);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+        trigger.current?.focus();
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        list[(i + (e.key === "ArrowDown" ? 1 : -1) + list.length) % list.length]?.focus();
+      } else if (e.key === "Tab") close();
+    };
+    // outside tap closes (a fixed backdrop can't cover the page from inside the blurred tab bar)
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!menu.current?.contains(t) && !trigger.current?.contains(t)) close();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onDown);
+    return () => (clearTimeout(first), window.removeEventListener("keydown", onKey), window.removeEventListener("pointerdown", onDown));
+  }, [open, close, menu, trigger]);
 }
 
 function useActive() {
@@ -127,18 +159,68 @@ function RailItem({ item, active }: { item: NavItem; active: boolean }) {
 export function TabBar() {
   const isActive = useActive();
   const tabs = [NAV[0].items[0], NAV[0].items[1], NAV[0].items[2], NAV[1].items[0]];
+  // Everything the rail shows but the tab bar has no room for (Leaders, Activity, Gacha, Faucet).
+  const more = NAV[1].items.slice(1);
+  const [open, setOpen] = useState(false);
+  const menu = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [close] = useState(() => () => setOpen(false));
+  useMenuKeys(open, close, menu, trigger);
+  const moreActive = more.some((m) => isActive(m.href));
   return (
-    <nav className="material fixed inset-x-4 bottom-[max(env(safe-area-inset-bottom),12px)] z-30 grid grid-cols-4 rounded-full p-1.5 md:hidden">
+    <nav aria-label="Main" className="material fixed inset-x-4 bottom-[max(env(safe-area-inset-bottom),12px)] z-30 grid grid-cols-5 rounded-full p-1.5 md:hidden">
       {tabs.map((t) => {
         const active = isActive(t.href);
         return (
           <Link key={t.label} href={t.href} className={`group relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
             {active && <motion.span layoutId="tabbar-active" className="absolute inset-0 -z-10 rounded-full bg-fill" />}
             <NavIcon src={t.img} size={24} active={active} />
-            {t.label}
+            {t.label.replace("My ", "").replace(" ETF", "")}
           </Link>
         );
       })}
+      <button
+        ref={trigger}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={`relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${moreActive || open ? "text-tint" : "text-muted"}`}
+      >
+        {moreActive && <span className="absolute inset-0 -z-10 rounded-full bg-fill" />}
+        <span className="grid size-6 place-items-center">
+          <Sym name="ellipsis" size={22} weight="bold" />
+        </span>
+        More
+      </button>
+      <AnimatePresence>
+        {open && (
+          <>
+            <motion.div
+              ref={menu}
+              role="menu"
+              aria-label="More pages"
+              initial={{ opacity: 0, y: 8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.97 }}
+              className="absolute bottom-[calc(100%+10px)] right-0 w-[220px] origin-bottom-right rounded-[22px] bg-surface p-2 shadow-[0_0_0_1px_var(--line),0_20px_50px_-12px_#00000040]"
+            >
+              {more.map((m) => (
+                <Link
+                  key={m.href}
+                  href={m.href}
+                  role="menuitem"
+                  onClick={close}
+                  aria-current={isActive(m.href) ? "page" : undefined}
+                  className={`flex h-12 items-center gap-3 rounded-[14px] px-3 text-[15px] font-medium hover:bg-fill ${isActive(m.href) ? "bg-fill" : ""}`}
+                >
+                  <NavIcon src={m.img} size={26} active={isActive(m.href)} />
+                  {m.label}
+                </Link>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }
@@ -147,8 +229,8 @@ export function TabBar() {
 export function Topbar({ title, subtitle, children }: { title?: string; subtitle?: string; children?: ReactNode }) {
   return (
     <>
-      <header className="sticky top-3 z-20 mt-3 flex items-center gap-2">
-        <Link href="/" className="md:hidden">
+      <header className="sticky top-[max(12px,env(safe-area-inset-top))] z-20 mt-3 flex items-center gap-2">
+        <Link href="/" aria-label="Torch home" className="md:hidden">
           <Logo size={40} />
         </Link>
         {children ? (
@@ -158,7 +240,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
         ) : (
           <PagePill />
         )}
-        <label className="material hidden h-12 w-[260px] items-center gap-2 rounded-full px-4 text-muted lg:flex">
+        <label className="material hidden h-12 w-[260px] items-center gap-2 rounded-full px-4 text-muted focus-within:ring-2 focus-within:ring-tint/40 lg:flex">
           <Sym name="search" size={16} />
           <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
         </label>
@@ -201,6 +283,10 @@ function WalletButton() {
   const { ready, accountId, balance, signIn, signOut } = useNear();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const menu = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [close] = useState(() => () => setOpen(false));
+  useMenuKeys(open, close, menu, trigger);
 
   if (!accountId)
     return (
@@ -217,7 +303,7 @@ function WalletButton() {
 
   return (
     <div className="relative shrink-0">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu" className="material flex h-12 items-center gap-2 rounded-full pl-1.5 pr-3">
+      <button ref={trigger} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu" aria-label={`Account ${accountId}`} className="material flex h-12 items-center gap-2 rounded-full pl-1.5 pr-3">
         <Avatar account={accountId} size={36} />
         <span className="hidden max-w-[150px] truncate text-[14px] font-semibold sm:block">{accountId}</span>
         <span className="hidden rounded-full bg-fill px-2.5 py-1 text-[13px] font-semibold sm:block">
@@ -230,7 +316,9 @@ function WalletButton() {
           <>
             <button aria-label="Close menu" onClick={() => setOpen(false)} className="fixed inset-0 z-30 cursor-default" />
             <motion.div
+              ref={menu}
               role="menu"
+              aria-label="Account"
               initial={{ opacity: 0, y: -6, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.97 }}

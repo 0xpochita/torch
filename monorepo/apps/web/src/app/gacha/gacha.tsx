@@ -20,12 +20,14 @@ import { RARITY, TOKENS, type Allocation, type Rarity } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
-type Pull = { id: string; rarity: Rarity; name: string; bg: string; allocation: Allocation[]; valueUsd: number };
+/** `fundFailed`: the vault was minted but some basket items never reached it (`gacha_fund_failed`). */
+type Pull = { id: string; rarity: Rarity; name: string; bg: string; allocation: Allocation[]; valueUsd: number; fundFailed: boolean };
 type Item = { token: string; amount: string };
 type Basket = { name: string; category: string; bg: string; items: Item[] };
 type Config = { price_per_pull: string; pity: number; tiers: { rarity: string; weight_bps: number; baskets: Basket[] }[] };
 
 const TIERS = Object.keys(RARITY) as Rarity[];
+const X10_GAS_HINT = "A 10-pull needs 1 PGas of gas and this wallet refused it. Pull ×1, or switch to a wallet that allows 1 PGas.";
 /** 90 s → "1m", 5 h → "5h", 3 d → "3d". */
 const ago = (ms: number) => (ms < 3_600_000 ? `${Math.max(0, Math.floor(ms / 60_000))}m` : ms < 86_400_000 ? `${Math.floor(ms / 3_600_000)}h` : `${Math.floor(ms / 86_400_000)}d`);
 const isRarity = (r: unknown): r is Rarity => typeof r === "string" && r in RARITY;
@@ -48,8 +50,11 @@ const equalWeights = (tokens: string[]): Allocation[] =>
  * before the detached mints resolve get one re-read of the tx with all receipts.
  */
 async function readPulls(outs: near.Outcome[], account: string, config: Config | undefined): Promise<Pull[]> {
-  let evs = near.events(outs, "gacha_pull", { from: GACHA });
-  if (!evs.length) evs = near.events([await near.txWithReceipts(outs[0].transaction.hash, account)], "gacha_pull", { from: GACHA });
+  let src = outs;
+  if (!near.events(src, "gacha_pull", { from: GACHA }).length) src = [await near.txWithReceipts(outs[0].transaction.hash, account)];
+  const evs = near.events(src, "gacha_pull", { from: GACHA });
+  // gacha_pull follows funding; any item that did not land is reported first as gacha_fund_failed
+  const failed = new Set(near.events(src, "gacha_fund_failed", { from: GACHA }).filter((e) => e.player_id === account).map((e) => String(e.token_id)));
   return Promise.all(
     evs
       .filter((e) => e.player_id === account)
@@ -67,7 +72,7 @@ async function readPulls(outs: near.Outcome[], account: string, config: Config |
           const ft = ftById(b.token);
           return ft ? [{ token: ft.key, weight: b.weight }] : [];
         });
-        return { id, rarity, name, bg: extra.bg ?? basket?.bg ?? "#e5c8ff", allocation: allocation.length ? allocation : equalWeights(basket?.items.map((i) => i.token) ?? []), valueUsd: basket ? usdOf(basket.items) : 0 };
+        return { id, rarity, name, bg: extra.bg ?? basket?.bg ?? "#e5c8ff", allocation: allocation.length ? allocation : equalWeights(basket?.items.map((i) => i.token) ?? []), valueUsd: basket ? usdOf(basket.items) : 0, fundFailed: failed.has(id) };
       }),
   );
 }
@@ -75,6 +80,11 @@ async function readPulls(outs: near.Outcome[], account: string, config: Config |
 export function Gacha() {
   const machine = useRef<GachaHandle>(null);
   const { accountId, wallet, signIn } = useNear();
+  // A 10-pull needs 1 PGas (950 Tgas minimum). Wallets don't advertise their gas cap, so a wallet that
+  // rejected a 10-pull for gas is remembered (per wallet id, this browser) and x10 is disabled for it.
+  const walletId = wallet?.manifest?.id ?? null;
+  const [gasCapped, setGasCapped] = useState<string[]>([]);
+  const x10Blocked = !!walletId && gasCapped.includes(walletId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
@@ -102,6 +112,8 @@ export function Gacha() {
     const t = setTimeout(() => {
       try {
         if (localStorage.getItem("gacha-sound") === "off") setSound(false);
+        const capped: unknown = JSON.parse(localStorage.getItem("gacha-gas-capped") ?? "[]");
+        if (Array.isArray(capped)) setGasCapped(capped.filter((x): x is string => typeof x === "string"));
       } catch {}
     });
     return () => (clearTimeout(t), stopMusic());
@@ -143,7 +155,15 @@ export function Gacha() {
       pending.current = await results;
       setPhase("ready");
     } catch (e) {
-      setError(near.walletError(e));
+      const msg = near.walletError(e);
+      setError(msg);
+      if (n === 10 && walletId && /gas/i.test(msg)) {
+        const next = [...new Set([...gasCapped, walletId])];
+        setGasCapped(next);
+        try {
+          localStorage.setItem("gacha-gas-capped", JSON.stringify(next));
+        } catch {}
+      }
       setPhase("idle");
       setBusy(false);
       if (sound) stopMusic();
@@ -186,27 +206,27 @@ export function Gacha() {
           <GachaMachine ref={machine} className="absolute inset-0" />
 
           {/* HUD: mono type, hairlines, no pills */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-6 px-6 pt-5 font-mono text-[11px] uppercase tracking-[0.14em] text-white/70">
-            <span className="flex flex-col gap-1">
-              <span className="flex items-center gap-2 text-white">
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 px-4 pt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-white/75 sm:gap-6 sm:px-6 sm:pt-5 sm:text-[11px] sm:tracking-[0.14em]">
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="flex items-center gap-2 whitespace-nowrap text-white">
                 <span className="relative flex size-1.5">
                   <span className="absolute inset-0 animate-ping rounded-full bg-[#ff8a00]" />
                   <span className="relative size-1.5 rounded-full bg-[#ff8a00]" />
                 </span>
                 Live · {today === undefined ? "…" : `${today === 100 ? "100+" : today.toLocaleString("en-US")} pulls today`}
               </span>
-              <span className="text-white/40">Vault machine Nº 01 · {price} NEAR / pull</span>
+              <span className="truncate text-white/60"><span className="hidden sm:inline">Vault machine Nº 01 · </span>{price} NEAR / pull</span>
             </span>
-            <span className="flex flex-col items-end gap-1.5">
-              <span>
+            <span className="flex shrink-0 flex-col items-end gap-1.5">
+              <span className="whitespace-nowrap">
                 Pity <span className="text-white">{String(pity).padStart(2, "0")}</span>/{PITY}
               </span>
-              <span className="flex gap-[2px]" aria-label={`${pity} of ${PITY} pulls to a guaranteed Legendary`}>
+              <span className="flex gap-px sm:gap-[2px]" role="img" aria-label={`${pity} of ${PITY} pulls to a guaranteed Legendary`}>
                 {Array.from({ length: PITY }, (_, i) => (
-                  <span key={i} className={`h-2.5 w-[3px] rounded-[1px] transition-colors ${i < pity ? "bg-[#ff8a00]" : "bg-white/15"}`} />
+                  <span key={i} className={`h-2.5 w-[2px] rounded-[1px] transition-colors sm:w-[3px] ${i < pity ? "bg-[#ff8a00]" : "bg-white/15"}`} />
                 ))}
               </span>
-              <span className="text-white/40">Legendary in {PITY - pity}</span>
+              <span className="text-white/60">Legendary in {PITY - pity}</span>
             </span>
           </div>
 
@@ -233,24 +253,33 @@ export function Gacha() {
           </AnimatePresence>
 
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-6">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => pull(1)}
                 disabled={busy}
-                className="flex h-14 items-center gap-2 rounded-full bg-white px-7 text-[16px] font-semibold text-[#121212] transition active:scale-95 disabled:opacity-60"
+                className="flex h-14 items-center gap-2 whitespace-nowrap rounded-full bg-white px-5 text-[15px] font-semibold text-[#121212] transition active:scale-95 disabled:opacity-60 sm:px-7 sm:text-[16px]"
               >
                 <Icon3D name="gift" size={22} /> Pull ×1 · <NearAmount amount={price} />
               </button>
-              <button
-                onClick={() => pull(10)}
-                disabled={busy}
-                className="flex h-14 items-center gap-2 rounded-full bg-[#ff8a00] px-7 text-[16px] font-semibold text-white shadow-[0_10px_30px_-10px_#ff8a00] transition active:scale-95 disabled:opacity-60"
-              >
-                Pull ×10 · <NearAmount amount={Math.round(price * 9 * 1e4) / 1e4} />
-                <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px]">−10%</span>
-              </button>
+              {/* wrapper carries the tooltip: disabled buttons get no hover events */}
+              <span title={x10Blocked ? X10_GAS_HINT : undefined} className="inline-flex">
+                <button
+                  onClick={() => pull(10)}
+                  disabled={busy || x10Blocked}
+                  aria-describedby={x10Blocked ? "x10-gas" : undefined}
+                  className="flex h-14 items-center gap-2 whitespace-nowrap rounded-full bg-[#ff8a00] px-5 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_#ff8a00] transition active:scale-95 disabled:opacity-60 sm:px-7 sm:text-[16px]"
+                >
+                  Pull ×10 · <NearAmount amount={Math.round(price * 9 * 1e4) / 1e4} />
+                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px]">−10%</span>
+                </button>
+              </span>
             </div>
-            <span className="flex items-center gap-3 text-[12px] text-white/50">
+            <span className="flex items-center gap-3 text-[12px] text-white/60">
+              {x10Blocked && !busy && (
+                <span id="x10-gas" className="text-[#ffb766]">
+                  ×10 off: this wallet can&apos;t attach 1 PGas.
+                </span>
+              )}
               {error ? (
                 <span role="alert" className="max-w-[420px] text-[#ff9b8a]">
                   {error}
@@ -399,7 +428,7 @@ function Seed() {
   }, []);
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute left-1/2 top-[18%] flex w-[280px] -translate-x-1/2 flex-col items-center gap-2 font-mono uppercase">
-      <span className="text-[10px] tracking-[0.3em] text-white/50">Rolling seed</span>
+      <span className="text-[10px] tracking-[0.3em] text-white/60">Rolling seed</span>
       <span className="text-[15px] tracking-[0.08em] text-white tabular-nums">{hex}</span>
       <span className="relative h-px w-full bg-white/15">
         <motion.span className="absolute inset-y-0 left-0 bg-[#ff8a00] shadow-[0_0_8px_#ff8a00]" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2.6, ease: "easeInOut" }} />
@@ -427,11 +456,18 @@ function Reveal({ pulls, hash, onClaim, onAgain }: { pulls: Pull[]; hash: string
 
       <div className="relative flex w-full max-w-[760px] flex-col items-center gap-5">
         <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="flex flex-col items-center gap-1">
-          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/50">{single ? "You pulled" : `${pulls.length} flames released`}</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/60">{single ? "You pulled" : `${pulls.length} flames released`}</span>
           <span className="title-chunky flex items-center gap-2 text-[34px] leading-none" style={{ color: c, textShadow: `0 0 24px ${c}88` }}>
             <Icon3D name={top.toLowerCase() as "common" | "rare" | "epic" | "legendary"} size={34} /> {top}
           </span>
         </motion.div>
+
+        {pulls.some((p) => p.fundFailed) && (
+          <p role="alert" className="max-w-[520px] rounded-[16px] bg-[#ff5a3c]/15 px-4 py-3 text-center text-[13px] text-[#ffb3a3]">
+            <b className="font-semibold text-white">Vault minted, funding failed</b> for {pulls.filter((p) => p.fundFailed).map((p) => `#${p.id}`).join(", ")}. The basket tokens went back to the
+            treasury, so the vault holds less than its tier. Contact support with the transaction link below.
+          </p>
+        )}
 
         {single ? (
           <Card p={pulls[0]} big />
@@ -496,6 +532,11 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
           <div className="grain relative aspect-square overflow-hidden rounded-[16px]" style={{ background: p.bg }}>
             <BasketArt allocation={p.allocation} />
             <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#ff5a0055] to-transparent" />
+            {p.fundFailed && (
+              <span className={`absolute inset-x-2 bottom-2 rounded-full bg-[#c0261b]/90 text-center font-bold uppercase tracking-[0.1em] text-white ${big ? "py-1 text-[11px]" : "py-0.5 text-[7px]"}`}>
+                Funding failed
+              </span>
+            )}
             <span
               className={`absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 font-bold uppercase tracking-[0.12em] backdrop-blur-sm ${big ? "px-2.5 py-1 text-[11px]" : "px-1.5 py-0.5 text-[8px]"}`}
               style={{ color: c }}
@@ -506,7 +547,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
           <div className={big ? "px-2 pb-2" : "px-1 pb-1"}>
             <span className={`block truncate font-semibold text-white ${big ? "text-[18px]" : "text-[11px]"}`}>{p.name}</span>
             {big ? (
-              <div className="mt-2 grid grid-cols-3 border-t border-white/10 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-white/45">
+              <div className="mt-2 grid grid-cols-3 border-t border-white/10 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-white/60">
                 <span>
                   Value
                   <Money value={p.valueUsd} className="block text-[14px] normal-case tracking-normal text-white" />
@@ -519,7 +560,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
                 </span>
               </div>
             ) : (
-              <span className="font-mono text-[9px] text-white/45">#{p.id}</span>
+              <span className="font-mono text-[9px] text-white/60">#{p.id}</span>
             )}
           </div>
         </div>

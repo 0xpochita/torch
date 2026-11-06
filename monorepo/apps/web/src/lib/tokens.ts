@@ -47,7 +47,6 @@ export type Etf = {
   change24h: number;
   priceNear: number;
   listed: boolean;
-  slippageBps: number;
   allocation: Allocation[];
   nav30d: number[];
   history: HistoryEvent[];
