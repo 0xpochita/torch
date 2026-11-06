@@ -7,7 +7,12 @@ import { useState } from "react";
 import { Artwork, Group, tint } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
-import { Avatar, Money, NearAmount, Segmented, StatTile, Switch, TokenStack } from "@/components/ui";
+import ElasticSlider from "@/components/react-bits/ElasticSlider";
+import GlideSelect from "@/components/react-bits/GlideSelect";
+import HoldButton from "@/components/react-bits/HoldButton";
+import PulseHeart from "@/components/react-bits/PulseHeart";
+import SquishSwitch from "@/components/react-bits/SquishSwitch";
+import { Avatar, CountUpNumber, Money, NearAmount, Segmented, StatTile, TokenStack } from "@/components/ui";
 import { CATEGORIES, ETFS, LISTINGS, NEAR_USD, type Category, type Listing } from "@/lib/mock";
 
 const STATUS = ["All", "buy", "offer", "new"] as const;
@@ -68,7 +73,7 @@ export function Market() {
       </Topbar>
 
       <div className="grid grid-cols-2 gap-2.5 pt-5 lg:grid-cols-4">
-        <StatTile icon="store" label="Listings" value={LISTINGS.length} />
+        <StatTile icon="store" label="Listings" value={<CountUpNumber value={LISTINGS.length} />} />
         <StatTile icon="tag" label="Floor" value={<NearAmount amount={floor} />} />
         <StatTile icon="pulse" label="Below vault value" value={`${under} of ${LISTINGS.length}`} />
         <StatTile icon="person" label="Sellers" value={new Set(LISTINGS.map((l) => l.seller)).size} />
@@ -110,7 +115,19 @@ export function Market() {
                   />
                 ))}
               </div>
-              <input type="range" min={floor} max={MAX_PRICE} step={10} value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full accent-[var(--text)]" aria-label="Maximum price" />
+              <ElasticSlider
+                value={maxPrice}
+                maxValue={MAX_PRICE}
+                isStepped
+                stepSize={10}
+                onChange={(v) => setMaxPrice(Math.max(floor, v))}
+                valuePosition="none"
+                trackColor="var(--fill)"
+                rangeColor="var(--text)"
+                thumbColor="var(--surface)"
+                ariaLabel="Maximum price"
+                className="w-full text-text"
+              />
               <div className="flex justify-between text-[12px] font-semibold">
                 <NearAmount amount={floor} />
                 <span className="flex items-center gap-1 text-muted">
@@ -138,7 +155,7 @@ export function Market() {
                 <span className="block text-[14px] font-semibold">Below value only</span>
                 <span className="text-[12px] text-muted">Price under the basket inside</span>
               </span>
-              <Switch checked={underValue} onChange={setUnderValue} label="Below value only" />
+              <SquishSwitch checked={underValue} onChange={setUnderValue} width={52} height={30} radius={15} trackColor="var(--line)" trackOnColor="var(--tint)" thumbColor="var(--surface)" thumbOnColor="#ffffff" ariaLabel="Below value only" />
             </div>
           </div>
         </aside>
@@ -148,16 +165,21 @@ export function Market() {
             <span className="flex-1 text-[15px] font-semibold">
               {items.length} {items.length === 1 ? "listing" : "listings"}
             </span>
-            <label className="relative flex h-9 items-center rounded-full bg-fill pl-3.5 pr-8 text-[13px] font-semibold">
-              <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="cursor-pointer appearance-none bg-transparent outline-none" aria-label="Sort">
-                {(Object.keys(SORTS) as Sort[]).map((k) => (
-                  <option key={k} value={k}>
-                    {SORTS[k]}
-                  </option>
-                ))}
-              </select>
-              <Sym name="chevronDown" size={13} weight="bold" className="pointer-events-none absolute right-3" />
-            </label>
+            <GlideSelect
+              options={(Object.keys(SORTS) as Sort[]).map((k) => ({ value: k, label: SORTS[k] }))}
+              value={sort}
+              onChange={(v) => setSort(v as Sort)}
+              size="sm"
+              radius={18}
+              menuWidth={210}
+              align="right"
+              accentColor="var(--text)"
+              surfaceColor="var(--fill)"
+              highlightColor="var(--line)"
+              textColor="var(--text)"
+              ariaLabel="Sort listings"
+              className="text-[13px] font-semibold"
+            />
             <Segmented options={LAYOUTS} value={layout} onChange={setLayout} />
           </div>
 
@@ -215,15 +237,14 @@ function VsValue({ l }: { l: Listing }) {
 function ListingCard({ l }: { l: Listing }) {
   const href = `/etf/${l.etf.id}`;
   return (
-    <article className="card group flex flex-col gap-3 p-2.5">
+    <article className="card group relative flex flex-col gap-3 p-2.5">
       <Link href={href} className="relative block aspect-[5/4] overflow-hidden rounded-[20px]" style={{ background: tint(l.etf.bg, 30) }}>
         <Image src={l.etf.image} alt={l.name} fill sizes="(min-width: 1536px) 26vw, (min-width: 640px) 38vw, 100vw" className="object-cover transition duration-500 group-hover:scale-105" />
         <span className="absolute left-3 top-3 rounded-full bg-surface/85 px-2.5 py-1 text-[12px] font-semibold backdrop-blur-md">{l.status === "buy" ? "Buy now" : "Open to offers"}</span>
-        <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-surface/85 px-2.5 py-1 text-[12px] font-semibold backdrop-blur-md">
-          <Sym name="heart" size={13} weight="fill" className="text-[#ff2d55]" />
-          {l.likes}
-        </span>
       </Link>
+      <span className="absolute right-5 top-5">
+        <PulseHeart count={l.likes} size={30} likedColor="#ff2d55" idleColor="var(--muted)" pillColor="var(--surface)" textColor="var(--text)" label={`Like ${l.name}`} />
+      </span>
       <div className="flex flex-col gap-3 px-1.5 pb-1.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -251,7 +272,12 @@ function ListingCard({ l }: { l: Listing }) {
           <span className="text-[12px] text-muted">{l.listedDaysAgo ? `${l.listedDaysAgo}d ago` : "Today"}</span>
         </div>
         <div className="flex gap-2">
-          {l.status === "buy" && <button className="btn-ink h-10 flex-1 text-[14px]">Buy now</button>}
+          {l.status === "buy" && (
+            // ponytail: mock purchase; wire to the collection's nft_buy once the contract is live
+            <HoldButton size="sm" radius={20} holdTime={1200} backgroundColor="var(--text)" fillColor="var(--tint)" textColor="var(--surface)" fillTextColor="#ffffff" doneLabel="Bought" resetAfter={2200} className="h-10 flex-1 text-[14px] font-semibold">
+              Hold to buy
+            </HoldButton>
+          )}
           <button className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>Make offer</button>
         </div>
       </div>

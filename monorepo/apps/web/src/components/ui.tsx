@@ -29,6 +29,11 @@ export function TokenStack({ allocation, size = 22 }: { allocation: Allocation[]
   );
 }
 
+/** Plain integer that rolls up on first view (React Bits CountUp). */
+export function CountUpNumber({ value }: { value: number }) {
+  return <CountUp to={value} from={0} mode="roll" easing="spring" duration={1.2} />;
+}
+
 /** Currency with faded cents, e.g. $1,840.25 */
 export function Money({ value, className = "", count = false }: { value: number; className?: string; count?: boolean }) {
   const [int, dec = "00"] = value.toFixed(2).split(".");
