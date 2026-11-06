@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
+import { BasketArt } from "@/components/basket-art";
 import { useState } from "react";
 import { AllocationBar, Change, Group, tint } from "@/components/etf-card";
 import { Sym, SymTile } from "@/components/icons";
@@ -309,14 +310,8 @@ function VaultCard({ etf }: { etf: Etf }) {
           className="relative isolate flex h-[132px] items-start justify-between overflow-hidden rounded-[20px] p-4"
           style={{ background: tint(etf.bg, 35) }}
         >
-          <span className="absolute -bottom-10 -right-6 -z-10 size-44 transition duration-500 group-hover:rotate-6 group-hover:scale-105">
-            <Image
-              src={etf.image}
-              alt=""
-              fill
-              sizes="176px"
-              className="object-cover [mask-image:radial-gradient(circle,#000_55%,transparent_72%)]"
-            />
+          <span className="absolute inset-y-0 right-2 -z-10 w-[52%] transition duration-500 group-hover:scale-105">
+            <BasketArt allocation={etf.allocation} />
           </span>
           <span
             className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${etf.listed ? "bg-surface text-text" : "bg-surface/60 text-muted"}`}

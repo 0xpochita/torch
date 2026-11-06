@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BasketArt } from "@/components/basket-art";
 import { notFound } from "next/navigation";
 import { Artwork, Change } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
@@ -83,7 +83,7 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
           <aside className="flex min-w-0 flex-col gap-4">
             <div className="card relative overflow-hidden p-0">
               <div className="relative aspect-square" style={{ background: etf.bg }}>
-                <Image src={etf.image} alt={etf.name} fill priority sizes="(min-width: 1280px) 380px, 100vw" className="object-cover" />
+                <BasketArt allocation={etf.allocation} />
               </div>
             </div>
 

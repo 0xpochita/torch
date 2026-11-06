@@ -37,7 +37,6 @@ export type HistoryEvent = {
 export type Etf = {
   id: string;
   name: string;
-  image: string;
   bg: string;
   category: Category;
   creator: string;
@@ -90,17 +89,17 @@ function etf(e: Omit<Etf, "nav30d" | "history"> & { seed: number; drift: number 
 }
 
 export const ETFS: Etf[] = [
-  etf({ id: "0", name: "NEAR Blue Chip", image: "/nfts/blue-chip.png", bg: "#9fd3ff", category: "Blue Chip", creator: "alice.near", owner: "bob.near", likes: 214, navUsd: 1840, change24h: 2.4, priceNear: 610, listed: true, rebalance: "Weekly", slippageBps: 50, seed: 11, drift: 0.004,
+  etf({ id: "0", name: "NEAR Blue Chip", bg: "#9fd3ff", category: "Blue Chip", creator: "alice.near", owner: "bob.near", likes: 214, navUsd: 1840, change24h: 2.4, priceNear: 610, listed: true, rebalance: "Weekly", slippageBps: 50, seed: 11, drift: 0.004,
     allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] }),
-  etf({ id: "1", name: "Stable Harbor", image: "/nfts/stable.png", bg: "#b8f0d8", category: "Stable", creator: "carol.near", owner: "carol.near", likes: 98, navUsd: 5020, change24h: 0.1, priceNear: 1620, listed: false, rebalance: "Monthly", slippageBps: 10, seed: 23, drift: 0.0003,
+  etf({ id: "1", name: "Stable Harbor", bg: "#b8f0d8", category: "Stable", creator: "carol.near", owner: "carol.near", likes: 98, navUsd: 5020, change24h: 0.1, priceNear: 1620, listed: false, rebalance: "Monthly", slippageBps: 10, seed: 23, drift: 0.0003,
     allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] }),
-  etf({ id: "2", name: "DeFi Engine", image: "/nfts/defi.png", bg: "#ffd8a8", category: "DeFi", creator: "dave.near", owner: "bob.near", likes: 167, navUsd: 920, change24h: -1.8, priceNear: 300, listed: true, rebalance: "Weekly", slippageBps: 100, seed: 37, drift: 0.002,
+  etf({ id: "2", name: "DeFi Engine", bg: "#ffd8a8", category: "DeFi", creator: "dave.near", owner: "bob.near", likes: 167, navUsd: 920, change24h: -1.8, priceNear: 300, listed: true, rebalance: "Weekly", slippageBps: 100, seed: 37, drift: 0.002,
     allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] }),
-  etf({ id: "3", name: "Meme Lab", image: "/nfts/meme.png", bg: "#e5c8ff", category: "Meme", creator: "frank.near", owner: "frank.near", likes: 402, navUsd: 310, change24h: 12.7, priceNear: 140, listed: true, rebalance: "Daily", slippageBps: 300, seed: 41, drift: 0.01,
+  etf({ id: "3", name: "Meme Lab", bg: "#e5c8ff", category: "Meme", creator: "frank.near", owner: "frank.near", likes: 402, navUsd: 310, change24h: 12.7, priceNear: 140, listed: true, rebalance: "Daily", slippageBps: 300, seed: 41, drift: 0.01,
     allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] }),
-  etf({ id: "4", name: "Omni Hot", image: "/nfts/omni.png", bg: "#ffc2a8", category: "Chain Abstraction", creator: "grace.near", owner: "heidi.near", likes: 256, navUsd: 1330, change24h: 4.9, priceNear: 455, listed: true, rebalance: "Weekly", slippageBps: 80, seed: 53, drift: 0.005,
+  etf({ id: "4", name: "Omni Hot", bg: "#ffc2a8", category: "Chain Abstraction", creator: "grace.near", owner: "heidi.near", likes: 256, navUsd: 1330, change24h: 4.9, priceNear: 455, listed: true, rebalance: "Weekly", slippageBps: 80, seed: 53, drift: 0.005,
     allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] }),
-  etf({ id: "5", name: "Staked Garden", image: "/nfts/staking.png", bg: "#c5f5b0", category: "Liquid Staking", creator: "ivan.near", owner: "bob.near", likes: 131, navUsd: 2260, change24h: 1.2, priceNear: 730, listed: false, rebalance: "Monthly", slippageBps: 30, seed: 67, drift: 0.002,
+  etf({ id: "5", name: "Staked Garden", bg: "#c5f5b0", category: "Liquid Staking", creator: "ivan.near", owner: "bob.near", likes: 131, navUsd: 2260, change24h: 1.2, priceNear: 730, listed: false, rebalance: "Monthly", slippageBps: 30, seed: 67, drift: 0.002,
     allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] }),
 ];
 

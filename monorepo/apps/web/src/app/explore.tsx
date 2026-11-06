@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { BasketArt } from "@/components/basket-art";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { useState } from "react";
 import { Artwork, BuyCapsule, Change } from "@/components/etf-card";
@@ -91,9 +92,9 @@ export function Explore() {
                   className={`relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
                   style={{ background: art.bg }}
                 >
-                  {/* artwork bleeds in from the right; the mask only fades its left edge into the tile colour */}
-                  <span className="absolute inset-y-0 right-0 w-[78%] [mask-image:linear-gradient(to_right,transparent,black_45%)]">
-                    <Image src={art.image} alt="" fill sizes="240px" className="object-cover object-[70%_50%]" />
+                  {/* basket logos sit on the right of the tile */}
+                  <span className="absolute inset-y-0 -right-2 w-[64%]">
+                    <BasketArt allocation={art.allocation} />
                   </span>
                   <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
                   <span className="relative">
@@ -184,7 +185,7 @@ export function Explore() {
                 <Link href={`/etf/${c.etf.id}`} className="flex w-[76px] flex-col items-center gap-1.5 text-center">
                   <span className="relative">
                     <span className="relative block size-[68px] overflow-hidden rounded-full ring-4 ring-fill" style={{ background: c.etf.bg }}>
-                      <Image src={c.etf.image} alt="" fill sizes="68px" className="object-cover" />
+                      <BasketArt allocation={c.etf.allocation} />
                     </span>
                     <span className={`absolute bottom-0.5 right-0.5 size-3.5 rounded-full ring-2 ring-surface ${i < 3 ? "bg-up" : "bg-faint"}`} />
                   </span>
@@ -227,7 +228,7 @@ export function Explore() {
           <div className="relative hidden h-[180px] w-[360px] shrink-0 md:block">
             {ETFS.slice(1, 4).map((e, i) => (
               <span key={e.id} className="absolute top-2 overflow-hidden rounded-[26px] shadow-[0_10px_30px_-10px_#00000040]" style={{ left: i * 100, rotate: `${(i - 1) * 9}deg`, width: 160, height: 160, background: e.bg, zIndex: i === 1 ? 2 : 1 }}>
-                <Image src={e.image} alt="" fill sizes="160px" className="object-cover" />
+                <BasketArt allocation={e.allocation} />
               </span>
             ))}
           </div>
@@ -311,7 +312,7 @@ function FanCard({ etf, offset, index, hover, onHover }: { etf: Etf; offset: num
         style={{ width: 180, height: 210, background: etf.bg }}
       >
         <motion.span className="absolute inset-0 block" animate={{ scale: active ? 1.08 : 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }}>
-          <Image src={etf.image} alt="" fill sizes="200px" className="object-cover" />
+          <BasketArt allocation={etf.allocation} />
         </motion.span>
         {/* soft specular sheen that tracks the cursor */}
         <motion.span

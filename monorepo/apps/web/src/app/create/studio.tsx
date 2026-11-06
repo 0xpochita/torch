@@ -1,10 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { CoinStack } from "@/components/coin-stack";
+import { BasketArt } from "@/components/basket-art";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Donut, Money, RadioRow, Switch, Title, TokenIcon } from "@/components/ui";
@@ -87,7 +86,7 @@ export function Studio() {
     return !q || TOKENS[t].symbol.toLowerCase().includes(q) || TOKENS[t].name.toLowerCase().includes(q);
   });
 
-  if (minted) return <Minted name={name} deposit={deposit} bg={bg} art={art?.image} allocation={live} onReset={() => (setMinted(false), setStep(0))} />;
+  if (minted) return <Minted name={name} deposit={deposit} bg={bg} allocation={live} onReset={() => (setMinted(false), setStep(0))} />;
 
   return (
     <>
@@ -139,20 +138,21 @@ export function Studio() {
             </div>
           </div>
 
-          <div className="relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: bg }}>
-            {art && <Image src={art.image} alt="" fill sizes="60vw" className="scale-125 object-cover opacity-70 blur-3xl" aria-hidden />}
+          <div className="relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: `color-mix(in oklab, ${bg}, var(--surface) 45%)` }}>
             <div className="absolute inset-0 grid place-items-center p-6 pb-24 pt-14">
               <div className="relative aspect-square h-full max-w-full [container-type:inline-size]">
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
-                    key={art?.id ?? "custom"}
+                    key={live.map((a) => a.token).join("-") || "empty"}
                     initial={{ opacity: 0, scale: 0.92, rotate: -4 }}
                     animate={{ opacity: 1, scale: 1, rotate: 0 }}
                     exit={{ opacity: 0, scale: 1.04, rotate: 3 }}
                     transition={{ type: "spring", stiffness: 260, damping: 24 }}
                     className="absolute inset-0"
                   >
-                    {art ? <Image src={art.image} alt={art.name} fill sizes="560px" className="rounded-[26px] object-cover shadow-[0_24px_60px_-24px_#00000059]" /> : <CoinStack allocation={live} spin />}
+                    <div className="absolute inset-0 overflow-hidden rounded-[26px] shadow-[0_24px_60px_-24px_#00000059]" style={{ background: bg }}>
+                      <BasketArt allocation={live} />
+                    </div>
                   </motion.div>
                 </AnimatePresence>
               </div>
@@ -209,7 +209,7 @@ export function Studio() {
             <div className="no-scrollbar -m-1 flex min-w-0 flex-1 gap-2.5 overflow-x-auto p-1">
               {ETFS.map((e) => (
                 <button key={e.id} onClick={() => applyTemplate(e)} title={e.name} className={`relative size-16 shrink-0 overflow-hidden rounded-[16px] ring-2 ring-offset-2 ring-offset-surface transition ${art?.id === e.id ? "ring-tint" : "ring-transparent hover:ring-line"}`} style={{ background: e.bg }}>
-                  <Image src={e.image} alt={e.name} fill sizes="64px" className="object-cover" />
+                  <BasketArt allocation={e.allocation} />
                 </button>
               ))}
             </div>
@@ -448,7 +448,7 @@ export function Studio() {
           <div className="flex flex-col gap-3 border-t border-line-soft px-5 py-4">
             <div className="flex items-center gap-3">
               <div className="relative size-12 shrink-0 overflow-hidden rounded-[14px] [container-type:inline-size]" style={{ background: bg }}>
-                {art ? <Image src={art.image} alt="" fill sizes="48px" className="object-cover" /> : <CoinStack allocation={live} />}
+                <BasketArt allocation={live} />
               </div>
               <dl className="grid min-w-0 flex-1 grid-cols-[auto_1fr] gap-x-3 text-[12px]">
                 <dt className="text-muted">Tokens</dt>
@@ -485,14 +485,14 @@ export function Studio() {
   );
 }
 
-function Minted({ name, deposit, bg, art, allocation, onReset }: { name: string; deposit: number; bg: string; art?: string; allocation: Allocation[]; onReset: () => void }) {
+function Minted({ name, deposit, bg, allocation, onReset }: { name: string; deposit: number; bg: string; allocation: Allocation[]; onReset: () => void }) {
   return (
     <>
       <Topbar title="Create ETF" />
       <div className="grid flex-1 place-items-center py-16">
         <div className="flex w-full max-w-md flex-col items-center gap-5 text-center">
           <div className="relative size-48 overflow-hidden rounded-[24%] [container-type:inline-size]" style={{ background: bg }}>
-            {art ? <Image src={art} alt="" fill sizes="192px" className="object-cover" /> : <CoinStack allocation={allocation} />}
+            <BasketArt allocation={allocation} />
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-up/15 px-3 py-1 text-[13px] font-semibold text-up-text"><Sym name="check" size={14} stroke={2.8} /> Mock mint complete</span>
           <Title size="text-[44px]">Congratulations</Title>

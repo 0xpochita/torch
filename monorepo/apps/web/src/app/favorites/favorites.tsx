@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import Link from "next/link";
+import { BasketArt } from "@/components/basket-art";
 import { useState } from "react";
 import { BuyCapsule, Change, EtfRow, Group, tint } from "@/components/etf-card";
 import { Sym, SymTile } from "@/components/icons";
@@ -164,13 +164,7 @@ export function Favorites() {
                       className="relative size-16 shrink-0 overflow-hidden rounded-[18px]"
                       style={{ background: e.bg }}
                     >
-                      <Image
-                        src={e.image}
-                        alt={e.name}
-                        fill
-                        sizes="128px"
-                        className="object-cover"
-                      />
+                      <BasketArt allocation={e.allocation} />
                     </Link>
                     <Link href={`/etf/${e.id}`} className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-semibold">
@@ -218,13 +212,7 @@ function FavCard({ etf, onRemove }: { etf: Etf; onRemove: () => void }) {
             aria-label={etf.name}
             className="absolute inset-0"
           >
-            <Image
-              src={etf.image}
-              alt=""
-              fill
-              sizes="(min-width: 1536px) 22vw, (min-width: 1280px) 28vw, (min-width: 640px) 45vw, 100vw"
-              className="object-cover transition duration-500 group-hover:scale-105"
-            />
+            <BasketArt allocation={etf.allocation} />
           </Link>
           <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-surface/80 px-2.5 py-1 text-[12px] font-semibold backdrop-blur-md">
             {etf.category}

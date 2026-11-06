@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BasketArt } from "@/components/basket-art";
 import type { ReactNode } from "react";
 import { Sym, SymTile, type IconName } from "@/components/icons";
 import { Money, NearAmount, shade } from "@/components/ui";
@@ -31,7 +31,7 @@ export function AllocationBar({ etf, className = "h-1.5" }: { etf: Etf; classNam
 export function Artwork({ etf, size = 56, className = "" }: { etf: Etf; size?: number; className?: string }) {
   return (
     <span className={`relative block shrink-0 overflow-hidden rounded-[24%] shadow-[0_0_0_0.5px_#00000014] ${className}`} style={{ width: size, height: size, background: etf.bg }}>
-      <Image src={etf.image} alt="" fill sizes={`${size * 2}px`} className="object-cover" />
+      <BasketArt allocation={etf.allocation} />
     </span>
   );
 }
@@ -49,13 +49,7 @@ export function EtfCard({ etf }: { etf: Etf }) {
   return (
     <article className="card group flex flex-col gap-3 p-2.5">
       <Link href={`/etf/${etf.id}`} className="relative aspect-square overflow-hidden rounded-[16px]" style={{ background: etf.bg }}>
-        <Image
-          src={etf.image}
-          alt={etf.name}
-          fill
-          sizes="(min-width: 1536px) 20vw, (min-width: 1024px) 26vw, (min-width: 640px) 45vw, 100vw"
-          className="object-cover transition duration-500 group-hover:scale-105"
-        />
+        <BasketArt allocation={etf.allocation} />
       </Link>
 
       <div className="flex items-center gap-3 px-1.5 pb-1">

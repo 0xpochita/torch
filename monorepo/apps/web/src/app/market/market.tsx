@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import Link from "next/link";
+import { BasketArt } from "@/components/basket-art";
 import { useState } from "react";
 import { Artwork, Group, tint } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
@@ -239,7 +239,7 @@ function ListingCard({ l }: { l: Listing }) {
   return (
     <article className="card group relative flex flex-col gap-3 p-2.5">
       <Link href={href} className="relative block aspect-[5/4] overflow-hidden rounded-[20px]" style={{ background: tint(l.etf.bg, 30) }}>
-        <Image src={l.etf.image} alt={l.name} fill sizes="(min-width: 1536px) 26vw, (min-width: 640px) 38vw, 100vw" className="object-cover transition duration-500 group-hover:scale-105" />
+        <BasketArt allocation={l.etf.allocation} />
         <span className="absolute left-3 top-3 rounded-full bg-surface/85 px-2.5 py-1 text-[12px] font-semibold backdrop-blur-md">{l.status === "buy" ? "Buy now" : "Open to offers"}</span>
       </Link>
       <span className="absolute right-5 top-5">
