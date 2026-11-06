@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { COLLECTION, GACHA, MARKET, WNEAR, vaultOf } from "./contracts";
 import * as tx from "./near-tx";
 
-const T = (n: number) => (BigInt(n) * 10n ** 12n).toString();
+const T = (n: number) => (BigInt(n) * BigInt(10) ** BigInt(12)).toString();
 const fc = (t: tx.Tx, i = 0) => t.actions[i].params;
 
 test("buy attaches the exact listing price with 200 Tgas", () => {
@@ -29,7 +29,7 @@ test("list and accept are nft_approve to the market with the agreed msgs", () =>
   assert.equal(fc(accept).methodName, "nft_approve");
   assert.equal(fc(accept).gas, T(250));
   assert.deepEqual(fc(accept).args, { token_id: "2", account_id: MARKET, msg: '{"accept_offer":{"buyer_id":"bob.testnet"}}' });
-  assert.ok(BigInt(fc(accept).deposit) > 0n);
+  assert.ok(BigInt(fc(accept).deposit) > BigInt(0));
 });
 
 test("delist also revokes the market approval (withdraw needs zero approvals)", () => {
@@ -86,7 +86,13 @@ test("toUnits / fromUnits", () => {
   assert.equal(tx.toUnits(".000000019", 8), "1");
   assert.equal(tx.toUnits(2, 0), "2");
   assert.throws(() => tx.toUnits("1e5", 6));
+  assert.equal(tx.toUnits(0.9, 24), "900000000000000000000000");
+  assert.equal(tx.toUnits(1e-7, 8), "10");
   assert.equal(tx.fromUnits("1500000", 6), 1.5);
+  assert.equal(tx.formatUnits("1500000", 6), "1.5");
+  assert.equal(tx.formatUnits("7", 8), "0.00000007");
+  assert.equal(tx.formatUnits("100000000000000000000000", 24), "0.1");
+  assert.equal(tx.formatUnits("2", 0), "2");
 });
 
 const outcome = (status: object, logs: string[] = [], receipts: object[] = []): tx.Outcome =>

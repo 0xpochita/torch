@@ -3,12 +3,13 @@
 // so they can be unit-tested and batched into one `signAndSendTransactions` approval.
 import type { NearWalletBase } from "@hot-labs/near-connect";
 import { JsonRpcProvider, nearToYocto } from "near-api-js";
+import { useEffect, useState } from "react";
 import { COLLECTION, GACHA, MARKET, NETWORK, RPC, WNEAR, vaultOf } from "./contracts";
 
 export type Action = { type: "FunctionCall"; params: { methodName: string; args: object; gas: string; deposit: string } };
 export type Tx = { receiverId: string; actions: Action[] };
 
-const TGAS = 10n ** 12n;
+const TGAS = BigInt(10) ** BigInt(12);
 const gas = (tgas: number) => (BigInt(tgas) * TGAS).toString();
 const ONE_YOCTO = "1";
 /** NEP-145 minimum for the mock FTs and wNEAR (125 bytes); excess is refunded with registration_only. */
@@ -102,10 +103,18 @@ export const wrapTx = (amountYocto: string): Tx => ({
 
 /** "1.5" with 6 decimals → "1500000". Truncates extra digits, never rounds up. */
 export function toUnits(amount: string | number, decimals: number): string {
-  const s = typeof amount === "number" ? amount.toFixed(decimals) : amount.trim();
+  // String(0.9) is "0.9"; toFixed would leak float noise. Tiny numbers print as "1e-7", so fall back.
+  const s = typeof amount === "number" ? (/e/i.test(String(amount)) ? amount.toFixed(Math.min(decimals, 100)) : String(amount)) : amount.trim();
   if (!/^\d*\.?\d*$/.test(s) || s === "" || s === ".") throw new Error(`Invalid amount: ${amount}`);
   const [whole, frac = ""] = s.split(".");
-  return (BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(frac.slice(0, decimals).padEnd(decimals, "0") || "0")).toString();
+  return (BigInt(whole || "0") * BigInt(10) ** BigInt(decimals) + BigInt(frac.slice(0, decimals).padEnd(decimals, "0") || "0")).toString();
+}
+
+/** Base units → exact decimal string ("1500000", 6 → "1.5"), safe to feed back into toUnits. */
+export function formatUnits(raw: string | bigint, decimals: number): string {
+  const s = BigInt(raw).toString().padStart(decimals + 1, "0");
+  const frac = s.slice(s.length - decimals).replace(/0+$/, "");
+  return s.slice(0, s.length - decimals) + (frac ? `.${frac}` : "");
 }
 
 /** Base units → number for display (float is fine here, never sent back on-chain). */
@@ -211,7 +220,30 @@ export const explorerTx = (hash: string) => `https://${NETWORK === "mainnet" ? "
 
 let rpc: JsonRpcProvider | null = null;
 
-export function view<T>(contractId: string, method: string, args: object = {}): Promise<T> {
+/**
+ * A view call as React state. `contractId: null` skips it; bump `nonce` to re-read after a tx.
+ * `data` stays undefined while loading (a contract returning null gives null).
+ */
+export function useView<T>(contractId: string | null, method: string, args: Record<string, unknown> = {}, nonce = 0) {
+  const key = contractId ? JSON.stringify([contractId, method, args, nonce]) : null;
+  const [state, setState] = useState<{ key: string; data?: T; error?: string } | null>(null);
+  useEffect(() => {
+    if (!key) return;
+    const [c, m, a] = JSON.parse(key) as [string, string, Record<string, unknown>];
+    let live = true;
+    view<T>(c, m, a).then(
+      (data) => live && setState({ key, data }),
+      (e) => live && setState({ key, error: walletError(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  const s = state?.key === key ? state : null;
+  return { data: s?.data, error: s?.error ?? null, loading: !!key && !s };
+}
+
+export function view<T>(contractId: string, method: string, args: Record<string, unknown> = {}): Promise<T> {
   rpc ??= new JsonRpcProvider({ url: RPC });
   return rpc.callFunction({ contractId, method, args, blockQuery: { finality: "final" } }) as Promise<T>;
 }
