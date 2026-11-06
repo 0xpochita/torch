@@ -10,22 +10,33 @@ fn acc(s: &str) -> AccountId {
 }
 
 fn tiers() -> Vec<Tier> {
-    [("Common", 6000), ("Rare", 2800), ("Epic", 1000), ("Legendary", 200)]
-        .into_iter()
-        .map(|(rarity, weight_bps)| Tier {
-            rarity: rarity.into(),
-            weight_bps,
-            baskets: vec![Basket {
-                name: format!("{rarity} basket"),
-                category: "Blue Chip".into(),
-                bg: "#9fd3ff".into(),
-                items: vec![
-                    Item { token: acc("tusdc.t"), amount: U128(1_000) },
-                    Item { token: acc("tbtc.t"), amount: U128(10) },
-                ],
-            }],
-        })
-        .collect()
+    [
+        ("Common", 6000),
+        ("Rare", 2800),
+        ("Epic", 1000),
+        ("Legendary", 200),
+    ]
+    .into_iter()
+    .map(|(rarity, weight_bps)| Tier {
+        rarity: rarity.into(),
+        weight_bps,
+        baskets: vec![Basket {
+            name: format!("{rarity} basket"),
+            category: "Blue Chip".into(),
+            bg: "#9fd3ff".into(),
+            items: vec![
+                Item {
+                    token: acc("tusdc.t"),
+                    amount: U128(1_000),
+                },
+                Item {
+                    token: acc("tbtc.t"),
+                    amount: U128(10),
+                },
+            ],
+        }],
+    })
+    .collect()
 }
 
 fn ctx(predecessor: &str, deposit: NearToken, seed: [u8; 32]) {
@@ -40,7 +51,13 @@ fn ctx(predecessor: &str, deposit: NearToken, seed: [u8; 32]) {
 
 fn setup() -> Gacha {
     ctx("owner.t", NearToken::from_yoctonear(0), [0; 32]);
-    Gacha::new(acc("owner.t"), acc("nft.t"), U128(PRICE.as_yoctonear()), 50, tiers())
+    Gacha::new(
+        acc("owner.t"),
+        acc("nft.t"),
+        U128(PRICE.as_yoctonear()),
+        50,
+        tiers(),
+    )
 }
 
 fn fund(g: &mut Gacha, token: &str, amount: u128) {
@@ -65,7 +82,9 @@ fn text(r: &Receipt) -> String {
     r.actions
         .iter()
         .map(|a| match a {
-            MockAction::FunctionCallWeight { method_name, args, .. } => format!(
+            MockAction::FunctionCallWeight {
+                method_name, args, ..
+            } => format!(
                 "{} {}",
                 String::from_utf8_lossy(method_name),
                 String::from_utf8_lossy(args)
@@ -124,7 +143,11 @@ fn pity_forces_legendary_then_resets() {
         .into_iter()
         .find(|r| r.receiver_id.as_str() == "nft.t")
         .unwrap();
-    assert!(text(&mint).contains(r#"\"rarity\":\"Legendary\""#), "{}", text(&mint));
+    assert!(
+        text(&mint).contains(r#"\"rarity\":\"Legendary\""#),
+        "{}",
+        text(&mint)
+    );
 }
 
 #[test]
@@ -136,7 +159,9 @@ fn ten_pull_costs_nine_and_mints_ten() {
     g.pull(10);
     assert_eq!(mints(), 10);
     assert_eq!(treasury(&g, "tusdc.t"), 1_000_000 - 10 * 1_000);
-    let legendaries = (0..10).filter(|i| rarity_of(&g, [7; 32], *i) == LEGENDARY).count() as u32;
+    let legendaries = (0..10)
+        .filter(|i| rarity_of(&g, [7; 32], *i) == LEGENDARY)
+        .count() as u32;
     if legendaries == 0 {
         assert_eq!(g.get_pity(acc("bob.t")), 10);
     }
@@ -172,7 +197,11 @@ fn empty_treasury_refunds_and_keeps_pity() {
         .find(|r| r.receiver_id.as_str() == "bob.t")
         .expect("refund");
     // 8 refunded pulls at 0.09 NEAR each.
-    assert!(text(&refund).contains("720000000000000000000000"), "{}", text(&refund));
+    assert!(
+        text(&refund).contains("720000000000000000000000"),
+        "{}",
+        text(&refund)
+    );
     assert!(g.get_pity(acc("bob.t")) <= 2);
 }
 
@@ -225,7 +254,13 @@ fn callback_ctx(result: PromiseResult) {
 fn on_minted_funds_vault_and_emits_event() {
     let mut g = setup();
     callback_ctx(PromiseResult::Successful(b"\"7\"".to_vec()));
-    g.on_minted(acc("bob.t"), "Epic".into(), tiers()[2].baskets[0].items.clone(), U128(9), 3);
+    g.on_minted(
+        acc("bob.t"),
+        "Epic".into(),
+        tiers()[2].baskets[0].items.clone(),
+        U128(9),
+        3,
+    );
     let receipts = get_created_receipts();
     assert_eq!(receipts.len(), 2);
     let actions = text(&receipts[0]);
@@ -244,7 +279,13 @@ fn on_minted_funds_vault_and_emits_event() {
 fn failed_mint_restores_treasury_and_refunds() {
     let mut g = setup();
     callback_ctx(PromiseResult::Failed);
-    g.on_minted(acc("bob.t"), "Epic".into(), tiers()[2].baskets[0].items.clone(), U128(9), 3);
+    g.on_minted(
+        acc("bob.t"),
+        "Epic".into(),
+        tiers()[2].baskets[0].items.clone(),
+        U128(9),
+        3,
+    );
     assert_eq!(treasury(&g, "tusdc.t"), 1_000);
     let receipts = get_created_receipts();
     assert_eq!(receipts.len(), 1);

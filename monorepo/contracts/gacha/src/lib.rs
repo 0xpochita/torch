@@ -3,7 +3,9 @@
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::{self, json};
 use near_sdk::store::{IterableMap, LookupMap};
-use near_sdk::{env, near, require, AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise};
+use near_sdk::{
+    env, near, require, AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise,
+};
 
 /// What the collection requires per mint; paid from the gacha's own NEAR balance.
 pub const MINT_DEPOSIT: NearToken = NearToken::from_millinear(110);
@@ -11,10 +13,12 @@ pub const MINT_DEPOSIT: NearToken = NearToken::from_millinear(110);
 const FT_STORAGE_DEPOSIT: NearToken = NearToken::from_micronear(1250);
 /// Never spend below this on top of the contract's own storage stake.
 const NEAR_RESERVE: NearToken = NearToken::from_millinear(100);
-const GAS_MINT: Gas = Gas::from_tgas(30);
+/// The collection attaches 25 Tgas to its own vault-create + callback chain.
+const GAS_MINT: Gas = Gas::from_tgas(40);
 const GAS_ON_MINTED: Gas = Gas::from_tgas(5);
-const GAS_STORAGE_DEPOSIT: Gas = Gas::from_tgas(5);
-const GAS_FT_TRANSFER_CALL: Gas = Gas::from_tgas(15);
+// Per basket item: 15 Tgas static (~6.5 burnt in sandbox), so a 10-pull of 3-item baskets fits 1 PGas.
+const GAS_STORAGE_DEPOSIT: Gas = Gas::from_tgas(3);
+const GAS_FT_TRANSFER_CALL: Gas = Gas::from_tgas(12);
 const LEGENDARY: &str = "Legendary";
 
 #[near(serializers = [json, borsh])]
@@ -113,7 +117,10 @@ impl Gacha {
         } else {
             self.price_per_pull
         };
-        require!(env::attached_deposit() == total, "attach exactly the pull price");
+        require!(
+            env::attached_deposit() == total,
+            "attach exactly the pull price"
+        );
         let price = total.saturating_div(count as u128);
 
         let player = env::predecessor_account_id();
@@ -158,7 +165,13 @@ impl Gacha {
                 .then(
                     Self::ext(env::current_account_id())
                         .with_static_gas(callback_gas)
-                        .on_minted(player.clone(), rarity, basket.items, price.as_yoctonear().into(), pity),
+                        .on_minted(
+                            player.clone(),
+                            rarity,
+                            basket.items,
+                            price.as_yoctonear().into(),
+                            pity,
+                        ),
                 )
                 .detach();
         }
@@ -187,7 +200,8 @@ impl Gacha {
         let Some(token_id) = token_id else {
             for item in &items {
                 let balance = self.treasury.get(&item.token).copied().unwrap_or(0);
-                self.treasury.insert(item.token.clone(), balance + item.amount.0);
+                self.treasury
+                    .insert(item.token.clone(), balance + item.amount.0);
             }
             Promise::new(player_id)
                 .transfer(NearToken::from_yoctonear(price.0))
@@ -239,7 +253,10 @@ impl Gacha {
     /// NEP-141 receiver. Only the owner may fund the treasury, with msg "fund"; anything else is returned.
     pub fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> U128 {
         require!(msg == "fund", "msg must be \"fund\"");
-        require!(sender_id == self.owner_id, "only the owner funds the treasury");
+        require!(
+            sender_id == self.owner_id,
+            "only the owner funds the treasury"
+        );
         let token = env::predecessor_account_id();
         let balance = self.treasury.get(&token).copied().unwrap_or(0);
         self.treasury.insert(token, balance + amount.0);
@@ -272,7 +289,10 @@ impl Gacha {
     /// (tier index, basket index) from 32 random bytes.
     fn roll(&self, rand: &[u8; 32], force_legendary: bool) -> (usize, usize) {
         let tier = if force_legendary {
-            self.tiers.iter().position(|t| t.rarity == LEGENDARY).unwrap()
+            self.tiers
+                .iter()
+                .position(|t| t.rarity == LEGENDARY)
+                .unwrap()
         } else {
             let mut point = (u64::from_le_bytes(rand[..8].try_into().unwrap()) % 10_000) as u32;
             self.tiers
@@ -285,7 +305,10 @@ impl Gacha {
                 .unwrap()
         };
         let pick = u64::from_le_bytes(rand[8..16].try_into().unwrap());
-        (tier, (pick % self.tiers[tier].baskets.len() as u64) as usize)
+        (
+            tier,
+            (pick % self.tiers[tier].baskets.len() as u64) as usize,
+        )
     }
 
     /// Deducts the whole basket, or nothing if any item is short.
@@ -301,7 +324,8 @@ impl Gacha {
         if covered {
             for item in items {
                 let balance = self.treasury.get(&item.token).copied().unwrap_or(0);
-                self.treasury.insert(item.token.clone(), balance - item.amount.0);
+                self.treasury
+                    .insert(item.token.clone(), balance - item.amount.0);
             }
         }
         covered
