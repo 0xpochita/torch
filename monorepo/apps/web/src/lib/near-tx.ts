@@ -248,6 +248,24 @@ export function view<T>(contractId: string, method: string, args: Record<string,
   return rpc.callFunction({ contractId, method, args, blockQuery: { finality: "final" } }) as Promise<T>;
 }
 
+/** `ft_balance_of` for every token in one go (raw base units; "0" when unregistered or unreadable). */
+export function useFtBalances(accountId: string | null, ftIds: string[], nonce = 0) {
+  const key = accountId ? JSON.stringify([accountId, ftIds, nonce]) : null;
+  const [state, setState] = useState<{ key: string; data: Record<string, string> } | null>(null);
+  useEffect(() => {
+    if (!key) return;
+    const [account, ids] = JSON.parse(key) as [string, string[]];
+    let live = true;
+    Promise.all(ids.map((id) => view<string>(id, "ft_balance_of", { account_id: account }).catch(() => "0"))).then(
+      (bals) => live && setState({ key, data: Object.fromEntries(ids.map((id, i) => [id, bals[i] ?? "0"])) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  return state?.key === key ? state.data : null;
+}
+
 /**
  * Re-reads a tx with every receipt (wait for FINAL). Wallets that return early can miss logs from
  * detached promises (gacha mints), so the reveal falls back to this.
