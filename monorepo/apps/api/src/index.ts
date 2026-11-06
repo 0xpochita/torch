@@ -1,45 +1,29 @@
+import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { cors } from "hono/cors";
+import { createApp } from "./app.ts";
+import { config } from "./config.ts";
+import { openDb } from "./db.ts";
+import { FIXTURE_START, fixtureChain } from "./fixture.ts";
+import { nearChain, runIndexer } from "./indexer.ts";
+import { livePrices, staticPrices } from "./prices.ts";
 
-const RPC_URL = process.env.NEAR_RPC_URL ?? "https://rpc.testnet.near.org";
-const CONTRACT_ID = process.env.NEAR_CONTRACT_ID ?? "";
+const fixture = process.env.FIXTURE === "1";
+// Fixture mode replays into memory so it never touches the real index.
+const db = openDb(fixture ? ":memory:" : fileURLToPath(new URL("../data/torch.db", import.meta.url)));
+const chain = fixture ? fixtureChain(config) : nearChain(config);
+const cfg = fixture ? { ...config, startHeight: FIXTURE_START } : config;
 
-// Call a read-only contract method via NEAR JSON-RPC.
-async function view<T>(method: string, args: object = {}): Promise<T> {
-  const res = await fetch(RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: "api",
-      method: "query",
-      params: {
-        request_type: "call_function",
-        finality: "final",
-        account_id: CONTRACT_ID,
-        method_name: method,
-        args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
-      },
-    }),
+const stop = new AbortController();
+void runIndexer(db, chain, cfg, stop.signal);
+
+const port = Number(process.env.PORT ?? 8787);
+const server = serve({ fetch: createApp(db, fixture ? async () => staticPrices() : livePrices).fetch, port });
+console.log(`api on http://localhost:${port}${fixture ? " (fixture)" : ""}, indexing ${cfg.collectionId} from ${cfg.startHeight ?? "tip"}`);
+
+for (const sig of ["SIGINT", "SIGTERM"] as const)
+  process.on(sig, () => {
+    stop.abort();
+    server.close();
+    db.close();
+    process.exit(0);
   });
-  const json = await res.json();
-  if (json.error || json.result?.error) {
-    throw new Error(JSON.stringify(json.error ?? json.result.error));
-  }
-  return JSON.parse(Buffer.from(json.result.result).toString());
-}
-
-const app = new Hono();
-app.use("*", cors());
-
-app.get("/health", (c) => c.json({ ok: true }));
-
-app.get("/greeting", async (c) => {
-  if (!CONTRACT_ID) return c.json({ error: "NEAR_CONTRACT_ID not set" }, 500);
-  return c.json({ greeting: await view<string>("get_greeting") });
-});
-
-const port = Number(process.env.PORT ?? 4000);
-serve({ fetch: app.fetch, port });
-console.log(`api on http://localhost:${port}`);
