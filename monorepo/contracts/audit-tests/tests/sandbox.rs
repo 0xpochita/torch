@@ -23,7 +23,11 @@ fn wasm(krate: &str) -> Vec<u8> {
 }
 
 /// near-workspaces has no helper for DeployGlobalContract (same as collection/tests/sandbox.rs).
-async fn deploy_global_by_hash(worker: &Worker<Sandbox>, account: &Account, code: Vec<u8>) -> String {
+async fn deploy_global_by_hash(
+    worker: &Worker<Sandbox>,
+    account: &Account,
+    code: Vec<u8>,
+) -> String {
     use near_jsonrpc_client::methods;
     use near_primitives::action::{Action, DeployGlobalContractAction, GlobalContractDeployMode};
     use near_primitives::transaction::{Transaction, TransactionV0};
@@ -128,7 +132,14 @@ async fn setup() -> Env {
         .await
         .unwrap());
     let (alice, bob) = (sub(&root, "alice", 50).await, sub(&root, "bob", 50).await);
-    let e = Env { worker, root, nft, usdc, alice, bob };
+    let e = Env {
+        worker,
+        root,
+        nft,
+        usdc,
+        alice,
+        bob,
+    };
     for who in [e.root.id(), e.alice.id(), e.bob.id()] {
         register(&e, who).await;
     }
@@ -258,7 +269,11 @@ async fn c1_gacha_pull_against_real_collection_funds_vault_and_keeps_price() {
         .unwrap());
     let after = e.bob.view_account().await.unwrap().balance;
 
-    assert_eq!(owner_of(&e, "0").await, *e.bob.id(), "the pull minted token 0 to the player");
+    assert_eq!(
+        owner_of(&e, "0").await,
+        *e.bob.id(),
+        "the pull minted token 0 to the player"
+    );
     let vault: AccountId = format!("0.{}", e.nft.id()).parse().unwrap();
     assert_eq!(
         usdc_of(&e, &vault).await,
@@ -266,7 +281,8 @@ async fn c1_gacha_pull_against_real_collection_funds_vault_and_keeps_price() {
         "the minted vault must hold the basket (gacha treated the mint as failed)"
     );
     assert!(
-        before.as_yoctonear() - after.as_yoctonear() >= NearToken::from_millinear(100).as_yoctonear(),
+        before.as_yoctonear() - after.as_yoctonear()
+            >= NearToken::from_millinear(100).as_yoctonear(),
         "the player must pay for a pull that minted an NFT (was refunded)"
     );
 }
@@ -330,7 +346,9 @@ async fn h1_accepting_an_offer_after_draining_the_vault_must_fail() {
         .unwrap();
 
     assert!(
-        r.logs().iter().any(|l| l.contains("less than the offer's min_balances")),
+        r.logs()
+            .iter()
+            .any(|l| l.contains("less than the offer's min_balances")),
         "the sale must stop at the balance check: {r:#?}"
     );
     let offers: Value = market
@@ -340,7 +358,11 @@ async fn h1_accepting_an_offer_after_draining_the_vault_must_fail() {
         .unwrap()
         .json()
         .unwrap();
-    assert_eq!(offers[0]["buyer_id"], json!(e.bob.id()), "bob's offer is kept");
+    assert_eq!(
+        offers[0]["buyer_id"],
+        json!(e.bob.id()),
+        "bob's offer is kept"
+    );
     let sold = owner_of(&e, "0").await == *e.bob.id();
     assert!(
         !sold || usdc_of(&e, &vault).await == 1_000_000,
@@ -374,7 +396,12 @@ async fn h1_accepting_an_offer_after_draining_the_vault_must_fail() {
         .await
         .unwrap();
     assert!(r.is_success(), "{r:#?}");
-    assert!(r.logs().iter().any(|l| l.contains(r#""event":"offer_accept""#)), "{r:#?}");
+    assert!(
+        r.logs()
+            .iter()
+            .any(|l| l.contains(r#""event":"offer_accept""#)),
+        "{r:#?}"
+    );
     assert_eq!(owner_of(&e, "0").await, *e.bob.id());
     assert_eq!(usdc_of(&e, &vault).await, 1_000_000);
 }
@@ -389,13 +416,19 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
     // Leave the market a realistic 0.3 NEAR above its storage stake.
     let info = market.view_account().await.unwrap();
     let staked = info.storage_usage as u128 * 10u128.pow(19);
-    let excess = info.balance.as_yoctonear() - staked - NearToken::from_millinear(300).as_yoctonear();
+    let excess =
+        info.balance.as_yoctonear() - staked - NearToken::from_millinear(300).as_yoctonear();
     ok(market
         .as_account()
         .transfer_near(e.root.id(), NearToken::from_yoctonear(excess))
         .await
         .unwrap());
-    let storage: String = market.view("offer_storage_cost").await.unwrap().json().unwrap();
+    let storage: String = market
+        .view("offer_storage_cost")
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
     let storage: u128 = storage.parse().unwrap();
     let expires_at = e.worker.view_block().await.unwrap().timestamp() / 1_000_000 + 3_600_000;
     let offer = |who: &Account, token_id: String, min_balances: Value| {
@@ -406,7 +439,9 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
                 "expires_at": expires_at,
                 "min_balances": min_balances,
             }))
-            .deposit(NearToken::from_yoctonear(NearToken::from_millinear(10).as_yoctonear() + storage))
+            .deposit(NearToken::from_yoctonear(
+                NearToken::from_millinear(10).as_yoctonear() + storage,
+            ))
             .max_gas()
             .transact()
     };
@@ -427,7 +462,10 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
     ok(offer(&long, "9".repeat(20), json!(fts)).await.unwrap());
     let used = market.view_account().await.unwrap().storage_usage - before;
     println!("largest offer used {used} bytes");
-    assert!(used as u128 * 10u128.pow(19) <= storage, "offer used {used} bytes");
+    assert!(
+        used as u128 * 10u128.pow(19) <= storage,
+        "offer used {used} bytes"
+    );
 
     // Many short-id offers never eat into bob's escrow.
     ok(e.bob
@@ -438,7 +476,9 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
         .await
         .unwrap());
     for i in 0..20 {
-        ok(offer(&mallory, format!("{}", 10_000_000 + i), json!([])).await.unwrap());
+        ok(offer(&mallory, format!("{}", 10_000_000 + i), json!([]))
+            .await
+            .unwrap());
     }
     let r = e
         .bob
@@ -449,7 +489,11 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
         .transact()
         .await
         .unwrap();
-    assert!(r.is_success(), "bob cannot get his 1 NEAR back: {:?}", r.failures());
+    assert!(
+        r.is_success(),
+        "bob cannot get his 1 NEAR back: {:?}",
+        r.failures()
+    );
 }
 
 /// I9 check: `nft_resolve_transfer` gets a fixed 5 Tgas from near-contract-standards (unused gas
@@ -480,8 +524,15 @@ async fn i9_transfer_call_revert_unlocks_with_many_approvals() {
             .transact()
             .await
             .unwrap();
-        assert_eq!(owner_of(&e, token_id).await, *e.alice.id(), "token {token_id} returned");
-        assert!(!is_locked(&e, token_id).await, "token {token_id} ({approvals} approvals) stays locked");
+        assert_eq!(
+            owner_of(&e, token_id).await,
+            *e.alice.id(),
+            "token {token_id} returned"
+        );
+        assert!(
+            !is_locked(&e, token_id).await,
+            "token {token_id} ({approvals} approvals) stays locked"
+        );
     }
     let _ = &e.worker;
 }

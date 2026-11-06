@@ -352,14 +352,7 @@ name = "collection"
 version = "0.1.0"
 dependencies = [
  "near-contract-standards",
- "near-crypto",
- "near-jsonrpc-client",
- "near-jsonrpc-primitives",
- "near-primitives",
  "near-sdk",
- "near-workspaces",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -1078,9 +1071,6 @@ name = "gacha"
 version = "0.1.0"
 dependencies = [
  "near-sdk",
- "near-workspaces",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -1505,6 +1495,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "integration-tests"
+version = "0.1.0"
+dependencies = [
+ "near-crypto",
+ "near-jsonrpc-client",
+ "near-jsonrpc-primitives",
+ "near-primitives",
+ "near-workspaces",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1788,9 +1791,6 @@ name = "market"
 version = "0.1.0"
 dependencies = [
  "near-sdk",
- "near-workspaces",
- "serde_json",
- "tokio",
 ]
 
 [[package]]

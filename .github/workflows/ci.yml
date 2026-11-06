@@ -17,30 +17,53 @@ defaults:
   run:
     working-directory: monorepo
 
+env:
+  NEAR_SANDBOX_VERSION: 2.14.0
+
 jobs:
-  node:
-    name: Web & API
+  # Which areas changed; each job below runs only for its own area (or when this file changes).
+  changes:
+    name: Changed areas
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      contracts: ${{ steps.filter.outputs.contracts }}
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      scripts: ${{ steps.filter.outputs.scripts }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          package_json_file: monorepo/package.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: monorepo/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - name: Lint (web)
-        run: pnpm --filter web lint
-      - name: Typecheck (api)
-        run: pnpm --filter api exec tsc --noEmit
-      - name: Build (web)
-        run: pnpm --filter web build
+          filters: |
+            ci: &ci
+              - .github/workflows/ci.yml
+            contracts:
+              - *ci
+              - monorepo/contracts/**
+            api:
+              - *ci
+              - monorepo/apps/api/**
+              - monorepo/package.json
+              - monorepo/pnpm-lock.yaml
+            web:
+              - *ci
+              - monorepo/apps/web/**
+              - monorepo/apps/api/package.json # near-tx tests run with the api's tsx
+              - monorepo/package.json
+              - monorepo/pnpm-lock.yaml
+            scripts:
+              - *ci
+              - monorepo/scripts/**
+              - monorepo/apps/web/src/lib/mock.ts # imported by seed-testnet.ts
 
-  contract:
-    name: Contract
+  contracts:
+    name: Contracts
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -56,7 +79,124 @@ jobs:
           workspaces: monorepo/contracts
       - name: Install cargo-near (sandbox tests build the wasm)
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/latest/download/cargo-near-installer.sh | sh
+      - name: Cache near-sandbox binary
+        id: sandbox-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.near-sandbox
+          key: near-sandbox-${{ env.NEAR_SANDBOX_VERSION }}-${{ runner.os }}
+      - name: Download near-sandbox
+        if: steps.sandbox-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.near-sandbox
+          curl -sSfL -o /tmp/near-sandbox.tar.gz \
+            "https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore/Linux-x86_64/$NEAR_SANDBOX_VERSION/near-sandbox.tar.gz"
+          tar -xzf /tmp/near-sandbox.tar.gz -C ~/.near-sandbox --strip-components=1
+      - name: Use the cached sandbox for near-workspaces
+        run: echo "NEAR_SANDBOX_BIN_PATH=$HOME/.near-sandbox/near-sandbox" >> "$GITHUB_ENV"
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
-      - run: cargo build --target wasm32-unknown-unknown --release
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test (unit + near-workspaces sandbox)
+        run: cargo test --workspace
+      - name: Build wasm
+        run: for c in vault collection mock-ft market gacha; do cargo near build non-reproducible-wasm --manifest-path "$c/Cargo.toml"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contracts-wasm
+          path: monorepo/contracts/target/near/*/*.wasm
+          if-no-files-found: error
+
+  api:
+    name: API
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monorepo/apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: monorepo/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: monorepo/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test
+      - name: Fixture smoke (every endpoint on a free port)
+        run: |
+          port=$(node -e 'const s=require("net").createServer().listen(0,()=>{console.log(s.address().port);s.close()})')
+          FIXTURE=1 PORT=$port node_modules/.bin/tsx src/index.ts > /tmp/api.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do curl -sf "localhost:$port/health" >/dev/null && break; sleep 0.5; done
+          for path in /health /vaults /vaults/0 /market/listings /market/orderbook/0 "/offers?owner=bob.testnet" \
+            /activity /leaderboard /gacha/recent /stats; do
+            body=$(curl -sf "localhost:$port$path") || { echo "FAIL $path"; cat /tmp/api.log; exit 1; }
+            echo "ok $path ${body:0:80}"
+          done
+
+  web:
+    name: Web
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monorepo/apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: monorepo/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: monorepo/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Next 16 declares PageProps / LayoutProps as generated globals; tsc needs them first.
+      - run: pnpm exec next typegen
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm lint
+      - run: pnpm build
+      - name: near-tx builder tests (no wallet, no network)
+        if: hashFiles('monorepo/apps/web/src/lib/near-tx.test.ts') != ''
+        run: ../api/node_modules/.bin/tsx --test src/lib/near-tx.test.ts
+
+  scripts:
+    name: Deploy scripts
+    needs: changes
+    if: needs.changes.outputs.scripts == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monorepo/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: monorepo/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: monorepo/scripts/pnpm-lock.yaml
+      - run: shellcheck ./*.sh
+      - run: pnpm install --frozen-lockfile --ignore-workspace
+      - run: pnpm exec tsc --noEmit
+      - name: Deploy plan (DRY_RUN, no network)
+        env:
+          DRY_RUN: '1'
+          NEAR_RPC_URL: http://127.0.0.1:9 # unreachable on purpose: the dry run must not query the chain
+        run: ./deploy-testnet.sh
+      - name: Seed plan (DRY_RUN, no network)
+        env:
+          DRY_RUN: '1'
+          NEAR_RPC_URL: http://127.0.0.1:9
+          SEED_CREATORS: alice.testnet,bob.testnet,carol.testnet
+        run: pnpm exec tsx seed-testnet.ts

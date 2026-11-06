@@ -277,8 +277,18 @@ fn on_minted_funds_vault_and_emits_event() {
 
 #[test]
 fn failed_mint_restores_treasury_and_refunds() {
+    failed_mint(PromiseResult::Failed);
+}
+
+/// The collection's mint resolves to `null` when the vault could not be created.
+#[test]
+fn null_mint_restores_treasury_and_refunds() {
+    failed_mint(PromiseResult::Successful(b"null".to_vec()));
+}
+
+fn failed_mint(result: PromiseResult) {
     let mut g = setup();
-    callback_ctx(PromiseResult::Failed);
+    callback_ctx(result);
     g.on_minted(
         acc("bob.t"),
         "Epic".into(),
