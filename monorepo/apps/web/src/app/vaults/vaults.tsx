@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { BasketArt } from "@/components/basket-art";
 import { ActivityRow, AllocationBar, Artwork, Change, tint } from "@/components/etf-card";
@@ -11,11 +12,13 @@ import { ConnectPrompt, Topbar } from "@/components/navbar";
 import GlareHover from "@/components/react-bits/GlareHover";
 import GlideSelect from "@/components/react-bits/GlideSelect";
 import { useTx } from "@/components/tx-sheet";
-import { useAccount } from "@/providers/near-provider";
+import { NETWORK, useAccount } from "@/providers/near-provider";
 import { Avatar, Money, NearAmount, TokenIcon, TokenStack } from "@/components/ui";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { toEvents, toNear, toVault, useApi, type ActivityItem, type OffersResponse, type Stats, type VaultSummary } from "@/lib/api";
 import { TOKENS, type Etf, type TokenKey } from "@/lib/mock";
+
+const DEV_AS = NETWORK === "testnet" && process.env.NODE_ENV !== "production";
 
 const TABS = ["Holdings", "Created", "Listed", "Offers", "Activity"] as const;
 type Tab = (typeof TABS)[number];
@@ -32,7 +35,11 @@ export function Vaults() {
   const [grid, setGrid] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [copied, setCopied] = useState(false);
-  const account = useAccount();
+  // Dev-only: /vaults?as=<account> views any account without a wallet (testnet, non-production builds).
+  const params = useSearchParams();
+  const as = DEV_AS ? params.get("as") : null;
+  const wallet = useAccount();
+  const account = as || wallet;
 
   // ponytail: all vaults in one read (owned, created and the activity join); filter server-side with ?owner= once there are thousands
   const vaultsQ = useApi<VaultSummary[]>(account && "/vaults");
@@ -113,6 +120,7 @@ export function Vaults() {
             <Avatar account={account} size={112} />
           </div>
           <div>
+            {as && <span className="mb-1 inline-block rounded-full bg-tint/12 px-2.5 py-0.5 text-[12px] font-semibold text-tint">Dev view · ?as={as}</span>}
             <h1 className="title-chunky text-[30px]">{account.replace(/\.(near|testnet)$/, "")}</h1>
             <button onClick={copy} className="mt-0.5 flex items-center gap-1.5 font-mono text-[13px] text-muted hover:text-text">
               {account}
@@ -137,7 +145,9 @@ export function Vaults() {
               </button>
             </div>
             <div className="mt-1 font-mono text-[32px] font-semibold tracking-tight">{hidden ? "$••••••" : <Money value={total} count />}</div>
-            <div className="text-[13px] text-muted">across {owned.length} {owned.length === 1 ? "vault" : "vaults"}</div>
+            <div className="text-[13px]">
+              <Change value={total ? owned.reduce((s, e) => s + e.navUsd * e.change24h, 0) / total : 0} /> <span className="text-muted">today</span>
+            </div>
           </div>
 
           <ul className="flex flex-col gap-3 text-[15px]">
@@ -287,9 +297,16 @@ export function Vaults() {
                               </td>
                               <td className="px-2 py-3 text-right">{e.listed ? <NearAmount amount={e.priceNear} className="justify-end font-semibold" /> : <span className="text-muted">—</span>}</td>
                               <td className="px-2 py-3 text-right">
-                                <button onClick={() => open({ kind: "deposit", etfId: e.id })} className="btn-line h-8 px-3 text-[13px] opacity-0 transition group-hover:opacity-100 focus:opacity-100">
-                                  Deposit
-                                </button>
+                                {e.owner === account && (
+                                  <span className="inline-flex gap-1.5">
+                                    <button onClick={() => open({ kind: "deposit", etfId: e.id, tokenId: e.id })} className="btn-line h-8 px-3 text-[13px] opacity-0 transition group-hover:opacity-100 focus:opacity-100">
+                                      Deposit
+                                    </button>
+                                    <button onClick={() => open({ kind: e.listed ? "delist" : "list", etfId: e.id, tokenId: e.id })} className={`${e.listed ? "btn-line" : "btn-tint"} h-8 px-3 text-[13px]`}>
+                                      {e.listed ? "Delist" : "List"}
+                                    </button>
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -367,7 +384,7 @@ export function Vaults() {
                       </td>
                       <td className="px-2 py-3 text-muted">{o.expiresHours < 24 ? `${o.expiresHours}h` : `${Math.round(o.expiresHours / 24)}d`}</td>
                       <td className="px-2 py-3 text-right">
-                        <button onClick={() => open({ kind: "accept", etfId: o.etf.id, offer: { from: o.from, priceNear: o.priceNear } })} className="btn-tint h-8 px-3 text-[13px]">
+                        <button onClick={() => open({ kind: "accept", etfId: o.etf.id, tokenId: o.etf.id, offer: { from: o.from, priceNear: o.priceNear } })} className="btn-tint h-8 px-3 text-[13px]">
                           Accept
                         </button>
                       </td>

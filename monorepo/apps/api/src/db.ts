@@ -63,6 +63,19 @@ CREATE TABLE IF NOT EXISTS pulls (
   price TEXT NOT NULL,
   ts INTEGER NOT NULL
 );
+-- USD price per token key (prices.ts); one snapshot writes every key with the same at.
+CREATE TABLE IF NOT EXISTS price_snapshots (
+  at INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  usd REAL NOT NULL,
+  PRIMARY KEY (at, key)
+);
+CREATE TABLE IF NOT EXISTS nav_snapshots (
+  token_id TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  nav_usd REAL NOT NULL,
+  PRIMARY KEY (token_id, at)
+);
 CREATE TABLE IF NOT EXISTS cursor (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   height INTEGER NOT NULL

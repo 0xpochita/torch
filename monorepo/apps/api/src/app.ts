@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type Db, all, get, getCursor } from "./db.ts";
 import { type Prices, nearUsd, priceOf, tokenInfo, toUnits } from "./prices.ts";
+import { DAY, navSnapshots, pricesAt, priceReturn, valueAt } from "./snapshots.ts";
 import type {
   ActivityItem, Balance, GachaPull, Holder, LeaderboardPeriod, LeaderboardRow, LeaderboardSort, Listing, MarketListing,
   NavPoint, Offer, OffersResponse, Orderbook, Rarity, Sale, Stats, VaultDetail, VaultSummary,
@@ -54,6 +55,7 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
   // ponytail: loads every balance per request; add per-token queries once there are thousands of vaults.
   function vaults(px: Prices, where = "", ...p: string[]): (VaultSummary & { balances: Balance[] })[] {
     const bal = balancesOf(px);
+    const dayAgo = pricesAt(db, Date.now() - DAY);
     return all<TokenRow>(
       db,
       `SELECT t.*, l.seller_id AS l_seller, l.price AS l_price, l.listed_at AS l_at FROM tokens t LEFT JOIN listings l USING (token_id)
@@ -65,7 +67,7 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
       return {
         tokenId: r.token_id, vaultId: r.vault_id, title: r.title, ownerId: r.owner_id, creator: r.creator, category: r.category, bg: r.bg,
         rarity: r.rarity as Rarity | null, basket: JSON.parse(r.basket), navUsd: balances.reduce((s, b) => s + b.valueUsd, 0),
-        mintedAt: r.minted_at, listing, balances,
+        change24h: priceReturn(balances, dayAgo, px), mintedAt: r.minted_at, listing, balances,
       };
     });
   }
@@ -103,17 +105,21 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
       holders.push({ accountId: d.owner_id ?? d.new_owner_id, since: e.ts, until: null });
     }
 
-    // Replay deposits/withdrawals as balance snapshots, valued at today's prices.
-    const held = new Map<string, bigint>();
-    const navHistory: NavPoint[] = [{ at: v.mintedAt, navUsd: 0 }];
-    for (const e of all<EventRow>(db, "SELECT * FROM events WHERE token_id = ? AND event IN ('vault_deposit', 'vault_withdraw') ORDER BY ts, id", id)) {
-      const d = JSON.parse(e.data);
-      held.set(d.ft_id, (held.get(d.ft_id) ?? 0n) + (e.event === "vault_deposit" ? 1n : -1n) * BigInt(d.amount));
-      const navUsd = [...held].reduce((s, [ft, amt]) => s + balance(ft, (amt < 0n ? 0n : amt).toString(), px).valueUsd, 0);
-      if (navHistory.at(-1)!.at === e.ts) navHistory.at(-1)!.navUsd = navUsd;
-      else navHistory.push({ at: e.ts, navUsd });
+    const now = Date.now();
+    const navHistory: NavPoint[] = navSnapshots(db, id, now - 30 * DAY);
+    if (!navHistory.length) {
+      // No snapshot yet: replay deposits/withdrawals as balance snapshots, valued at today's prices.
+      const held = new Map<string, bigint>();
+      navHistory.push({ at: v.mintedAt, navUsd: 0 });
+      for (const e of all<EventRow>(db, "SELECT * FROM events WHERE token_id = ? AND event IN ('vault_deposit', 'vault_withdraw') ORDER BY ts, id", id)) {
+        const d = JSON.parse(e.data);
+        held.set(d.ft_id, (held.get(d.ft_id) ?? 0n) + (e.event === "vault_deposit" ? 1n : -1n) * BigInt(d.amount));
+        const navUsd = [...held].reduce((s, [ft, amt]) => s + balance(ft, (amt < 0n ? 0n : amt).toString(), px).valueUsd, 0);
+        if (navHistory.at(-1)!.at === e.ts) navHistory.at(-1)!.navUsd = navUsd;
+        else navHistory.push({ at: e.ts, navUsd });
+      }
     }
-    navHistory.push({ at: Date.now(), navUsd: v.navUsd });
+    navHistory.push({ at: now, navUsd: v.navUsd });
 
     return c.json<VaultDetail>({ ...v, navHistory, holders, offers: liveOffers("o.token_id = ?", id), sales: sales("token_id = ?", id) });
   });
@@ -161,14 +167,21 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
     const period = (c.req.query("period") ?? "all") as LeaderboardPeriod;
     const sort = (c.req.query("sort") ?? "value") as LeaderboardSort;
     if (!(period in PERIODS)) return c.json({ error: "period must be 24h|7d|30d|all" }, 400);
-    if (!["value", "volume", "sales", "vaults", "holders"].includes(sort)) return c.json({ error: "sort must be value|volume|sales|vaults|holders" }, 400);
+    if (!["value", "return", "volume", "sales", "vaults", "holders"].includes(sort)) return c.json({ error: "sort must be value|return|volume|sales|vaults|holders" }, 400);
 
     const since = PERIODS[period] === Infinity ? 0 : Date.now() - PERIODS[period];
-    const all_ = vaults(await prices());
+    const px = await prices();
+    const then = pricesAt(db, since);
+    const all_ = vaults(px);
     const creatorOf = new Map(all_.map((v) => [v.tokenId, v.creator]));
-    const rows = new Map<string, { vaults: number; valueUsd: number; holders: Set<string>; volume: string[] }>();
-    const row = (a: string) => rows.get(a) ?? rows.set(a, { vaults: 0, valueUsd: 0, holders: new Set(), volume: [] }).get(a)!;
-    for (const v of all_) (row(v.creator).vaults++, (row(v.creator).valueUsd += v.navUsd));
+    const rows = new Map<string, { vaults: number; valueUsd: number; valueThen: number; holders: Set<string>; volume: string[] }>();
+    const row = (a: string) => rows.get(a) ?? rows.set(a, { vaults: 0, valueUsd: 0, valueThen: 0, holders: new Set(), volume: [] }).get(a)!;
+    for (const v of all_) {
+      const r = row(v.creator);
+      r.vaults++;
+      r.valueUsd += v.navUsd;
+      if (then) r.valueThen += valueAt(v.balances, then);
+    }
     for (const e of all<EventRow>(db, "SELECT token_id, data FROM events WHERE event IN ('nft_mint', 'nft_transfer')")) {
       const creator = creatorOf.get(e.token_id);
       const d = JSON.parse(e.data);
@@ -179,9 +192,12 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
       if (creator) row(creator).volume.push(s.price);
     }
 
-    const out = [...rows].map(([accountId, r]) => ({ rank: 0, accountId, vaults: r.vaults, valueUsd: r.valueUsd, holders: r.holders.size, sales: r.volume.length, volume: sum(r.volume) }));
+    const out: LeaderboardRow[] = [...rows].map(([accountId, r]) => ({
+      rank: 0, accountId, vaults: r.vaults, valueUsd: r.valueUsd, holders: r.holders.size,
+      return: r.valueThen > 0 ? (r.valueUsd / r.valueThen - 1) * 100 : null, sales: r.volume.length, volume: sum(r.volume),
+    }));
     const key: Record<LeaderboardSort, (r: LeaderboardRow) => number | bigint> = {
-      value: (r) => r.valueUsd, volume: (r) => BigInt(r.volume), sales: (r) => r.sales, vaults: (r) => r.vaults, holders: (r) => r.holders,
+      value: (r) => r.valueUsd, return: (r) => r.return ?? -Infinity, volume: (r) => BigInt(r.volume), sales: (r) => r.sales, vaults: (r) => r.vaults, holders: (r) => r.holders,
     };
     out.sort((a, b) => cmp(key[sort](b), key[sort](a)) || a.accountId.localeCompare(b.accountId));
     out.forEach((r, i) => (r.rank = i + 1));

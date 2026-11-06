@@ -79,8 +79,8 @@ export function toVault(v: VaultSummary, navHistory?: NavPoint[]): Vault {
     owner: v.ownerId,
     likes: 0,
     navUsd: v.navUsd,
-    // ponytail: no price history in the API yet; 24h change stays 0 until the indexer snapshots prices
-    change24h: 0,
+    // price-only change from the API's snapshots; 0 until the first snapshot older than now exists
+    change24h: v.change24h ?? 0,
     priceNear: v.listing ? toNear(v.listing.price) : 0,
     listed: !!v.listing,
     slippageBps: 50,
