@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BasketArt } from "@/components/basket-art";
@@ -8,7 +9,7 @@ import { Artwork } from "@/components/etf-card";
 import { GachaMachine, type GachaHandle } from "@/components/gacha-machine";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Avatar, Money, NearAmount, Title } from "@/components/ui";
+import { Avatar, Money, NearAmount } from "@/components/ui";
 import { sfxPop, sfxReveal, sfxShake, startMusic, stopMusic } from "@/lib/gacha-audio";
 import { GACHA_POOL, GACHA_PRICE_NEAR, PITY, RARITY, RECENT_PULLS, getEtf, type Etf, type Rarity } from "@/lib/mock";
 
@@ -32,6 +33,9 @@ export function Gacha() {
   const [result, setResult] = useState<Pull[] | null>(null);
   const [collected, setCollected] = useState<Pull[]>([]);
   const [sound, setSound] = useState(true);
+  // idle → rolling (machine shakes) → ready (capsule floating, tap to crack) → flash → result
+  const [phase, setPhase] = useState<"idle" | "rolling" | "ready" | "flash">("idle");
+  const pending = useRef<Pull[] | null>(null);
 
   // per-viewer preference; storage can throw in private mode
   useEffect(() => {
@@ -57,6 +61,7 @@ export function Gacha() {
     if (busy) return;
     setResult(null);
     setBusy(true);
+    setPhase("rolling");
     let p = pity;
     const pulls = Array.from({ length: n }, () => {
       p += 1;
@@ -64,16 +69,27 @@ export function Gacha() {
       if (hit.rarity === "Legendary") p = 0;
       return hit;
     });
+    pending.current = pulls;
     const best = [...pulls].sort((a, b) => TIERS.indexOf(b.rarity) - TIERS.indexOf(a.rarity))[0];
     if (sound) {
       startMusic();
-      sfxShake();
-      setTimeout(sfxPop, 2600); // capsule opens ~1.5s after it leaves the dome
+      sfxShake(1.3);
     }
     await machine.current?.pull(RARITY[best.rarity].color);
-    if (sound) sfxReveal(TIERS.indexOf(best.rarity) as 0 | 1 | 2 | 3);
     setPity(p);
+    setPhase("ready");
+  };
+
+  const crack = async () => {
+    if (phase !== "ready" || !pending.current) return;
+    const pulls = pending.current;
+    const best = [...pulls].sort((a, b) => TIERS.indexOf(b.rarity) - TIERS.indexOf(a.rarity))[0];
+    if (sound) sfxPop();
+    setPhase("flash");
+    await machine.current?.crack();
+    if (sound) sfxReveal(TIERS.indexOf(best.rarity) as 0 | 1 | 2 | 3);
     setResult(pulls);
+    setPhase("idle");
     setBusy(false);
   };
 
@@ -88,28 +104,60 @@ export function Gacha() {
 
       <div className="grid gap-4 pt-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* stage */}
-        <section className="grain relative min-h-[560px] overflow-hidden rounded-[28px] bg-[radial-gradient(120%_80%_at_50%_0%,#3a2412,#141210_60%)] text-[#f5f5f7] xl:h-[calc(100dvh-116px)]">
+        <section className="relative min-h-[560px] overflow-hidden rounded-[28px] bg-[#0d0a08] text-[#f5f5f7] xl:h-[calc(100dvh-116px)]">
+          <Image src="/brand/gacha-banner.png" alt="" fill priority sizes="(min-width: 1280px) 70vw, 100vw" className="object-cover object-[50%_62%]" />
+          <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_45%,transparent,#0d0a08cc)]" />
           <GachaMachine ref={machine} className="absolute inset-0" />
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-6">
-            <div>
-              <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#ffb766]">Mystery vault</span>
-              <Title size="text-[40px]">Gacha</Title>
-              <p className="max-w-[340px] text-[14px] text-white/60">Every capsule mints a real vault NFT with a random basket inside. Rarer capsules hold bigger baskets.</p>
-            </div>
-            <div className="w-[220px] rounded-[18px] bg-white/8 p-3 backdrop-blur-md">
-              <div className="flex justify-between text-[12px] text-white/60">
-                <span>Legendary pity</span>
-                <span className="font-semibold text-white">
-                  {pity}/{PITY}
-                </span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-                <motion.div className="h-full rounded-full bg-[#ff8a00]" animate={{ width: `${(pity / PITY) * 100}%` }} />
-              </div>
-              <p className="mt-1.5 text-[11px] text-white/50">Guaranteed in {PITY - pity} pulls</p>
-            </div>
+          {/* slim glass chrome, nothing shouting */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-5">
+            <span className="flex items-center gap-2 rounded-full bg-black/45 py-1.5 pl-1.5 pr-3.5 text-[13px] font-semibold backdrop-blur-md">
+              <span className="grid size-7 place-items-center rounded-full bg-[#ff8a00] text-white">
+                <Sym name="gift" size={14} weight="bold" />
+              </span>
+              Mystery vault
+              <span className="font-normal text-white/55">· {PITY} pulls to a Legendary</span>
+            </span>
+            <span className="flex w-[200px] flex-col gap-1.5 rounded-[16px] bg-black/45 px-3.5 py-2.5 backdrop-blur-md">
+              <span className="flex justify-between text-[12px] text-white/60">
+                Pity <b className="font-semibold text-white">{pity}/{PITY}</b>
+              </span>
+              <span className="h-1 overflow-hidden rounded-full bg-white/10">
+                <motion.span className="block h-full rounded-full bg-[#ff8a00]" animate={{ width: `${(pity / PITY) * 100}%` }} />
+              </span>
+            </span>
           </div>
+
+          <AnimatePresence>
+            {phase === "rolling" && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-1/2 top-20 w-[300px] -translate-x-1/2 rounded-[14px] bg-black/55 px-4 py-3 backdrop-blur-md">
+                <span className="flex items-center gap-2 text-[13px] font-semibold">
+                  <Sym name="clock" size={14} weight="bold" className="text-[#ff8a00]" /> Rolling a fair seed…
+                </span>
+                <span className="mt-2 block h-1 overflow-hidden rounded-full bg-white/10">
+                  <motion.span className="block h-full rounded-full bg-[#ff8a00]" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2.6, ease: "easeInOut" }} />
+                </span>
+              </motion.div>
+            )}
+            {phase === "ready" && (
+              <motion.button
+                key="crack"
+                onClick={crack}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-[5] flex cursor-pointer items-start justify-center bg-black/35 pt-[16%]"
+                aria-label="Crack the capsule"
+              >
+                <motion.span animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.6 }} className="text-[13px] font-semibold uppercase tracking-[0.2em] text-white">
+                  Tap to crack the capsule
+                </motion.span>
+              </motion.button>
+            )}
+            {phase === "flash" && (
+              <motion.div key="flash" initial={{ opacity: 0 }} animate={{ opacity: [0, 0, 1, 0] }} transition={{ duration: 1.1, times: [0, 0.35, 0.6, 1] }} className="pointer-events-none absolute inset-0 z-[6] bg-white" />
+            )}
+          </AnimatePresence>
 
           <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-6">
             <div className="flex gap-2">
@@ -130,7 +178,7 @@ export function Gacha() {
               </button>
             </div>
             <span className="flex items-center gap-3 text-[12px] text-white/50">
-              {busy ? "Shaking the machine…" : "Mock pulls · no NEAR is spent"}
+              {busy ? "Pulling…" : "Mock pulls · no NEAR is spent"}
               <button onClick={toggleSound} aria-label={sound ? "Mute sound" : "Turn sound on"} className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-white/80 hover:bg-white/20">
                 <Sym name={sound ? "sound" : "mute"} size={13} weight="bold" /> {sound ? "Sound on" : "Muted"}
               </button>
@@ -209,8 +257,11 @@ export function Gacha() {
 function Reveal({ pulls, onClaim, onAgain }: { pulls: Pull[]; onClaim: () => void; onAgain: () => void }) {
   const single = pulls.length === 1;
   const total = pulls.reduce((s, p) => s + p.valueUsd, 0);
+  const best = pulls.map((p) => p.rarity).sort((a, b) => TIERS.indexOf(b) - TIERS.indexOf(a))[0];
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 grid place-items-center bg-black/55 p-6 backdrop-blur-sm">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 grid place-items-center p-6 backdrop-blur-md"
+      style={{ background: `radial-gradient(60% 55% at 50% 45%, ${RARITY[best].color}55, #0d0a08ee 70%)` }}
+    >
       <div className="flex w-full max-w-[720px] flex-col items-center gap-5">
         {single ? (
           <Card p={pulls[0]} big />

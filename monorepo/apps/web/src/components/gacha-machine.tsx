@@ -2,137 +2,210 @@
 
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 /**
- * Capsule machine in plain three.js: a glass dome full of two-tone capsules that settle under gravity,
- * shake when you pull, and drop one capsule out of the chute that pops open toward the camera.
+ * Capsule machine in plain three.js: gold body and a glass dome of glossy capsules (the stage is the page background).
+ * pull(): the machine shakes, one capsule drops out and floats in front of the camera with a rarity glow.
+ * crack(): the floating capsule splits, shards burst out, and the light flares.
  * ponytail: hand-rolled sphere physics (O(n²) over ~30 capsules); swap for rapier if the count grows.
  */
 
-export type GachaHandle = { pull: (color: string) => Promise<void> };
+export type GachaHandle = { pull: (color: string) => Promise<void>; crack: () => Promise<void> };
 
-const DOME_R = 1.55;
-const CAP_R = 0.27;
+const DOME_R = 1.5;
+const CAP_R = 0.26;
 const CENTER = new THREE.Vector3(0, 0.75, 0);
-const PALETTE = ["#9fd3ff", "#b8f0d8", "#ffd8a8", "#e5c8ff", "#ffc2a8", "#c5f5b0", "#ff8a00"];
+// bottom-half colours: saturated, like real toy capsules
+const PALETTE = ["#ff8a00", "#2f8cff", "#21c47a", "#ff4f7b", "#9b5cff", "#ffc31f"];
 const COUNT = 30;
+const SHARDS = 48;
 
-type Capsule = { group: THREE.Group; top: THREE.Mesh; bottom: THREE.Mesh; v: THREE.Vector3; spin: THREE.Vector3 };
+type Capsule = { group: THREE.Group; top: THREE.Object3D; bottom: THREE.Mesh; v: THREE.Vector3; spin: THREE.Vector3 };
 
-function makeCapsule(color: string, shell: THREE.SphereGeometry, base: THREE.Material): Capsule {
+type Parts = { shell: THREE.SphereGeometry; clear: THREE.Material; seam: THREE.TorusGeometry; prize: THREE.CylinderGeometry; gold: THREE.Material };
+
+/** Real gacha capsule: clear upper dome, solid coloured base, raised seam, a coin-sized prize inside. */
+function makeCapsule(color: string, p: Parts): Capsule {
   const group = new THREE.Group();
-  const top = new THREE.Mesh(shell, new THREE.MeshPhysicalMaterial({ color, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.15 }));
-  const bottom = new THREE.Mesh(shell, base);
+  const bottom = new THREE.Mesh(p.shell, new THREE.MeshPhysicalMaterial({ color, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 }));
   bottom.rotation.x = Math.PI;
-  group.add(top, bottom);
+  const top = new THREE.Group();
+  top.add(new THREE.Mesh(p.shell, p.clear));
+  const seam = new THREE.Mesh(p.seam, bottom.material);
+  seam.rotation.x = Math.PI / 2;
+  const prize = new THREE.Mesh(p.prize, p.gold);
+  prize.rotation.set(Math.PI / 2.4, 0, Math.random());
+  prize.position.y = -0.04;
+  group.add(bottom, top, seam, prize);
   group.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
   return { group, top, bottom, v: new THREE.Vector3(), spin: new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2) };
 }
 
 export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; className?: string }) {
   const host = useRef<HTMLDivElement>(null);
-  const api = useRef<GachaHandle["pull"]>(async () => {});
+  const api = useRef<GachaHandle>({ pull: async () => {}, crack: async () => {} });
 
-  useImperativeHandle(ref, () => ({ pull: (color) => api.current(color) }), []);
+  useImperativeHandle(ref, () => ({ pull: (c) => api.current.pull(c), crack: () => api.current.crack() }), []);
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     el.appendChild(renderer.domElement);
     renderer.domElement.style.cssText = "width:100%;height:100%;display:block";
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
-    camera.position.set(0, 0.6, 10);
-    camera.lookAt(0, -0.15, 0);
+    // studio reflections so gold and glass read as real materials
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTex;
 
-    scene.add(new THREE.HemisphereLight("#ffffff", "#3a2a1a", 1.6));
-    const key = new THREE.DirectionalLight("#ffffff", 2.4);
-    key.position.set(3, 5, 4);
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
+    camera.position.set(0, 0.9, 10.5);
+    const look = new THREE.Vector3(0, 0, 0);
+
+    scene.add(new THREE.HemisphereLight("#fff4e6", "#2a1a0c", 0.6));
+    const key = new THREE.DirectionalLight("#ffffff", 1.6);
+    key.position.set(3, 6, 5);
     scene.add(key);
-    const warm = new THREE.PointLight("#ff8a00", 0, 6);
-    warm.position.set(0, -0.6, 2.4);
-    scene.add(warm);
+    const rimLight = new THREE.PointLight("#ff8a00", 18, 8);
+    rimLight.position.set(0, -1.4, 1.2);
+    scene.add(rimLight);
+    const glow = new THREE.PointLight("#ffffff", 0, 7);
+    scene.add(glow);
 
     const machine = new THREE.Group();
-    machine.position.y = 0.45;
+    machine.position.y = 0.2;
     scene.add(machine);
+
+    const gold = new THREE.MeshPhysicalMaterial({ color: "#e8a23a", metalness: 1, roughness: 0.18, clearcoat: 0.6 });
+    const dark = new THREE.MeshPhysicalMaterial({ color: "#151517", metalness: 0.6, roughness: 0.3, clearcoat: 1 });
+    const orange = new THREE.MeshStandardMaterial({ color: "#ff8a00", emissive: "#ff6a00", emissiveIntensity: 1.6 });
 
     // glass dome
     const glass = new THREE.Mesh(
-      new THREE.SphereGeometry(DOME_R, 48, 32),
-      new THREE.MeshPhysicalMaterial({ color: "#ffffff", transparent: true, opacity: 0.14, roughness: 0.05, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide }),
+      new THREE.SphereGeometry(DOME_R, 64, 40),
+      new THREE.MeshPhysicalMaterial({ color: "#ffffff", metalness: 0, roughness: 0.02, transmission: 1, thickness: 0.15, ior: 1.3, transparent: true, opacity: 0.35, envMapIntensity: 1.4, depthWrite: false }),
     );
     glass.position.copy(CENTER);
     machine.add(glass);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(DOME_R * 0.72, 0.07, 16, 64), new THREE.MeshStandardMaterial({ color: "#ff8a00", metalness: 0.6, roughness: 0.3 }));
-    rim.rotation.x = Math.PI / 2;
-    rim.position.set(0, CENTER.y - DOME_R * 0.7, 0);
-    machine.add(rim);
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(DOME_R * 0.74, 0.09, 20, 80), gold);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.y = CENTER.y - DOME_R * 0.68;
+    machine.add(collar);
+    const topCap = new THREE.Mesh(new THREE.SphereGeometry(0.22, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), gold);
+    topCap.position.y = CENTER.y + DOME_R - 0.04;
+    machine.add(topCap);
 
-    // body + chute + knob
-    const bodyMat = new THREE.MeshStandardMaterial({ color: "#1f1f22", metalness: 0.2, roughness: 0.55 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.45, 1.5, 48), bodyMat);
-    body.position.y = -0.8;
+    // body
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, 1.35, 64), gold);
+    body.position.y = -0.62;
     machine.add(body);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(1.27, 1.27, 0.12, 48), new THREE.MeshStandardMaterial({ color: "#ff8a00", metalness: 0.5, roughness: 0.35 }));
-    band.position.y = -0.2;
-    machine.add(band);
-    const chute = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.55, 0.4), new THREE.MeshStandardMaterial({ color: "#0c0c0d", roughness: 0.9 }));
-    chute.position.set(0, -1.1, 1.3);
-    machine.add(chute);
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(1.155, 1.155, 0.5, 64, 1, true, -0.55, 1.1), dark);
+    plate.position.y = -0.75;
+    machine.add(plate);
+    // dispenser door: dark recess in a gold frame, with a smoked flap
+    const door = new THREE.Group();
+    door.position.set(0, -1.02, 1.18);
+    machine.add(door);
+    const recess = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.4, 0.2), new THREE.MeshStandardMaterial({ color: "#050505", roughness: 1 }));
+    door.add(recess);
+    [
+      [0.78, 0.06, 0, 0.23],
+      [0.78, 0.06, 0, -0.23],
+      [0.06, 0.52, 0.36, 0],
+      [0.06, 0.52, -0.36, 0],
+    ].forEach(([w, h, x, y]) => {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), gold);
+      bar.position.set(x, y, 0.1);
+      door.add(bar);
+    });
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.36, 0.02), new THREE.MeshPhysicalMaterial({ color: "#ff8a00", transparent: true, opacity: 0.35, roughness: 0.1, clearcoat: 1 }));
+    flap.position.set(0, 0, 0.12);
+    door.add(flap);
+    const chuteGlow = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.03, 0.05), orange);
+    chuteGlow.position.set(0, -0.19, 0.11);
+    door.add(chuteGlow);
+
+    // dial: gold rim, dark face, thick rounded handle bar, centre hub
     const knob = new THREE.Group();
-    const spinner = new THREE.Group(); // rotates around the knob's own axis
+    const spinner = new THREE.Group();
     knob.add(spinner);
-    spinner.add(new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.14, 32), new THREE.MeshStandardMaterial({ color: "#f5f5f7", metalness: 0.4, roughness: 0.3 })));
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.1), new THREE.MeshStandardMaterial({ color: "#ff8a00" }));
-    grip.position.y = 0.09;
-    spinner.add(grip);
+    const rimRing = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.045, 16, 48), gold);
+    rimRing.rotation.x = Math.PI / 2;
+    knob.add(rimRing);
+    spinner.add(new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.08, 48), dark));
+    const handle = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.42, 8, 16), new THREE.MeshPhysicalMaterial({ color: "#ff8a00", roughness: 0.25, clearcoat: 1 }));
+    handle.rotation.z = Math.PI / 2;
+    handle.position.y = 0.09;
+    spinner.add(handle);
+    const hub = new THREE.Mesh(new THREE.SphereGeometry(0.07, 20, 12), gold);
+    hub.position.y = 0.16;
+    spinner.add(hub);
     knob.rotation.x = Math.PI / 2;
-    knob.position.set(0, -0.55, 1.36);
+    knob.position.set(0, -0.4, 1.22);
     machine.add(knob);
 
     // capsules
-    const shell = new THREE.SphereGeometry(CAP_R, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-    const baseMat = new THREE.MeshPhysicalMaterial({ color: "#f7f7f7", roughness: 0.3, clearcoat: 0.6 });
+    const parts: Parts = {
+      shell: new THREE.SphereGeometry(CAP_R, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+      clear: new THREE.MeshPhysicalMaterial({ color: "#ffffff", roughness: 0, clearcoat: 1, transparent: true, opacity: 0.28, envMapIntensity: 2, depthWrite: false }),
+      seam: new THREE.TorusGeometry(CAP_R * 0.995, 0.01, 6, 40),
+      prize: new THREE.CylinderGeometry(CAP_R * 0.55, CAP_R * 0.55, 0.05, 24),
+      gold,
+    };
     const caps: Capsule[] = Array.from({ length: COUNT }, (_, i) => {
-      const c = makeCapsule(PALETTE[i % PALETTE.length], shell, baseMat);
-      const p = new THREE.Vector3().randomDirection().multiplyScalar(Math.random() * (DOME_R - CAP_R) * 0.9).add(CENTER);
-      c.group.position.copy(p);
+      const c = makeCapsule(PALETTE[i % PALETTE.length], parts);
+      c.group.position.copy(new THREE.Vector3().randomDirection().multiplyScalar(Math.random() * (DOME_R - CAP_R) * 0.9).add(CENTER));
       machine.add(c.group);
       return c;
+    });
+
+    // shards for the crack burst
+    const shardGeo = new THREE.TetrahedronGeometry(0.07);
+    const shardMat = new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: "#ffffff", emissiveIntensity: 1, transparent: true });
+    const shards = Array.from({ length: SHARDS }, () => {
+      const m = new THREE.Mesh(shardGeo, shardMat);
+      m.visible = false;
+      scene.add(m);
+      return { m, v: new THREE.Vector3() };
     });
 
     const resize = () => {
       const { clientWidth: w, clientHeight: h } = el;
       renderer.setSize(w, h, false);
       camera.aspect = w / Math.max(h, 1);
+      // keep the whole machine in frame on narrow stages
+      camera.position.z = camera.aspect < 1.1 ? 13 : 10.5;
       camera.updateProjectionMatrix();
     };
     const ro = new ResizeObserver(resize);
     ro.observe(el);
     resize();
 
-    let shake = 0; // seconds of agitation left
-    let drop: { cap: Capsule; t: number; color: string; done: () => void } | null = null;
+    let shake = 0;
+    type Stage = "drop" | "float" | "crack";
+    let active: { cap: Capsule; t: number; stage: Stage; color: THREE.Color; done?: () => void } | null = null;
+    let burst = 0;
     const gravity = new THREE.Vector3(0, -9, 0);
     const tmp = new THREE.Vector3();
+    const tmp2 = new THREE.Vector3();
     const maxD = DOME_R - CAP_R;
 
     const step = (dt: number) => {
       for (const c of caps) {
-        if (drop?.cap === c) continue;
+        if (active?.cap === c) continue;
         c.v.addScaledVector(gravity, dt);
-        if (shake > 0) c.v.add(tmp.set((Math.random() - 0.5) * 1.6, Math.random() * 2.2, (Math.random() - 0.5) * 1.6));
+        if (shake > 0) c.v.add(tmp.set((Math.random() - 0.5) * 1.8, Math.random() * 2.4, (Math.random() - 0.5) * 1.8));
         c.v.multiplyScalar(shake > 0 ? 0.985 : 0.96);
         c.group.position.addScaledVector(c.v, dt);
-        // keep inside the dome
         tmp.subVectors(c.group.position, CENTER);
         const d = tmp.length();
         if (d > maxD) {
@@ -145,7 +218,6 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         c.group.rotation.x += c.spin.x * s;
         c.group.rotation.y += c.spin.y * s;
       }
-      // capsule-capsule push apart
       for (let i = 0; i < caps.length; i++)
         for (let j = i + 1; j < caps.length; j++) {
           const a = caps[i].group.position;
@@ -160,65 +232,121 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         }
     };
 
-    const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, t), 3);
-    const exit = new THREE.Vector3(0, -1.1, 1.55);
-    const front = new THREE.Vector3(0, 0.15, 3.9);
+    const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+    const exit = new THREE.Vector3(0, -1.0, 1.4);
+    // float point in machine space, right in front of the camera
+    const front = new THREE.Vector3(0, 0.55, 3.4);
 
-    const animateDrop = (dt: number) => {
-      if (!drop) return;
-      drop.t += dt;
-      const { cap, t } = drop;
-      const g = cap.group;
-      if (t < 0.6) {
-        // fall through the dome floor to the chute
-        g.position.lerp(exit, ease(t / 0.6) * 0.35);
-      } else if (t < 1.5) {
-        // roll out and fly toward the camera, spinning
-        const k = ease((t - 0.6) / 0.9);
-        g.position.lerpVectors(exit, front, k);
-        g.scale.setScalar(1 + k * 1.6);
-        g.rotation.y += dt * 8;
-        g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, k);
-        warm.intensity = k * 30;
-      } else if (t < 2.1) {
-        // pop open
-        const k = ease((t - 1.5) / 0.6);
-        cap.top.position.y = k * 0.5;
-        cap.bottom.position.y = -k * 0.5;
-        cap.top.rotation.z = k * 0.6;
-        warm.intensity = 30 + k * 60;
-        (cap.top.material as THREE.MeshPhysicalMaterial).emissive.set(drop.color).multiplyScalar(k * 0.6);
+    const animate = (dt: number, now: number) => {
+      if (!active) return;
+      active.t += dt;
+      const { cap: c, t } = active;
+      const g = c.group;
+      const tint = c.bottom.material as THREE.MeshPhysicalMaterial;
+      if (active.stage === "drop") {
+        if (t < 0.5) g.position.lerp(exit, ease(t / 0.5) * 0.35);
+        else {
+          const k = ease((t - 0.5) / 1.0);
+          g.position.lerpVectors(exit, front, k);
+          g.scale.setScalar(1 + k * 0.9);
+          g.rotation.y += dt * (10 - k * 8);
+          // settle upright: clear dome up, tipped a little toward the camera
+          g.rotation.x = THREE.MathUtils.lerp(g.rotation.x % (Math.PI * 2), 0.35, k);
+          g.rotation.z = THREE.MathUtils.lerp(g.rotation.z % (Math.PI * 2), 0, k);
+          glow.color.copy(active.color);
+          glow.position.copy(g.position).add(machine.position).add(tmp2.set(0, 0, 0.8));
+          glow.intensity = k * 40;
+          if (t >= 1.5) {
+            active.stage = "float";
+            active.t = 0;
+            const done = active.done;
+            active.done = undefined;
+            done?.();
+          }
+        }
+      } else if (active.stage === "float") {
+        // idle hover, waiting for a tap
+        g.position.y = front.y + Math.sin(now / 420) * 0.06;
+        g.rotation.y += dt * 0.9;
+        glow.intensity = 40 + Math.sin(now / 300) * 10;
+        tint.emissive.copy(active.color).multiplyScalar(0.25 + Math.sin(now / 300) * 0.1);
       } else {
-        const done = drop.done;
-        g.visible = false;
-        drop = null;
-        warm.intensity = 0;
-        done();
+        // crack: split, flare, shards
+        const k = ease(t / 0.5);
+        c.top.position.y = k * 0.9;
+        c.bottom.position.y = -k * 0.9;
+        c.top.rotation.z = k * 0.9;
+        c.bottom.rotation.z = -k * 0.5;
+        glow.intensity = 40 + k * 260;
+        tint.emissive.copy(active.color).multiplyScalar(0.6 + k);
+        if (t > 0.9) {
+          g.visible = false;
+          const done = active.done;
+          active = null;
+          glow.intensity = 0;
+          done?.();
+        }
       }
     };
 
-    api.current = (color: string) =>
+    const animateShards = (dt: number) => {
+      if (burst <= 0) return;
+      burst -= dt;
+      shardMat.opacity = Math.max(0, burst / 1.2);
+      for (const s of shards) {
+        s.v.y -= 3 * dt;
+        s.m.position.addScaledVector(s.v, dt);
+        s.m.rotation.x += dt * 6;
+        s.m.rotation.y += dt * 5;
+        if (burst <= 0) s.m.visible = false;
+      }
+    };
+
+    // put back any capsule that was popped or is still floating
+    const reset = () => {
+      for (const c of caps) {
+        if (c.group.visible && active?.cap !== c) continue;
+        c.group.visible = true;
+        c.group.scale.setScalar(1);
+        c.top.position.y = c.bottom.position.y = 0;
+        c.top.rotation.z = c.bottom.rotation.z = 0;
+        (c.bottom.material as THREE.MeshPhysicalMaterial).emissive.set("#000000");
+        (c.bottom.material as THREE.MeshPhysicalMaterial).color.set(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+        c.group.position.copy(CENTER).add(tmp.set(0, 0.8, 0));
+        c.v.set(0, 0, 0);
+      }
+      active = null;
+      glow.intensity = 0;
+    };
+
+    api.current.pull = (color: string) =>
       new Promise<void>((resolve) => {
-        if (drop) return resolve();
-        // restore any capsule we popped earlier
-        for (const c of caps) {
-          if (!c.group.visible) {
-            c.group.visible = true;
-            c.group.scale.setScalar(1);
-            c.top.position.y = c.bottom.position.y = 0;
-            c.top.rotation.z = 0;
-            (c.top.material as THREE.MeshPhysicalMaterial).emissive.set("#000000");
-            c.group.position.copy(CENTER).add(new THREE.Vector3(0, 0.8, 0));
-          }
-        }
+        reset();
         if (reduce) return resolve();
-        shake = 1.1;
+        shake = 1.3;
         setTimeout(() => {
           const lowest = [...caps].sort((a, b) => a.group.position.y - b.group.position.y)[0];
-          (lowest.top.material as THREE.MeshPhysicalMaterial).color.set(color);
+          (lowest.bottom.material as THREE.MeshPhysicalMaterial).color.set(color);
           lowest.v.set(0, 0, 0);
-          drop = { cap: lowest, t: 0, color, done: resolve };
-        }, 1100);
+          active = { cap: lowest, t: 0, stage: "drop", color: new THREE.Color(color), done: resolve };
+        }, 1300);
+      });
+
+    api.current.crack = () =>
+      new Promise<void>((resolve) => {
+        if (!active || active.stage !== "float") return resolve();
+        active.stage = "crack";
+        active.t = 0;
+        active.done = resolve;
+        const origin = active.cap.group.position.clone().add(machine.position);
+        shardMat.color.copy(active.color).lerp(new THREE.Color("#ffffff"), 0.4);
+        shardMat.emissive.copy(active.color);
+        for (const s of shards) {
+          s.m.visible = true;
+          s.m.position.copy(origin);
+          s.v.randomDirection().multiplyScalar(2 + Math.random() * 4);
+        }
+        burst = 1.2;
       });
 
     let raf = 0;
@@ -234,11 +362,15 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
       for (let i = 0; i < 2; i++) step(dt / 2);
       if (shake > 0) {
         shake -= dt;
-        machine.rotation.z = Math.sin(now / 40) * 0.035 * Math.min(1, shake * 2);
-        spinner.rotation.y += dt * 9;
+        machine.rotation.z = Math.sin(now / 38) * 0.04 * Math.min(1, shake * 2);
+        spinner.rotation.y += dt * 10;
       } else machine.rotation.z *= 0.9;
-      machine.rotation.y = Math.sin(now / 2600) * 0.18;
-      animateDrop(dt);
+      machine.rotation.y = active ? machine.rotation.y * 0.95 : Math.sin(now / 2800) * 0.2;
+      orange.emissiveIntensity = 1.4 + Math.sin(now / 500) * 0.4;
+      rimLight.intensity = 14 + Math.sin(now / 500) * 4 + (shake > 0 ? 20 : 0);
+      animate(dt, now);
+      animateShards(dt);
+      camera.lookAt(look);
       renderer.render(scene, camera);
     };
     raf = requestAnimationFrame(loop);
@@ -253,6 +385,8 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
           (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
         }
       });
+      envTex.dispose();
+      pmrem.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
