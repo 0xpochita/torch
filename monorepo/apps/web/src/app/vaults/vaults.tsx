@@ -40,7 +40,6 @@ export function Vaults() {
   const activityQ = useApi<ActivityItem[]>(account && `/activity?account=${encodeURIComponent(account)}&limit=500`);
   const statsQ = useApi<Stats>("/stats");
   const nearUsd = statsQ.data?.nearUsd ?? 0;
-  const [now] = useState(() => Date.now());
 
   const all = (vaultsQ.data ?? []).map((v) => toVault(v));
   const byId = new Map(all.map((e) => [e.id, e]));
@@ -65,7 +64,7 @@ export function Vaults() {
 
   const offers = (offersQ.data?.received ?? []).flatMap((o) => {
     const etf = byId.get(o.tokenId);
-    const hours = Math.max(0, Math.round((o.expiresAt - now) / 3_600_000));
+    const hours = Math.max(0, Math.round((o.expiresAt - offersQ.at) / 3_600_000));
     return etf ? [{ id: `${o.tokenId}-${o.buyerId}`, from: o.buyerId, priceNear: toNear(o.amount), expiresHours: hours, etf }] : [];
   });
   const activity = events.flatMap((e) => {

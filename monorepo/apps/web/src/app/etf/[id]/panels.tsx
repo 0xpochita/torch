@@ -8,13 +8,12 @@ import { SymTile } from "@/components/icons";
 import { NavChart } from "@/components/nav-chart";
 import { EmptyState, Skeleton } from "@/components/load-state";
 import { Avatar, Money, Segmented, TokenIcon, shade } from "@/components/ui";
-import { tokenKey, toUnits, type Balance, type Holder, type NavPoint, type VaultEvent } from "@/lib/api";
+import { localDate, tokenKey, toUnits, type Balance, type Holder, type NavPoint, type VaultEvent } from "@/lib/api";
 import { TOKENS, type Etf } from "@/lib/mock";
 
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
 const PERIODS = ["7D", "14D", "30D"] as const;
 const DAY = 86_400_000;
-const date = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 export function DetailTabs({ etf, balances, holders: owners, events }: { etf: Etf; balances: Balance[]; holders: Holder[]; events?: VaultEvent[] }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Basket");
@@ -36,7 +35,7 @@ export function DetailTabs({ etf, balances, holders: owners, events }: { etf: Et
   });
 
   // Current owner first.
-  const holders = [...owners].reverse().map((h) => ({ account: h.accountId, since: date(h.since) }));
+  const holders = [...owners].reverse().map((h) => ({ account: h.accountId, since: localDate(h.since) }));
 
   return (
     <section className="flex min-w-0 flex-col gap-4">

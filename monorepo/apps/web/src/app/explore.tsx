@@ -45,7 +45,6 @@ export function Explore() {
   const statsQ = useApi<Stats>("/stats");
   const boardQ = useApi<LeaderboardRow[]>("/leaderboard?sort=value");
   const salesQ = useApi<Parameters<typeof toEvents>[0]>("/activity?type=sale,offer_accept&limit=500");
-  const [now] = useState(() => Date.now());
 
   const etfs = vaultsQ.data?.map((v) => toVault(v)) ?? [];
   const catArt = categoryArt(etfs);
@@ -55,8 +54,8 @@ export function Explore() {
 
   // Sales volume per day, the last 7 days ending today.
   const sales = toEvents(salesQ.data ?? []);
-  const volume = Array.from({ length: 7 }, (_, i) => {
-    const end = new Date(now).setHours(24, 0, 0, 0) - (6 - i) * DAY;
+  const volume = !salesQ.data ? [] : Array.from({ length: 7 }, (_, i) => {
+    const end = new Date(salesQ.at).setHours(24, 0, 0, 0) - (6 - i) * DAY;
     const usd = sales.filter((e) => e.ms >= end - DAY && e.ms < end).reduce((s, e) => s + (e.near ?? 0) * nearUsd, 0);
     return { day: new Date(end - DAY).toLocaleDateString("en-US", { weekday: "short" }), usd };
   });
@@ -129,6 +128,8 @@ export function Explore() {
               </span>
             </span>
             <div className="flex flex-1 items-end gap-2">
+              {salesQ.error && <span className="m-auto text-[12px] text-muted">Couldn&apos;t load sales</span>}
+              {salesQ.loading && <Skeleton className="h-full w-full !rounded-[8px] !bg-line" />}
               {volume.map((v, i) => (
                 <div key={v.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                   <span

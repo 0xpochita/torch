@@ -21,24 +21,25 @@ export async function api<T>(path: string): Promise<T> {
   return body as T;
 }
 
-export type Load<T> = { data: T | undefined; error: ApiError | Error | undefined; loading: boolean };
+/** `at` = when the response arrived (ms): a render-safe "now" for relative times. */
+export type Load<T> = { data: T | undefined; error: ApiError | Error | undefined; loading: boolean; at: number };
 
 /** Fetches `path` (null = skip) and keeps the result keyed by path, so a stale response never shows for a new one. */
 export function useApi<T>(path: string | null): Load<T> {
-  const [res, setRes] = useState<{ path: string; data?: T; error?: Error }>();
+  const [res, setRes] = useState<{ path: string; at: number; data?: T; error?: Error }>();
   useEffect(() => {
     if (!path) return;
     let live = true;
     api<T>(path).then(
-      (data) => live && setRes({ path, data }),
-      (error: Error) => live && setRes({ path, error }),
+      (data) => live && setRes({ path, at: Date.now(), data }),
+      (error: Error) => live && setRes({ path, at: Date.now(), error }),
     );
     return () => {
       live = false;
     };
   }, [path]);
   const hit = path && res?.path === path ? res : undefined;
-  return { data: hit?.data, error: hit?.error, loading: !!path && !hit };
+  return { data: hit?.data, error: hit?.error, loading: !!path && !hit, at: hit?.at ?? 0 };
 }
 
 /* ---------- units ---------- */
@@ -93,7 +94,7 @@ export function toVault(v: VaultSummary, navHistory?: NavPoint[]): Vault {
 
 export type MarketItem = Listing & { etf: Vault; listedAt: number };
 
-export const toListing = (m: MarketListing): MarketItem => {
+export const toListing = (m: MarketListing, now: number): MarketItem => {
   const etf = toVault(m.vault);
   return {
     id: m.tokenId,
@@ -104,19 +105,22 @@ export const toListing = (m: MarketListing): MarketItem => {
     navUsd: m.vault.navUsd,
     likes: 0,
     status: "buy",
-    listedDaysAgo: Math.floor((Date.now() - m.listedAt) / 86_400_000),
+    listedDaysAgo: Math.floor((now - m.listedAt) / 86_400_000),
     listedAt: m.listedAt,
   };
 };
 
 export type VaultEvent = HistoryEvent & { ms: number; tokenId: string; token?: TokenKey; units?: number; near?: number; key: string };
 
+/** ms -> local YYYY-MM-DD. */
+export const localDate = (ms: number) => new Date(ms).toLocaleDateString("en-CA");
+
 const fmtUnits = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n < 1 ? 6 : 2 });
 
 /** Indexed event -> the four UI event kinds; listing/offer chatter and plain transfers are skipped. */
 export function toEvent(a: ActivityItem): VaultEvent | null {
   const d = a.data as Record<string, string | undefined>;
-  const base = { ms: a.at, at: new Date(a.at).toISOString().slice(0, 10), tokenId: a.tokenId ?? "", key: String(a.id) };
+  const base = { ms: a.at, at: localDate(a.at), tokenId: a.tokenId ?? "", key: String(a.id) };
   const ft = d.ft_id && d.amount ? { token: tokenKey(d.ft_id), units: toUnits(d.ft_id, d.amount) } : {};
   const sym = ft.token ? TOKENS[ft.token].symbol : d.ft_id;
   switch (a.event) {

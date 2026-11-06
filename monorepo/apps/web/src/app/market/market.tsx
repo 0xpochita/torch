@@ -46,7 +46,7 @@ export function Market() {
 
   const nearUsd = statsQ.data?.nearUsd ?? 0;
   const listings: Listing[] = (listingsQ.data ?? []).map((m) => {
-    const l = toListing(m);
+    const l = toListing(m, listingsQ.at);
     return { ...l, vs: l.navUsd ? ((l.priceNear * nearUsd) / l.navUsd - 1) * 100 : 0 };
   });
   const MAX_PRICE = Math.max(0, ...listings.map((l) => l.priceNear));

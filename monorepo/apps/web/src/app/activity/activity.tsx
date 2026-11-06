@@ -39,11 +39,11 @@ export function Activity() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "at", dir: -1 });
   const [picked, setPicked] = useState<string[]>([]);
-  const [now] = useState(() => Date.now());
 
   const activityQ = useApi<ActivityItem[]>("/activity?limit=500");
   const vaultsQ = useApi<VaultSummary[]>("/vaults");
   const statsQ = useApi<Stats>("/stats");
+  const now = activityQ.at;
   const error = activityQ.error ?? vaultsQ.error ?? statsQ.error;
   const loading = activityQ.loading || vaultsQ.loading || statsQ.loading;
   const byId = new Map((vaultsQ.data ?? []).map((v) => [v.tokenId, toVault(v)]));
