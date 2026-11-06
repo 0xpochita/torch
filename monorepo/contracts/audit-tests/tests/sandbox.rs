@@ -426,6 +426,7 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
     let before = market.view_account().await.unwrap().storage_usage;
     ok(offer(&long, "9".repeat(20), json!(fts)).await.unwrap());
     let used = market.view_account().await.unwrap().storage_usage - before;
+    println!("largest offer used {used} bytes");
     assert!(used as u128 * 10u128.pow(19) <= storage, "offer used {used} bytes");
 
     // Many short-id offers never eat into bob's escrow.

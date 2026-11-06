@@ -19,7 +19,7 @@ const MAX_LEN_PAYOUT: u32 = 10;
 const MIN_OFFER: NearToken = NearToken::from_millinear(10);
 /// Storage stake every offer pays on top of its amount, returned whenever the offer leaves.
 /// Covers the record and both indexes for the largest allowed offer (checked in
-/// audit-tests `h2_…`, ~1.3 kB measured).
+/// audit-tests `h2_…`: 1,347 bytes measured).
 pub const OFFER_STORAGE_BYTES: u128 = 2_000;
 /// Collection token ids are sequential `u64`s.
 const MAX_TOKEN_ID_LEN: usize = 20;

@@ -18,25 +18,31 @@ cargo test -p audit-tests --test sandbox -- --test-threads 2  # C-1, H-1, H-2, I
 Result at b181a19: `c1_…`, `h1_…`, `h2_…` and `h3_…` FAIL (they reproduce the findings).
 `i9_transfer_call_revert_unlocks_with_many_approvals` PASSES (it is a regression guard for L-1).
 
+**Update (market fixes, 3d64067 and later):** H-1, H-2, H-3, M-2 (market part), L-4, L-5, L-6
+and L-7 are fixed in `market/`. `h1_…`, `h2_…` and `h3_…` now pass and stay as regression tests.
+`h1_…` also checks that a pinned offer still sells within 250 Tgas once the vault is refilled.
+`c1_…` still fails until the collection fix lands. The new market interface is documented in
+`market/README.md`. Open: C-1, M-1, M-2 (gacha part), M-3, M-4, L-1, L-2, L-3, L-8, I-1…I-6.
+
 ## Summary
 
-| Id | Severity | Contract | Title | Repro |
+| Id | Severity | Contract | Title | Repro / status |
 | --- | --- | --- | --- | --- |
 | C-1 | Critical | gacha × collection | Gacha treats every real mint as failed: free NFT, refunded price, unfunded vault, pity still advances | `sandbox::c1_gacha_pull_against_real_collection_funds_vault_and_keeps_price` |
-| H-1 | High | market × collection | Offers are not bound to vault contents: the seller drains the vault, then accepts the full-price offer | `sandbox::h1_accepting_an_offer_after_draining_the_vault_must_fail` |
-| H-2 | High | market | Unbounded `token_id` in `offer` lets 0.01 NEAR offers consume storage paid from other buyers' escrow and freeze refunds | `sandbox::h2_long_token_id_offers_must_not_freeze_other_buyers_escrow` |
-| H-3 | High | market | Accept-offer message cannot pin the amount: the buyer swaps a big offer for 0.01 NEAR before `nft_on_approve` lands | `market_unit::h3_accept_offer_must_reject_an_offer_swapped_for_less` |
+| H-1 | High | market × collection | Offers are not bound to vault contents: the seller drains the vault, then accepts the full-price offer | **Fixed** · `sandbox::h1_accepting_an_offer_after_draining_the_vault_must_fail` |
+| H-2 | High | market | Unbounded `token_id` in `offer` lets 0.01 NEAR offers consume storage paid from other buyers' escrow and freeze refunds | **Fixed** · `sandbox::h2_long_token_id_offers_must_not_freeze_other_buyers_escrow` |
+| H-3 | High | market | Accept-offer message cannot pin the amount: the buyer swaps a big offer for 0.01 NEAR before `nft_on_approve` lands | **Fixed** · `market_unit::h3_accept_offer_must_reject_an_offer_swapped_for_less` |
 | M-1 | Medium | gacha | Failed vault funding is neither refunded nor put back in `treasury`, and `gacha_pull` is emitted before funding resolves; the player can cause it with low gas | argument |
-| M-2 | Medium | market, gacha | Unbounded view scans (`get_offers`, `get_offers_by_buyer`, `get_treasury`) | argument |
+| M-2 | Medium | market, gacha | Unbounded view scans (`get_offers`, `get_offers_by_buyer`, `get_treasury`) | **Fixed for market**; gacha open |
 | M-3 | Medium | gacha | Rarity comes from `env::random_seed`, known to the chunk producer | argument |
 | M-4 | Medium | gacha | A 10-pull reserves ~0.9–1 PGas of static gas; must fit the target network's per-tx prepaid limit | argument |
 | L-1 | Low | collection | `nft_resolve_transfer` runs on a fixed 5 Tgas (I9 ceiling) | passing guard `i9_…` |
 | L-2 | Low | collection | `MINT_STORAGE` (0.02 NEAR) is at or under the worst-case per-token storage | argument |
 | L-3 | Low | gacha | `ft_on_transfer` trusts `sender_id` from any predecessor; fake tokens grow `treasury` | argument |
-| L-4 | Low | market | Stale listings and leftover approvals after failed buy/accept or `delist` | argument |
-| L-5 | Low | market | `offer_cancel` for an in-flight offer shares its key with a newer live offer (indexer confusion) | argument |
-| L-6 | Low | market | `delist` / `cancel_offer` do not require 1 yocto | argument |
-| L-7 | Low | market, gacha | `u64` in JSON (`expires_at`, `created_at`, `listed_at`, `approval_id`) | argument |
+| L-4 | Low | market | Stale listings and leftover approvals after failed buy/accept or `delist` | **Fixed** (`prune_listing` + docs) |
+| L-5 | Low | market | `offer_cancel` for an in-flight offer shares its key with a newer live offer (indexer confusion) | **Fixed** |
+| L-6 | Low | market | `delist` / `cancel_offer` do not require 1 yocto | **Fixed** |
+| L-7 | Low | market, gacha | `u64` in JSON (`expires_at`, `created_at`, `listed_at`, `approval_id`) | **Fixed** (expiry capped) |
 | L-8 | Low | collection | Out-of-gas in `on_vault_created` leaves an orphan vault and no refund (I4) | argument |
 | I-1…I-6 | Info | all | See the end of this file | — |
 
@@ -49,7 +55,7 @@ Result at b181a19: `c1_…`, `h1_…`, `h2_…` and `h3_…` FAIL (they reproduc
 | I3 | Vault init only by the collection, not itself | OK | `vault/src/lib.rs:24-34` (called inside the creating batch) |
 | I4 | Token exists only if its vault exists | OK, with L-8 | mint happens only in `on_vault_created` after `is_promise_success()` (`collection/src/lib.rs:139-147`) |
 | I5 | Withdraw pays the owner at call time, token locked until resolved | OK | `collection/src/lib.rs:168-210` |
-| I6 | Listed token cannot be withdrawn | OK for listings, **broken in spirit for offers (H-1)** | `collection/src/lib.rs:176-179`; offers create no approval |
+| I6 | Listed token cannot be withdrawn | OK for listings; offers covered by `min_balances` (H-1, fixed in market) | `collection/src/lib.rs:176-179`; offers create no approval |
 | I7 | `nft_transfer_call` locks until resolve | OK | `collection/src/lib.rs:344-355,371-379` |
 | I8 | Locked tokens cannot transfer / sell / approve | OK | `assert_unlocked` in `nft_transfer`, `nft_transfer_payout`, `nft_approve`; `lock()` in `withdraw` and `nft_transfer_call`. `nft_revoke*` are not gated, which is harmless (revoking only removes rights) |
 | I9 | Unlock callbacks never panic | OK, with L-1 | `on_vault_op` and `nft_resolve_transfer` remove the lock first; revert path verified with 30 approvals |
@@ -60,7 +66,7 @@ Result at b181a19: `c1_…`, `h1_…`, `h2_…` and `h3_…` FAIL (they reproduc
 | Call vault directly | Stopped (I2) |
 | Look-alike vault | Stopped: `vault_of` is derived from the collection id; indexer checks the executor (`apps/api/src/indexer.ts:36`) |
 | Withdraw + sell in the same block | Stopped (I5 + I8) |
-| List at full NAV, drain, let the sale fill | Stopped for listings (I6). **Not stopped for offers: H-1** |
+| List at full NAV, drain, let the sale fill | Stopped for listings (I6); for offers by `min_balances` (H-1, fixed) |
 | `nft_transfer_call` to an accomplice that drains | Stopped (I7) |
 | Re-use old approval after sale | Stopped: standards clear approvals; market stores `approval_id` and the collection checks it |
 | Per-owner settings survive a sale | N/A: none stored |
@@ -113,6 +119,16 @@ in the gacha: treat any result that is not `null` and not a string as a hard err
 
 ## H-1 (High): offers are not bound to vault contents
 
+**Status: fixed in market only, without collection changes.** `offer(.., min_balances)` pins up
+to 4 `{ft_id, amount}` floors. On accept, the market reads `ft_balance_of(vault)` for each of
+them and only then calls `nft_transfer_payout` (`check_then_accept` / `on_balances_checked`). If
+any floor fails, the offer stays live and nothing moves. This is sound because a withdraw cannot
+run between the check and the transfer: the collection refuses `withdraw` while the market's
+approval exists and refuses approvals while a withdraw is in flight, and a revoke followed by a
+re-approve changes the `approval_id` that the pending `nft_transfer_payout` carries. The
+`vault_nonce` design below would also work, but it needs collection changes. The UI must pin
+every basket token; an empty `min_balances` means no protection.
+
 **Where:** `market/src/lib.rs:126-146` (accept path), `collection/src/lib.rs:168-190` (`withdraw`
 requires only `!is_listed`).
 
@@ -142,6 +158,11 @@ should show "vault changed since your offer" and default to short expiries.
 
 ## H-2 (High): long `token_id` offers freeze other buyers' escrow
 
+**Status: fixed.** `token_id` must be digits only and at most 20 characters. Every offer escrows
+`offer_storage_cost()` (2,000 bytes ≈ 0.02 NEAR; the largest allowed offer measures 1,347
+bytes) on top of `amount`, any excess deposit is refunded, and the storage deposit is returned
+whenever the offer leaves.
+
 **Where:** `market/src/lib.rs:195-223` (`offer` accepts any `token_id: String`), storage layout of
 `IterableMap<(TokenId, AccountId), Offer>` (`market/src/lib.rs:78`).
 
@@ -169,6 +190,9 @@ measure `env::storage_usage()` before and after the insert and require
 NEAR reserve on the market account (deploy note) so escrow is never used as stake.
 
 ## H-3 (High): accept-offer cannot pin the amount (offer swap front-run)
+
+**Status: fixed.** The msg is `{"accept_offer":{"buyer_id","amount"}}`, the market requires
+`offer.amount == amount` ("offer amount changed"), and `ApproveMsg` has `deny_unknown_fields`.
 
 **Where:** `market/src/lib.rs:53-56` (`AcceptOffer { buyer_id }`), `126-139`, and `195-213`
 (`offer` silently replaces a live offer).
@@ -213,6 +237,9 @@ method can reach them.
 `ft_balance_of(self)` and sets `treasury` from it.
 
 ## M-2 (Medium): unbounded view scans
+
+**Status: fixed for market** (per-token and per-buyer `IterableSet` indexes, paginated views
+with `from_index`/`limit`). `gacha::get_treasury` is still open.
 
 `market/src/lib.rs:322-338` scans all offers on every `get_offers`/`get_offers_by_buyer`. Offers
 are permissionless (H-2), so a few thousand 0.01 NEAR offers (refundable) push these views past
@@ -274,6 +301,9 @@ that appear in some tier's baskets (`tiers.iter().flat_map(|t| &t.baskets).flat_
 
 ## L-4 (Low): stale listings and leftover approvals
 
+**Status: fixed.** There is a permissionless `prune_listing`, and `delist` documents the
+required `nft_revoke`. The market cannot revoke collection approvals itself.
+
 `market/src/lib.rs:178-190` (`delist` does not revoke the collection approval),
 `250-262` (`buy` failure removes the listing but leaves the approval), and `279-288` (an accept
 failure leaves the approval). A leftover approval keeps `is_listed` true, so the owner's
@@ -285,6 +315,8 @@ calls `nft_is_approved(token_id, market, approval_id)` and removes the listing o
 
 ## L-5 (Low): ambiguous `offer_cancel`
 
+**Status: fixed.** `offer`, `offer_cancel` and `offer_accept` carry `created_at`.
+
 `market/src/lib.rs:280-284`: when an accept fails after the buyer already placed a new offer on
 the same token, the in-flight offer is refunded and `offer_cancel` is emitted for
 `(token_id, buyer_id)`. That is the key of the new live offer, so an indexer keyed on it deletes
@@ -293,11 +325,15 @@ rows on `(token_id, buyer_id, created_at)`.
 
 ## L-6 (Low): no 1 yocto on `delist` / `cancel_offer`
 
+**Status: fixed.**
+
 `market/src/lib.rs:178,225`: a function-call access key (for example a dApp login key for the
 market) can delist or cancel offers. Funds go back to the buyer, so this is griefing only.
 **Fix:** `#[payable]` + `assert_one_yocto()`.
 
 ## L-7 (Low): `u64` in JSON
+
+**Status: fixed** by capping `expires_at` at now + 365 days. The JSON types are unchanged.
 
 `expires_at`, `created_at`, `listed_at`, `approval_id` (`market/src/lib.rs:28-44,195`) are JSON
 numbers. A buyer can set `expires_at` above 2^53 (the unit test uses `u64::MAX`), which
