@@ -90,6 +90,7 @@ impl Collection {
 
     /// Permissionless. Create the vault first, mint only once it exists.
     /// `extra.creator` is always set to the caller, who receives the royalty.
+    /// Resolves to the new token id, or `null` (deposit refunded) if the vault could not be created.
     #[payable]
     pub fn mint(&mut self, metadata: TokenMetadata, receiver_id: Option<AccountId>) -> Promise {
         let deposit = env::attached_deposit();
@@ -135,11 +136,11 @@ impl Collection {
         minter: AccountId,
         metadata: TokenMetadata,
         deposit: NearToken,
-    ) -> bool {
+    ) -> Option<TokenId> {
         if !is_promise_success() {
             // The batch is atomic: no account was created and its NEAR comes back to us. Refund the minter.
             Promise::new(minter).transfer(deposit).detach();
-            return false;
+            return None;
         }
         let extra = metadata.extra.clone();
         let token = self
@@ -161,7 +162,7 @@ impl Collection {
                 "extra": extra,
             }),
         );
-        true
+        Some(token.token_id)
     }
 
     /// Owner withdraws a basket token from the vault to themselves.
@@ -595,6 +596,53 @@ mod tests {
             serde_json::from_str(&with_creator(m, &accounts(1)).extra.unwrap()).unwrap();
         assert_eq!(extra["creator"], json!(accounts(1)));
         assert_eq!(extra["bg"], json!("#fff"));
+    }
+
+    /// The collection calling its own callback with `result` as the vault batch outcome.
+    fn callback_ctx(result: near_sdk::PromiseResult) {
+        testing_env!(
+            VMContextBuilder::new()
+                .current_account_id("torch.testnet".parse().unwrap())
+                .predecessor_account_id("torch.testnet".parse().unwrap())
+                .build(),
+            near_sdk::test_vm_config(),
+            near_sdk::RuntimeFeesConfig::test(),
+            Default::default(),
+            vec![result],
+        );
+    }
+
+    #[test]
+    fn vault_created_resolves_to_token_id() {
+        let mut c = setup();
+        callback_ctx(near_sdk::PromiseResult::Successful(vec![]));
+        let id = c.on_vault_created(
+            "1".into(),
+            accounts(2),
+            accounts(3),
+            TokenMetadata::default(),
+            MINT_DEPOSIT,
+        );
+        assert_eq!(id.as_deref(), Some("1"));
+        assert_eq!(c.nft_token("1".into()).unwrap().owner_id, accounts(2));
+        assert!(near_sdk::test_utils::get_logs()[1].contains(r#""event":"vault_created""#));
+    }
+
+    #[test]
+    fn failed_vault_resolves_to_null_and_mints_nothing() {
+        let mut c = setup();
+        callback_ctx(near_sdk::PromiseResult::Failed);
+        let id = c.on_vault_created(
+            "1".into(),
+            accounts(2),
+            accounts(3),
+            TokenMetadata::default(),
+            MINT_DEPOSIT,
+        );
+        assert_eq!(id, None);
+        assert_eq!(near_sdk::serde_json::to_string(&id).unwrap(), "null");
+        assert!(c.nft_token("1".into()).is_none());
+        assert!(near_sdk::test_utils::get_logs().is_empty());
     }
 
     #[test]

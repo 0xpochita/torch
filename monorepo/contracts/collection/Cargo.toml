@@ -12,11 +12,3 @@ near-contract-standards = { workspace = true }
 
 [dev-dependencies]
 near-sdk = { workspace = true, features = ["unit-testing"] }
-near-workspaces = "0.24"
-tokio = { version = "1", features = ["full"] }
-serde_json = "1"
-# Same versions near-workspaces uses; only for signing DeployGlobalContract in tests.
-near-jsonrpc-client = "0.23"
-near-jsonrpc-primitives = "0.38"
-near-primitives = "0.38"
-near-crypto = "0.38"

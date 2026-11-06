@@ -1,0 +1,16 @@
+[package]
+name = "integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Sandbox tests that deploy the real mock-ft, vault, collection, market and gacha wasm together.
+[dependencies]
+near-workspaces = "0.24"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+# Same versions near-workspaces uses; only for signing DeployGlobalContract.
+near-jsonrpc-client = "0.23"
+near-jsonrpc-primitives = "0.38"
+near-primitives = "0.38"
+near-crypto = "0.38"
