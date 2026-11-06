@@ -191,7 +191,7 @@ export function ActionCircle({ icon, label, href, onClick, img }: { icon: IconNa
   const inner = (
     <>
       <span className="grid size-14 place-items-center rounded-full bg-fill text-text transition group-hover:bg-line group-active:scale-95">
-        {img ? <Image src={img} alt="" width={34} height={34} className="transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-110" /> : <Sym name={icon} size={22} stroke={2} />}
+        {img ? <Image src={img} alt="" width={30} height={30} className="transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-110" /> : <Sym name={icon} size={22} stroke={2} />}
       </span>
       <span className="text-[13px] font-medium text-muted">{label}</span>
     </>
@@ -209,13 +209,13 @@ export function ActionCircle({ icon, label, href, onClick, img }: { icon: IconNa
 
 /** 3D clay icons (public/icons) used in place of line icons on stat tiles. */
 const STAT_ICON: Partial<Record<IconName, string>> = {
-  vault: "/icons/nav/vaults.png",
-  pulse: "/icons/nav/activity.png",
-  store: "/icons/nav/market.png",
-  layers: "/icons/stat/layers.png",
-  person: "/icons/stat/person.png",
-  tag: "/icons/stat/tag.png",
-  swap: "/icons/stat/swap.png",
+  vault: "/icons/3d/vaults.png",
+  pulse: "/icons/3d/activity.png",
+  store: "/icons/3d/market.png",
+  layers: "/icons/3d/layers.png",
+  person: "/icons/3d/person.png",
+  tag: "/icons/3d/tag.png",
+  swap: "/icons/3d/swap.png",
 };
 
 /** "Daily check-in" style stat tile. */
@@ -224,7 +224,7 @@ export function StatTile({ icon, label, value, children }: { icon: IconName; lab
     <div className="flex flex-col gap-2 rounded-[20px] bg-fill p-3.5">
       <span className="flex items-center gap-2 text-[13px] font-semibold">
         {STAT_ICON[icon] ? (
-          <Image src={STAT_ICON[icon]} alt="" width={28} height={28} className="-my-1" />
+          <Image src={STAT_ICON[icon]} alt="" width={24} height={24} />
         ) : (
           <span className="grid size-6 place-items-center rounded-full bg-surface text-text">
             <Sym name={icon} size={13} weight="bold" />

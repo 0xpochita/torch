@@ -59,7 +59,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
         className="group grid size-10 place-items-center rounded-full text-muted hover:bg-fill"
       >
         <span className="relative">
-          <Image src="/icons/nav/theme.png" alt="" width={26} height={26} className="opacity-80 transition group-hover:scale-110 group-hover:opacity-100" />
+          <Image src="/icons/3d/theme.png" alt="" width={22} height={22} className="opacity-80 transition group-hover:scale-110 group-hover:opacity-100" />
           <span className="absolute -bottom-1 -right-1.5 grid size-4 place-items-center rounded-full bg-surface text-muted shadow-[0_0_0_1px_var(--line)]">
             <Current size={10} weight="bold" />
           </span>

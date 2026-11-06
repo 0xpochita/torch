@@ -16,18 +16,18 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Marketplace",
     items: [
-      { href: "/", label: "Explore", icon: "house", img: "/icons/nav/explore.png" },
-      { href: "/market", label: "Market", icon: "store", img: "/icons/nav/market.png" },
-      { href: "/create", label: "Create ETF", icon: "plusCircle", img: "/icons/nav/create.png", badge: "New" },
+      { href: "/", label: "Explore", icon: "house", img: "/icons/3d/explore.png" },
+      { href: "/market", label: "Market", icon: "store", img: "/icons/3d/market.png" },
+      { href: "/create", label: "Create ETF", icon: "plusCircle", img: "/icons/3d/create.png", badge: "New" },
     ],
   },
   {
     group: "Library",
     items: [
-      { href: "/vaults", label: "My Vaults", icon: "vault", img: "/icons/nav/vaults.png" },
-      { href: "/leaderboard", label: "Leaders", icon: "trophy", img: "/icons/nav/leaders.png" },
-      { href: "/activity", label: "Activity", icon: "pulse", img: "/icons/nav/activity.png" },
-      { href: "/gacha", label: "Gacha", icon: "gift", img: "/icons/nav/gacha.png" },
+      { href: "/vaults", label: "My Vaults", icon: "vault", img: "/icons/3d/vaults.png" },
+      { href: "/leaderboard", label: "Leaders", icon: "trophy", img: "/icons/3d/leaders.png" },
+      { href: "/activity", label: "Activity", icon: "pulse", img: "/icons/3d/activity.png" },
+      { href: "/gacha", label: "Gacha", icon: "gift", img: "/icons/3d/gacha.png" },
     ],
   },
 ];
@@ -68,7 +68,7 @@ export function Sidebar() {
             aria-current={isActive("/create") ? "page" : undefined}
             className={`my-2 grid size-12 place-items-center rounded-[16px] transition hover:scale-105 active:scale-95 ${isActive("/create") ? "bg-fill" : ""}`}
           >
-            <NavIcon src="/icons/nav/create.png" size={46} active />
+            <NavIcon src="/icons/3d/create.png" size={40} active />
             <span className="sr-only">Create ETF</span>
           </Link>
           {items.slice(2).map((it) => (
@@ -109,7 +109,7 @@ function RailItem({ item, active }: { item: NavItem; active: boolean }) {
       className={`group relative isolate flex w-[68px] flex-col items-center gap-1 rounded-[18px] py-2 text-[11px] font-medium transition-colors ${active ? "text-text" : "text-muted hover:text-text"}`}
     >
       {active && <motion.span layoutId="rail-active" className="absolute inset-0 -z-10 rounded-[18px] bg-fill" />}
-      <NavIcon src={item.img} size={34} active={active} />
+      <NavIcon src={item.img} size={28} active={active} />
       {item.label.replace("My ", "")}
     </Link>
   );
@@ -126,7 +126,7 @@ export function TabBar() {
         return (
           <Link key={t.label} href={t.href} className={`group relative flex flex-col items-center gap-0.5 rounded-full py-1.5 text-[10px] font-semibold ${active ? "text-tint" : "text-muted"}`}>
             {active && <motion.span layoutId="tabbar-active" className="absolute inset-0 -z-10 rounded-full bg-fill" />}
-            <NavIcon src={t.img} size={26} active={active} />
+            <NavIcon src={t.img} size={24} active={active} />
             {t.label}
           </Link>
         );
