@@ -167,7 +167,9 @@ export function NavPanel({ etf, history }: { etf: Etf; history: NavPoint[] }) {
   const firstIn = history.findIndex((p) => p.at >= from);
   const values = history.slice(Math.max(0, firstIn - 1)).map((p) => p.navUsd);
   if (values.length < 2) values.unshift(values[0] ?? etf.navUsd);
-  const delta = values[0] ? ((values[values.length - 1] - values[0]) / values[0]) * 100 : 0;
+  // From the first funded point: a fresh vault starts at $0 until its first deposit.
+  const base = values.find((v) => v > 0) ?? 0;
+  const delta = base ? ((values[values.length - 1] - base) / base) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-4 card p-4">
