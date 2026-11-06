@@ -15,9 +15,15 @@
   The gacha must be registered (`storage_deposit`) on each token first. Keep the gacha's NEAR
   balance topped up: every result spends 0.11 NEAR + 0.00125 NEAR per basket item.
 - Funding: each item is `storage_deposit` + `ft_transfer_call` into the vault. `on_funded` runs
-  once all items resolve: whatever did not reach the vault goes back into `treasury`
-  (event `gacha_fund_failed {player_id, token_id, ft_id, amount}`), then `gacha_pull` is emitted.
-  A `mint` result that is neither a token id nor `null` keeps the price and puts the basket back.
+  once all items resolve, then emits `gacha_pull`. Per item:
+  - the FT returned part or all of it: that part goes back into `treasury`
+    (`gacha_fund_failed {player_id, token_id, ft_id, amount}`);
+  - the result is unreadable (the batch failed, or the FT's resolver failed after moving the
+    tokens): nothing is credited (`gacha_fund_unknown {player_id, token_id, ft_id, amount}`).
+    The owner then calls `resync_treasury(token)` (~50 Tgas), which sets `treasury[token]` to the
+    gacha's `ft_balance_of`. Run it while no pull is in flight.
+- A `mint` result that is neither a token id nor `null` keeps the price, puts the basket back
+  and emits `gacha_mint_unreadable {player_id, rarity, result}`.
 - Treasury tokens: `ft_on_transfer` only accepts tokens that appear in some basket.
 - Gas: attach 1000 Tgas (testnet's max prepaid gas per transaction) to a 10-pull and 300 Tgas
   to a 1-pull. The minimums are 950 and 97 Tgas; with less the whole call reverts and the

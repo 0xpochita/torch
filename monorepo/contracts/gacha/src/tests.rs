@@ -300,7 +300,7 @@ fn funded_vault_emits_pull() {
 #[test]
 fn failed_funding_goes_back_to_treasury() {
     let mut g = setup();
-    // tusdc: the vault refused it (resolve returned 0 used); tbtc: the batch failed.
+    // tusdc: the vault refused it (resolve returned 0 used); tbtc: the batch or resolver failed.
     callback_ctx_n(vec![
         PromiseResult::Successful(b"\"0\"".to_vec()),
         PromiseResult::Failed,
@@ -308,14 +308,42 @@ fn failed_funding_goes_back_to_treasury() {
     let items = tiers()[2].baskets[0].items.clone();
     g.on_funded(acc("bob.t"), "7".into(), "Epic".into(), items, U128(9), 3);
     assert_eq!(treasury(&g, "tusdc.t"), 1_000);
-    assert_eq!(treasury(&g, "tbtc.t"), 10);
+    // Unknown whether tbtc moved: not credited, the owner resyncs.
+    assert_eq!(treasury(&g, "tbtc.t"), 0);
     let logs = get_logs();
     assert_eq!(logs.len(), 3);
     assert_eq!(
         event_data(&logs[0]),
         json!({ "player_id": "bob.t", "token_id": "7", "ft_id": "tusdc.t", "amount": "1000" })
     );
+    assert!(
+        logs[1].contains(r#""event":"gacha_fund_unknown""#),
+        "{}",
+        logs[1]
+    );
+    assert_eq!(
+        event_data(&logs[1]),
+        json!({ "player_id": "bob.t", "token_id": "7", "ft_id": "tbtc.t", "amount": "10" })
+    );
     assert!(logs[2].contains(r#""event":"gacha_pull""#));
+}
+
+#[test]
+fn resync_treasury_sets_the_real_balance() {
+    let mut g = setup();
+    ctx("owner.t", NearToken::from_yoctonear(0), [0; 32]);
+    let _ = g.resync_treasury(acc("tbtc.t"));
+    callback_ctx(PromiseResult::Successful(b"\"42\"".to_vec()));
+    assert_eq!(g.on_resync(acc("tbtc.t")), U128(42));
+    assert_eq!(treasury(&g, "tbtc.t"), 42);
+}
+
+#[test]
+#[should_panic(expected = "only the owner")]
+fn resync_treasury_is_owner_only() {
+    let mut g = setup();
+    ctx("bob.t", NearToken::from_yoctonear(0), [0; 32]);
+    let _ = g.resync_treasury(acc("tbtc.t"));
 }
 
 #[test]
@@ -331,6 +359,10 @@ fn unreadable_mint_result_keeps_price_and_basket() {
     );
     assert_eq!(treasury(&g, "tusdc.t"), 1_000);
     assert!(get_created_receipts().is_empty());
+    assert_eq!(
+        event_data(&get_logs()[0]),
+        json!({ "player_id": "bob.t", "rarity": "Epic", "result": "true" })
+    );
 }
 
 #[test]
