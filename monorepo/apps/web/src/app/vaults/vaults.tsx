@@ -83,7 +83,7 @@ export function Vaults() {
         <main className="flex min-w-0 flex-col gap-6">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
             <div className="relative isolate flex min-h-[230px] flex-col overflow-hidden rounded-[28px] bg-pink p-6">
-              <span className="absolute -right-3 -top-3 -z-10 size-28 rotate-12">
+              <span className="absolute right-5 top-5 -z-10 size-24 rotate-12">
                 <Image
                   src="/brand/torch-mark.png"
                   alt=""
