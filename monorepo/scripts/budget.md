@@ -36,7 +36,7 @@ which would cut step 2's tokens from 28 to ~2 NEAR (net saving ~8.5 NEAR; not im
 
 Top-ups later: each gacha result spends ~0.115 NEAR from the gacha's balance (the 0.1 NEAR pull
 price stays in the contract and offsets most of it). Re-run with `GACHA_NEAR=<n>` or send NEAR
-directly when `get_config` pulls start refunding with "cannot cover".
+directly when pulls start getting refunded.
 
 ## `seed-testnet.ts` (paid by each creator account)
 
@@ -47,6 +47,6 @@ directly when `get_config` pulls start refunding with "cannot cover".
 | 2 vault mints × 0.11 | 0.22 |
 | `storage_deposit` for each vault on each basket token (≤ 8 × 0.00125) | 0.01 |
 | listing approvals (`nft_approve` attaches 0.01) | ≤ 0.02 |
-| offers escrow (2 offers × 0.2 NEAR, refundable) | ≤ 0.4 |
+| offers escrow (mock price / 2000: 0.81 + 0.365 NEAR, refundable, from the bidding creator) | ≤ 1.2 |
 | gas | ~0.1 |
-| **Total** | **< 1 NEAR** (a faucet-funded 10 NEAR account is plenty) |
+| **Total** | **< 2 NEAR** (a faucet-funded 10 NEAR account is plenty) |
