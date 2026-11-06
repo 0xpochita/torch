@@ -238,6 +238,10 @@ fn fund_requires_owner_and_msg() {
 }
 
 fn callback_ctx(result: PromiseResult) {
+    callback_ctx_n(vec![result]);
+}
+
+fn callback_ctx_n(results: Vec<PromiseResult>) {
     testing_env!(
         VMContextBuilder::new()
             .current_account_id(acc("gacha.t"))
@@ -246,12 +250,12 @@ fn callback_ctx(result: PromiseResult) {
         near_sdk::test_vm_config(),
         near_sdk::RuntimeFeesConfig::test(),
         Default::default(),
-        vec![result],
+        results,
     );
 }
 
 #[test]
-fn on_minted_funds_vault_and_emits_event() {
+fn on_minted_funds_vault_then_resolves() {
     let mut g = setup();
     callback_ctx(PromiseResult::Successful(b"\"7\"".to_vec()));
     g.on_minted(
@@ -262,17 +266,78 @@ fn on_minted_funds_vault_and_emits_event() {
         3,
     );
     let receipts = get_created_receipts();
-    assert_eq!(receipts.len(), 2);
+    assert_eq!(receipts.len(), 3);
     let actions = text(&receipts[0]);
     assert!(actions.contains("storage_deposit") && actions.contains("ft_transfer_call"));
     assert!(actions.contains("7.nft.t"), "{actions}");
-    let log = &get_logs()[0];
-    assert!(log.starts_with("EVENT_JSON:"));
+    assert!(text(&receipts[2]).contains("on_funded"));
+    // `gacha_pull` waits for the funding to resolve.
+    assert!(get_logs().is_empty());
+}
+
+fn event_data(log: &str) -> serde_json::Value {
     let event: serde_json::Value = serde_json::from_str(&log["EVENT_JSON:".len()..]).unwrap();
+    event["data"][0].clone()
+}
+
+#[test]
+fn funded_vault_emits_pull() {
+    let mut g = setup();
+    callback_ctx_n(vec![
+        PromiseResult::Successful(b"\"1000\"".to_vec()),
+        PromiseResult::Successful(b"\"10\"".to_vec()),
+    ]);
+    let items = tiers()[2].baskets[0].items.clone();
+    g.on_funded(acc("bob.t"), "7".into(), "Epic".into(), items, U128(9), 3);
+    assert_eq!(get_logs().len(), 1);
     assert_eq!(
-        event["data"][0],
+        event_data(&get_logs()[0]),
         json!({ "player_id": "bob.t", "token_id": "7", "rarity": "Epic", "pity_after": 3, "price": "9" })
     );
+    assert_eq!(treasury(&g, "tusdc.t"), 0);
+}
+
+#[test]
+fn failed_funding_goes_back_to_treasury() {
+    let mut g = setup();
+    // tusdc: the vault refused it (resolve returned 0 used); tbtc: the batch failed.
+    callback_ctx_n(vec![
+        PromiseResult::Successful(b"\"0\"".to_vec()),
+        PromiseResult::Failed,
+    ]);
+    let items = tiers()[2].baskets[0].items.clone();
+    g.on_funded(acc("bob.t"), "7".into(), "Epic".into(), items, U128(9), 3);
+    assert_eq!(treasury(&g, "tusdc.t"), 1_000);
+    assert_eq!(treasury(&g, "tbtc.t"), 10);
+    let logs = get_logs();
+    assert_eq!(logs.len(), 3);
+    assert_eq!(
+        event_data(&logs[0]),
+        json!({ "player_id": "bob.t", "token_id": "7", "ft_id": "tusdc.t", "amount": "1000" })
+    );
+    assert!(logs[2].contains(r#""event":"gacha_pull""#));
+}
+
+#[test]
+fn unreadable_mint_result_keeps_price_and_basket() {
+    let mut g = setup();
+    callback_ctx(PromiseResult::Successful(b"true".to_vec()));
+    g.on_minted(
+        acc("bob.t"),
+        "Epic".into(),
+        tiers()[2].baskets[0].items.clone(),
+        U128(9),
+        3,
+    );
+    assert_eq!(treasury(&g, "tusdc.t"), 1_000);
+    assert!(get_created_receipts().is_empty());
+}
+
+#[test]
+#[should_panic(expected = "token is not in any basket")]
+fn fund_rejects_unknown_tokens() {
+    let mut g = setup();
+    fund(&mut g, "fake.t", 5);
 }
 
 #[test]

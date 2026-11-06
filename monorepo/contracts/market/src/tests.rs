@@ -74,10 +74,7 @@ fn list_creates_listing_and_event() {
     let mut m = setup();
     list(&mut m, "0", "alice.near", NEAR);
     let l = m.get_listing("0".into()).unwrap();
-    assert_eq!(
-        (l.seller_id.as_str(), l.price.0, l.approval_id),
-        ("alice.near", NEAR, 7)
-    );
+    assert_eq!((l.seller_id.as_str(), l.price.0, l.approval_id), ("alice.near", NEAR, 7));
     assert!(get_logs()[0].contains(r#""event":"list""#));
     assert_eq!(m.get_listings(None, None).len(), 1);
 }
@@ -87,12 +84,7 @@ fn list_creates_listing_and_event() {
 fn on_approve_rejects_other_callers() {
     let mut m = setup();
     ctx("evil.near", 0, 1);
-    let _ = m.nft_on_approve(
-        "0".into(),
-        acc("alice.near"),
-        1,
-        r#"{"list":{"price":"1"}}"#.into(),
-    );
+    let _ = m.nft_on_approve("0".into(), acc("alice.near"), 1, r#"{"list":{"price":"1"}}"#.into());
 }
 
 #[test]
@@ -146,9 +138,7 @@ fn successful_sale_emits_fee() {
     callback_ctx(PromiseResult::Successful(payout.to_vec()));
     assert!(m.on_buy(acc("bob.near"), listing));
     let log = &get_logs()[0];
-    assert!(
-        log.contains(r#""event":"sale""#) && log.contains(r#""fee":"20000000000000000000000""#)
-    );
+    assert!(log.contains(r#""event":"sale""#) && log.contains(r#""fee":"20000000000000000000000""#));
 }
 
 #[test]
@@ -167,9 +157,7 @@ fn offer_replace_and_expiry() {
     ctx("anyone.near", 0, 100);
     m.refund_expired("0".into(), acc("bob.near"));
     assert!(m.get_offers("0".into(), None, None).is_empty());
-    assert!(m
-        .get_offers_by_buyer(acc("bob.near"), None, None)
-        .is_empty());
+    assert!(m.get_offers_by_buyer(acc("bob.near"), None, None).is_empty());
 }
 
 #[test]
@@ -182,19 +170,11 @@ fn offers_are_indexed_and_paginated() {
     assert_eq!(m.get_offers("0".into(), None, None).len(), 2);
     assert_eq!(m.get_offers("0".into(), Some(U128(1)), Some(5)).len(), 1);
     assert_eq!(m.get_offers("1".into(), None, None).len(), 1);
-    assert_eq!(
-        m.get_offers_by_buyer(acc("bob.near"), None, Some(1)).len(),
-        1
-    );
+    assert_eq!(m.get_offers_by_buyer(acc("bob.near"), None, Some(1)).len(), 1);
     ctx("carol.near", 1, 20);
     m.cancel_offer("0".into());
-    assert_eq!(
-        m.get_offers("0".into(), None, None)[0].buyer_id,
-        acc("bob.near")
-    );
-    assert!(m
-        .get_offers_by_buyer(acc("carol.near"), None, None)
-        .is_empty());
+    assert_eq!(m.get_offers("0".into(), None, None)[0].buyer_id, acc("bob.near"));
+    assert!(m.get_offers_by_buyer(acc("carol.near"), None, None).is_empty());
 }
 
 #[test]
@@ -283,14 +263,8 @@ fn failed_accept_restores_offer() {
 fn drained_vault_keeps_offer_and_skips_sale() {
     let mut m = setup();
     let min = vec![
-        MinBalance {
-            ft_id: acc("usdc.near"),
-            amount: U128(1_000),
-        },
-        MinBalance {
-            ft_id: acc("btc.near"),
-            amount: U128(5),
-        },
+        MinBalance { ft_id: acc("usdc.near"), amount: U128(1_000) },
+        MinBalance { ft_id: acc("btc.near"), amount: U128(5) },
     ];
     // usdc fine, btc withdrawn below the floor.
     callback_ctx_n(vec![
@@ -299,10 +273,7 @@ fn drained_vault_keeps_offer_and_skips_sale() {
     ]);
     let r = m.on_balances_checked(acc("alice.near"), escrowed(min.clone()), 1);
     assert!(matches!(r, PromiseOrValue::Value(false)));
-    assert_eq!(
-        m.get_offers("0".into(), None, None),
-        vec![escrowed(min.clone())]
-    );
+    assert_eq!(m.get_offers("0".into(), None, None), vec![escrowed(min.clone())]);
 
     // Both at the floor: proceeds to nft_transfer_payout.
     let mut m = setup();
@@ -323,10 +294,7 @@ fn prune_drops_only_unapproved_listing() {
     callback_ctx(PromiseResult::Failed);
     assert!(!m.on_prune_listing("0".into(), 7));
     callback_ctx(PromiseResult::Successful(b"false".to_vec()));
-    assert!(
-        !m.on_prune_listing("0".into(), 8),
-        "relisted under another approval"
-    );
+    assert!(!m.on_prune_listing("0".into(), 8), "relisted under another approval");
     assert!(m.on_prune_listing("0".into(), 7));
     assert!(m.get_listing("0".into()).is_none());
 }
@@ -335,8 +303,7 @@ fn prune_drops_only_unapproved_listing() {
 fn bad_payout_pays_seller_everything() {
     let m = setup();
     // Payout claims more than the balance: ignored, seller gets the full 98%.
-    let p: Payout =
-        serde_json::from_str(&format!(r#"{{"payout":{{"x.near":"{NEAR}"}}}}"#)).unwrap();
+    let p: Payout = serde_json::from_str(&format!(r#"{{"payout":{{"x.near":"{NEAR}"}}}}"#)).unwrap();
     assert_eq!(m.settle(&acc("alice.near"), NEAR, Some(p)), NEAR / 50);
     assert_eq!(split(NEAR), (NEAR / 50, NEAR - NEAR / 50));
 }

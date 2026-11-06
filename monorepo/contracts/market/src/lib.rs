@@ -197,10 +197,7 @@ impl Market {
             .listings
             .remove(&token_id)
             .unwrap_or_else(|| env::panic_str("token is not listed"));
-        require!(
-            buyer_id != listing.seller_id,
-            "seller cannot buy own listing"
-        );
+        require!(buyer_id != listing.seller_id, "seller cannot buy own listing");
         require!(
             env::attached_deposit().as_yoctonear() == listing.price.0,
             "attached deposit must equal the listing price"
@@ -235,10 +232,7 @@ impl Market {
         );
         let seller_id = listing.seller_id.clone();
         self.listings.remove(&token_id);
-        emit(
-            "delist",
-            json!({ "token_id": token_id, "seller_id": seller_id }),
-        );
+        emit("delist", json!({ "token_id": token_id, "seller_id": seller_id }));
     }
 
     /// Anyone: drops a listing whose approval the collection no longer honours (token moved,
@@ -280,10 +274,7 @@ impl Market {
                 && token_id.bytes().all(|b| b.is_ascii_digit()),
             "invalid token id"
         );
-        require!(
-            amount.0 >= MIN_OFFER.as_yoctonear(),
-            "offer must be at least 0.01 NEAR"
-        );
+        require!(amount.0 >= MIN_OFFER.as_yoctonear(), "offer must be at least 0.01 NEAR");
         let now = env::block_timestamp_ms();
         require!(expires_at > now, "expires_at must be in the future");
         require!(
@@ -365,9 +356,7 @@ impl Market {
         let price = listing.price.0;
         let Some(payout) = payout_result() else {
             // Token moved, approval revoked or token busy: the listing is stale, refund the buyer.
-            Promise::new(buyer_id)
-                .transfer(NearToken::from_yoctonear(price))
-                .detach();
+            Promise::new(buyer_id).transfer(NearToken::from_yoctonear(price)).detach();
             if !self.listings.contains_key(&listing.token_id) {
                 emit(
                     "delist",
@@ -461,10 +450,7 @@ impl Market {
         }
         let seller_id = listing.seller_id.clone();
         self.listings.remove(&token_id);
-        emit(
-            "delist",
-            json!({ "token_id": token_id, "seller_id": seller_id }),
-        );
+        emit("delist", json!({ "token_id": token_id, "seller_id": seller_id }));
         true
     }
 
@@ -505,11 +491,7 @@ impl Market {
             return vec![];
         };
         page(tokens.iter(), from_index, limit)
-            .filter_map(|token| {
-                self.offers
-                    .get(&(token.clone(), account_id.clone()))
-                    .cloned()
-            })
+            .filter_map(|token| self.offers.get(&(token.clone(), account_id.clone())).cloned())
             .collect()
     }
 
@@ -620,7 +602,8 @@ impl Market {
         let mut rest = balance;
         let valid = payout.filter(|p| {
             p.payout.len() <= MAX_LEN_PAYOUT as usize
-                && p.payout
+                && p
+                    .payout
                     .values()
                     .try_fold(0u128, |sum, v| sum.checked_add(v.0))
                     .is_some_and(|sum| sum <= balance)
@@ -648,8 +631,12 @@ fn storage_per_offer() -> u128 {
     env::storage_byte_cost().as_yoctonear() * OFFER_STORAGE_BYTES
 }
 
-fn set_add<K, V>(map: &mut LookupMap<K, IterableSet<V>>, key: &K, value: V, prefix: StorageKey)
-where
+fn set_add<K, V>(
+    map: &mut LookupMap<K, IterableSet<V>>,
+    key: &K,
+    value: V,
+    prefix: StorageKey,
+) where
     K: near_sdk::borsh::BorshSerialize + near_sdk::borsh::BorshDeserialize + Ord + Clone,
     V: near_sdk::borsh::BorshSerialize + near_sdk::borsh::BorshDeserialize + Ord + Clone,
 {

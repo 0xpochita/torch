@@ -12,7 +12,9 @@ Method names, JSON shapes and events are fixed by [`INTERFACES.md`](INTERFACES.m
 | `gacha` | `gacha.torchvault.testnet` | 1/10-pulls that mint vault NFTs and fund them from a treasury |
 | `integration-tests` | – | sandbox tests deploying all of the above together (not a contract) |
 
-Design and invariants I1–I9: `skills/near-nft-account/SKILL.md`.
+Design and invariants I1–I9: `skills/near-nft-account/SKILL.md`. The collection caps approvals
+at 30 per token, where audit-tests `i9` proves the fixed 5 Tgas `nft_resolve_transfer` revert
+path still unlocks the token.
 
 ## Build
 
@@ -35,6 +37,7 @@ byte (about 10 NEAR for the ~104 KB vault).
 cargo test --workspace                     # unit tests + sandbox tests
 cargo test --workspace --lib               # unit tests only (fast, no sandbox)
 cargo test -p integration-tests            # sandbox tests only
+cargo test -p audit-tests                  # audit reproductions (all pass once fixed)
 cargo test -p integration-tests --test gacha -- --nocapture   # prints the gas numbers
 cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all --check
 ```
@@ -47,31 +50,45 @@ and deploys the real mock-ft (x3), collection, market and gacha. There are no mo
 | --- | --- |
 | `vault::create_deposit_withdraw` | `mint` resolves to the token id, key-less vault on the global hash, deposit, withdraw, only the owner and only through the collection, failed withdraw unlocks |
 | `vault::withdraw_races_transfer` | withdraw and `nft_transfer` in the same block: exactly one wins |
+| `vault::max_size_mint_fits_mint_storage` | a max-size token to a new 64-character owner stores 1,824 bytes, within the 0.02 NEAR the collection keeps; `on_vault_created` burns 3.0 of its 10 Tgas |
 | `market::list_and_buy_pays_exact_fee_and_royalty` | exact NEAR deltas: 2% fee, 2.5% of the 98% to the creator, rest to the seller; basket moves with the NFT |
-| `market::offer_then_accept` | offer escrow, accept through `nft_approve`, exact fee and royalty |
-| `market::expired_offer_is_refundable_by_anyone` | expired offers cannot be accepted and refund in full |
+| `market::offer_then_accept` | wave-2 offer (`amount`, `min_balances`, `amount + offer_storage_cost()`), accept with `amount`, exact fee and royalty, storage deposit back to the buyer |
+| `market::accept_after_draining_the_vault_fails` | audit H-1: withdraw below the buyer's pin, then accept: nothing sold, offer stays; H-3: accept with a different amount fails |
+| `market::expired_offer_is_refundable_by_anyone` | expired offers cannot be accepted and refund `amount + storage_deposit` |
+| `market::cancel_and_delist_need_one_yocto_and_prune_drops_stale_listings` | 1 yocto on `cancel_offer` / `delist`; `prune_listing` keeps a live listing and drops a stale one |
 | `market::withdraw_loses_to_sale_while_listed` | withdraw vs. `buy` on a listed token: the sale wins with the full basket |
 | `market::sale_fails_while_withdraw_in_flight` | stale listing + withdraw in flight: `buy` fails and refunds the buyer |
-| `gacha::one_pull_and_ten_pull` | 1-pull and 10-pull mint to the player with the right baskets, treasury and pity; an under-gassed 10-pull reverts whole |
+| `gacha::one_pull_and_ten_pull` | 1-pull, 1-pull at the minimum gas, and 10-pull at 960 Tgas mint to the player with the right baskets, `creator == gacha`, treasury and pity; an under-gassed 10-pull reverts whole |
 
 ## Gas
 
 Testnet runs protocol 88, where `max_total_prepaid_gas` (and `max_gas_burnt`) is **1 PGas**
 (raised from 300 Tgas in protocol 83; checked with `EXPERIMENTAL_protocol_config`).
-Measured in the sandbox with 3-item baskets:
 
-| Call | Attach | Needs | Burnt in total |
+Every callback's static gas covers its own burn, the execution fees it prepays for the receipts it
+creates (`create_account` alone is 7.2 Tgas) and their static gas. So a step never depends on
+leftover gas, and a caller who attaches the bare minimum cannot starve one. With less, the whole
+call reverts and the deposit is refunded. Measured in the sandbox with 3-item baskets:
+
+| Call | Attach | Minimum | Burnt in total |
 | --- | --- | --- | --- |
-| `gacha.pull(1)` | 300 Tgas | ~92 Tgas (90 reserved + ~2 own) | ~43 Tgas |
-| `gacha.pull(10)` | **1000 Tgas** | ~912 Tgas (900 reserved + ~12 own) | ~418 Tgas |
+| `gacha.pull(1)` | 300 Tgas | 97 Tgas | ~45 Tgas |
+| `gacha.pull(10)` | **1000 Tgas** | 950 Tgas | ~447 Tgas |
+| `collection.mint` | 100 Tgas | | |
 | `market.buy` | 200 Tgas | | |
 | `nft_approve` (list / accept offer) | 250 Tgas | | |
 | `collection.withdraw` | 100 Tgas | | |
 
-A 10-pull fits one transaction with ~88 Tgas to spare, so the gacha is unchanged. Each pull
-reserves 40 Tgas for the mint plus 5 + 15 per basket item for funding, so baskets must stay at
-3 items or fewer. With too little gas the whole `pull` reverts and the deposit is refunded.
-Wallets that cap prepaid gas below 1 PGas cannot send a 10-pull.
+A 10-pull fits one transaction with 50 Tgas to spare, so the gacha processes all 10 pulls in one
+call. `gacha::one_pull_and_ten_pull` runs it at 960 Tgas to guard that headroom. Per pull the
+gacha reserves 30 (mint) + 12 (`on_minted`) + 5 (`on_funded`) + 15 per basket item, so baskets
+must stay at 3 items or fewer. Wallets that cap prepaid gas below 1 PGas cannot send a 10-pull.
+
+Static gas and sandbox burn (Tgas): collection `mint` 3.2 + 9.3 execution fees, vault `new` 5
+(1.2), `on_vault_created` 10 (3.0 with max-size metadata to a new 64-character owner); gacha
+`on_minted` 12 (3.8 + ~6 execution fees), `on_funded` 5 (1.6), per item `storage_deposit` 3 +
+`ft_transfer_call` 12 (3.8 together; the FT reserves 5 for `ft_resolve_transfer`, 1.3, and the
+vault's `ft_on_transfer` burns 1.3).
 
 ## Deploy
 
