@@ -136,7 +136,7 @@ export function Studio() {
           </div>
 
           <div className="grain relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: `color-mix(in oklab, ${bg}, #000 12%)` }}>
-            <div className="absolute inset-0 grid place-items-center p-6 pb-24 pt-14">
+            <div className="absolute inset-0 grid place-items-center p-6 pb-40 pt-16">
               <div className="relative aspect-square h-full max-w-full [container-type:inline-size]">
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.div
