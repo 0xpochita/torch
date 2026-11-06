@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BasketArt } from "@/components/basket-art";
 import { Artwork } from "@/components/etf-card";
+import { Embers } from "@/components/embers";
 import { GachaMachine, type GachaHandle } from "@/components/gacha-machine";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
@@ -273,28 +274,49 @@ function Reveal({ pulls, onClaim, onAgain }: { pulls: Pull[]; onClaim: () => voi
   const single = pulls.length === 1;
   const total = pulls.reduce((s, p) => s + p.valueUsd, 0);
   const best = pulls.map((p) => p.rarity).sort((a, b) => TIERS.indexOf(b) - TIERS.indexOf(a))[0];
+  const c = RARITY[best].color;
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 grid place-items-center p-6 backdrop-blur-md"
-      style={{ background: `radial-gradient(60% 55% at 50% 45%, ${RARITY[best].color}55, #0d0a08ee 70%)` }}
-    >
-      <div className="flex w-full max-w-[720px] flex-col items-center gap-5">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 grid place-items-center overflow-hidden bg-[#0b0806]/90 p-6 backdrop-blur-md">
+      {/* god rays, fire glow from below, embers */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-1/2 size-[160vmax] -translate-x-1/2 -translate-y-1/2 opacity-40 [animation:rays_40s_linear_infinite] [mask-image:radial-gradient(circle,#000_10%,transparent_45%)]"
+        style={{ background: `repeating-conic-gradient(from 0deg, ${c}55 0deg 4deg, transparent 4deg 14deg)` }}
+      />
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2 bg-[radial-gradient(60%_80%_at_50%_100%,#ff5a0088,#ff8a0022_45%,transparent_70%)]" />
+      <Embers color={best === "Legendary" ? "#ffb347" : "#ff7a1a"} count={best === "Legendary" ? 120 : 70} className="absolute inset-0 size-full" />
+
+      <div className="relative flex w-full max-w-[760px] flex-col items-center gap-5">
+        <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="flex flex-col items-center gap-1">
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/50">{single ? "You pulled" : `${pulls.length} flames released`}</span>
+          <span className="title-chunky flex items-center gap-2 text-[34px] leading-none" style={{ color: c, textShadow: `0 0 24px ${c}88` }}>
+            <Sym name="fire" size={28} weight="fill" /> {best}
+          </span>
+        </motion.div>
+
         {single ? (
           <Card p={pulls[0]} big />
         ) : (
-          <div className="grid w-full grid-cols-5 gap-3">
+          <div className="grid w-full grid-cols-5 gap-4">
             {pulls.map((p, i) => (
-              <Card key={p.id} p={p} delay={i * 0.08} />
+              <Card key={p.id} p={p} delay={0.2 + i * 0.09} />
             ))}
           </div>
         )}
-        <p className="text-[14px] text-white/70">
-          {single ? "Vault inside" : `${pulls.length} vaults, total inside`} <Money value={total} className="font-semibold text-white" />
-        </p>
+
+        <div className="flex items-center gap-4 font-mono text-[12px] uppercase tracking-[0.12em] text-white/55">
+          <span>
+            Vault value <Money value={total} className="text-[14px] text-white" />
+          </span>
+          <span className="h-3 w-px bg-white/20" />
+          <span>{single ? `${pulls[0].etf.allocation.length} tokens inside` : `${pulls.filter((p) => p.rarity !== "Common").length} rare+`}</span>
+        </div>
+
         <div className="flex gap-2">
-          <button onClick={onAgain} className="h-12 rounded-full bg-white/12 px-6 text-[15px] font-semibold text-white transition hover:bg-white/20 active:scale-95">
+          <button onClick={onAgain} className="h-12 rounded-full border border-white/15 bg-white/5 px-6 text-[15px] font-semibold text-white transition hover:bg-white/10 active:scale-95">
             Pull again
           </button>
-          <button onClick={onClaim} className="h-12 rounded-full bg-white px-6 text-[15px] font-semibold text-[#121212] transition active:scale-95">
+          <button onClick={onClaim} className="h-12 rounded-full bg-[#ff8a00] px-7 text-[15px] font-semibold text-white shadow-[0_0_0_1px_#ffb766,0_10px_40px_-8px_#ff6a00] transition hover:brightness-110 active:scale-95">
             Claim to My Vaults
           </button>
         </div>
@@ -303,28 +325,60 @@ function Reveal({ pulls, onClaim, onAgain }: { pulls: Pull[]; onClaim: () => voi
   );
 }
 
-function Card({ p, big = false, delay = 0 }: { p: Pull; big?: boolean; delay?: number }) {
+function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?: number }) {
   const c = RARITY[p.rarity].color;
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   return (
     <motion.div
-      initial={{ rotateY: 180, scale: 0.8, opacity: 0 }}
-      animate={{ rotateY: 0, scale: 1, opacity: 1 }}
-      transition={{ type: "spring", stiffness: 200, damping: 18, delay }}
-      className={`flex flex-col gap-2 rounded-[22px] bg-[#1c1c1e] p-2 [transform-style:preserve-3d] ${big ? "w-[280px]" : "w-full"}`}
-      style={{ boxShadow: `0 0 0 2px ${c}, 0 0 ${big ? 60 : 24}px -6px ${c}` }}
+      initial={{ rotateY: 180, scale: 0.7, y: 30 }}
+      animate={{ rotateY: 0, scale: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 160, damping: 16, delay }}
+      onPointerMove={(e) => {
+        if (!big) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        setTilt({ x: ((e.clientY - r.top) / r.height - 0.5) * -14, y: ((e.clientX - r.left) / r.width - 0.5) * 14 });
+      }}
+      onPointerLeave={() => setTilt({ x: 0, y: 0 })}
+      className={`relative [perspective:900px] ${big ? "w-[300px]" : "w-full"}`}
     >
-      <div className="grain relative aspect-square overflow-hidden rounded-[16px]" style={{ background: p.etf.bg }}>
-        <BasketArt allocation={p.etf.allocation} />
-      </div>
-      <div className={big ? "px-2 pb-2" : "px-1 pb-1"}>
-        <span className={`block font-bold uppercase tracking-[0.1em] ${big ? "text-[12px]" : "text-[9px]"}`} style={{ color: c }}>
-          {p.rarity}
-        </span>
-        <span className={`block truncate font-semibold text-white ${big ? "text-[18px]" : "text-[11px]"}`}>
-          {p.etf.name} #{p.serial}
-        </span>
-        {big && <Money value={p.valueUsd} className="text-[13px] text-white/60" />}
-      </div>
+      <motion.div animate={{ rotateX: tilt.x, rotateY: tilt.y }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="relative [transform-style:preserve-3d]">
+        {/* back: torch sigil, visible during the flip */}
+        <div className="absolute inset-0 grid place-items-center rounded-[22px] bg-[radial-gradient(circle_at_50%_40%,#ff8a00,#7a1d00_60%,#1a0a04)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
+          <Sym name="fire" size={big ? 72 : 28} weight="fill" className="text-[#ffd36b] drop-shadow-[0_0_20px_#ff8a00]" />
+        </div>
+        {/* front */}
+        <div className="burn-frame flex flex-col gap-2 rounded-[22px] bg-[#140d09] p-2 [backface-visibility:hidden]" style={{ "--rarity": c } as React.CSSProperties}>
+          <div className="grain relative aspect-square overflow-hidden rounded-[16px]" style={{ background: p.etf.bg }}>
+            <BasketArt allocation={p.etf.allocation} />
+            <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#ff5a0055] to-transparent" />
+            <span
+              className={`absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 font-bold uppercase tracking-[0.12em] backdrop-blur-sm ${big ? "px-2.5 py-1 text-[11px]" : "px-1.5 py-0.5 text-[8px]"}`}
+              style={{ color: c }}
+            >
+              <Sym name="fire" size={big ? 12 : 8} weight="fill" /> {p.rarity}
+            </span>
+          </div>
+          <div className={big ? "px-2 pb-2" : "px-1 pb-1"}>
+            <span className={`block truncate font-semibold text-white ${big ? "text-[18px]" : "text-[11px]"}`}>{p.etf.name}</span>
+            {big ? (
+              <div className="mt-2 grid grid-cols-3 border-t border-white/10 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-white/45">
+                <span>
+                  Value
+                  <Money value={p.valueUsd} className="block text-[14px] normal-case tracking-normal text-white" />
+                </span>
+                <span>
+                  Tokens<b className="block text-[14px] font-semibold text-white">{p.etf.allocation.length}</b>
+                </span>
+                <span className="text-right">
+                  Serial<b className="block text-[14px] font-semibold text-white">#{p.serial}</b>
+                </span>
+              </div>
+            ) : (
+              <span className="font-mono text-[9px] text-white/45">#{p.serial}</span>
+            )}
+          </div>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }

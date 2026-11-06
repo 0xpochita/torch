@@ -16,7 +16,7 @@ export type GachaHandle = { pull: (color: string) => Promise<void>; crack: () =>
 const DOME_R = 1.5;
 const CAP_R = 0.26;
 const CENTER = new THREE.Vector3(0, 0.75, 0);
-const COUNT = 30;
+const COUNT = 26;
 const SHARDS = 48;
 
 type Capsule = { group: THREE.Group; core: THREE.Mesh; halo: THREE.Sprite; mat: THREE.ShaderMaterial; v: THREE.Vector3; spin: THREE.Vector3 };
@@ -84,7 +84,7 @@ function makeFireball(geo: THREE.SphereGeometry, haloTex: THREE.Texture): Capsul
   });
   const core = new THREE.Mesh(geo, mat);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: "#ff9a30", blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.55 }));
-  halo.scale.setScalar(CAP_R * 4);
+  halo.scale.setScalar(CAP_R * 2.6);
   group.add(halo, core);
   return { group, core, halo, mat, v: new THREE.Vector3(), spin: new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2) };
 }
@@ -244,7 +244,9 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
     const gravity = new THREE.Vector3(0, -9, 0);
     const tmp = new THREE.Vector3();
     const tmp2 = new THREE.Vector3();
-    const maxD = DOME_R - CAP_R;
+    const maxD = DOME_R - CAP_R - 0.06;
+    // the balls rest on the dome floor (top of the gold body), never below it
+    const FLOOR = CENTER.y - DOME_R * 0.55 + CAP_R;
 
     const step = (dt: number) => {
       for (const c of caps) {
@@ -260,6 +262,10 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
           c.group.position.copy(CENTER).addScaledVector(tmp, maxD);
           const vn = c.v.dot(tmp);
           if (vn > 0) c.v.addScaledVector(tmp, -1.4 * vn);
+        }
+        if (c.group.position.y < FLOOR) {
+          c.group.position.y = FLOOR;
+          if (c.v.y < 0) c.v.y *= -0.3;
         }
         const s = Math.min(c.v.length(), 4) * dt;
         c.group.rotation.x += c.spin.x * s;
@@ -277,6 +283,22 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
             b.add(tmp);
           }
         }
+      // collisions can shove a ball through the glass: clamp once more
+      for (const c of caps) {
+        if (active?.cap === c) continue;
+        const p = c.group.position;
+        tmp.subVectors(p, CENTER);
+        const d = tmp.length();
+        if (d > maxD) p.copy(CENTER).addScaledVector(tmp, maxD / d);
+        if (p.y < FLOOR) p.y = FLOOR;
+        // near the floor stay inside the gold collar so nothing hangs over the rim
+        const lim = p.y < FLOOR + 0.7 ? 0.86 : maxD;
+        const rxz = Math.hypot(p.x, p.z);
+        if (rxz > lim) {
+          p.x *= lim / rxz;
+          p.z *= lim / rxz;
+        }
+      }
     };
 
     const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
@@ -358,7 +380,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         c.group.scale.setScalar(1);
         c.mat.uniforms.uTintAmt.value = 0;
         (c.halo.material as THREE.SpriteMaterial).color.set("#ff9a30");
-        c.halo.scale.setScalar(CAP_R * 4);
+        c.halo.scale.setScalar(CAP_R * 2.6);
         (c.halo.material as THREE.SpriteMaterial).opacity = 0.55;
         c.group.position.copy(CENTER).add(tmp.set(0, 0.8, 0));
         c.v.set(0, 0, 0);
@@ -423,7 +445,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         c.mat.uniforms.uTime.value = now / 1000;
         if (active?.cap !== c) {
           c.mat.uniforms.uHeat.value = heat;
-          c.halo.scale.setScalar(CAP_R * (3.6 + heat * 2.2 + flicker * 3));
+          c.halo.scale.setScalar(CAP_R * (2.4 + heat * 1.1 + flicker * 2));
         }
       }
       domeLight.intensity = 5 + heat * 35 + flicker * 20;

@@ -315,3 +315,53 @@ input[type="radio"],
 [aria-disabled="true"] {
   cursor: not-allowed;
 }
+
+/* Burning card frame for gacha reveals: a rotating fire gradient clipped to the border. */
+@property --burn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.burn-frame {
+  position: relative;
+  isolation: isolate;
+}
+.burn-frame::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--burn), #ff3d00, #ff8a00, #ffd36b, var(--rarity, #ff8a00), #ff3d00);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: burn 3s linear infinite;
+}
+.burn-frame::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  z-index: -2;
+  border-radius: inherit;
+  background: conic-gradient(from var(--burn), #ff3d0066, #ff8a0099, #ffd36b55, var(--rarity, #ff8a00), #ff3d0066);
+  filter: blur(22px);
+  animation: burn 3s linear infinite, flicker 1.6s ease-in-out infinite;
+}
+@keyframes burn {
+  to {
+    --burn: 360deg;
+  }
+}
+@keyframes flicker {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+@keyframes rays {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .burn-frame::before,
+  .burn-frame::after { animation: none; }
+}
