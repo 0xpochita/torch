@@ -163,17 +163,14 @@ impl Env {
                     .unwrap()
             }
         };
-        let deploy = |name: &'static str, near: u128, krate: &'static str| {
-            let sub = sub.clone();
-            async move {
-                sub(name, near)
-                    .await
-                    .deploy(&wasm(krate))
-                    .await
-                    .unwrap()
-                    .into_result()
-                    .unwrap()
-            }
+        let deploy = |name: &'static str, near: u128, krate: &'static str| async move {
+            sub(name, near)
+                .await
+                .deploy(&wasm(krate))
+                .await
+                .unwrap()
+                .into_result()
+                .unwrap()
         };
 
         let nft = deploy("nft", 50, "collection").await;
