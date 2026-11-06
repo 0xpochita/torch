@@ -4,7 +4,10 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { BasketArt } from "@/components/basket-art";
 import { useState } from "react";
-import { Artwork, Group, tint } from "@/components/etf-card";
+import { Artwork, Group, mixHex, tint } from "@/components/etf-card";
+import Grainient from "@/components/react-bits/Grainient";
+import ShinyText from "@/components/react-bits/ShinyText";
+import StarBorder from "@/components/react-bits/StarBorder";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { useTx } from "@/components/tx-sheet";
@@ -28,6 +31,8 @@ const vsValue = (l: Listing) => ((l.priceNear * NEAR_USD) / l.navUsd - 1) * 100;
 const TEMPLATE = Object.fromEntries(CATEGORIES.map((c) => [c, ETFS.find((e) => e.category === c)!])) as Record<Category, (typeof ETFS)[number]>;
 const MAX_PRICE = Math.max(...LISTINGS.map((l) => l.priceNear));
 const BUCKETS = 14;
+const POPULAR = [...LISTINGS].sort((a, b) => b.likes - a.likes)[0];
+const BEST = [...LISTINGS].filter((l) => l.status === "buy" && l.id !== POPULAR.id).sort((a, b) => vsValue(a) - vsValue(b))[0];
 const HIST = Array.from({ length: BUCKETS }, (_, b) => LISTINGS.filter((l) => Math.min(BUCKETS - 1, Math.floor((l.priceNear / MAX_PRICE) * BUCKETS)) === b).length);
 
 export function Market() {
@@ -161,6 +166,10 @@ export function Market() {
         </aside>
 
         <main className="flex min-w-0 flex-col gap-3">
+          <div className="grid gap-3 xl:grid-cols-2">
+            <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes} likes`} sub="Most saved basket this week" />
+            <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% below value`} sub={`Buy the basket for less than the tokens inside`} />
+          </div>
           <div className="flex flex-wrap items-center gap-2 px-1">
             <span className="flex-1 text-[15px] font-semibold">
               {items.length} {items.length === 1 ? "listing" : "listings"}
@@ -213,6 +222,47 @@ export function Market() {
         </main>
       </div>
     </>
+  );
+}
+
+/** Highlighted listing: React Bits Grainient art, a StarBorder star tracing the card, ShinyText label. */
+function Featured({ l, label, stat, sub }: { l: Listing; label: string; stat: string; sub: string }) {
+  const open = useTx();
+  const bg = l.etf.bg;
+  return (
+    <StarBorder as="div" radius={28} thickness={1.5} duration={6} color="#ffb340" trailColor="#ff8a00" glow={0.9} hover="brighten" backgroundColor="var(--surface)" borderColor="var(--line)" textColor="var(--text)" className="!flex w-full !items-stretch !justify-start !gap-4 !p-3">
+      <Link href={`/etf/${l.etf.id}`} className="relative isolate aspect-square w-[132px] shrink-0 overflow-hidden rounded-[22px] sm:w-[160px]">
+        <span className="absolute inset-0 -z-10">
+          <Grainient colors={[mixHex(bg, -0.3), bg, mixHex(bg, 0.6)]} speed={0.6} grainAmount={0.07} intro={false} />
+        </span>
+        <BasketArt allocation={l.etf.allocation} />
+      </Link>
+      <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 py-1 pr-1">
+        <div>
+          <ShinyText color="#84848c" shineColor="#ff8a00" speed={2.4} className="text-[12px] font-bold uppercase tracking-[0.08em]">
+            {label}
+          </ShinyText>
+          <Link href={`/etf/${l.etf.id}`} className="title-chunky block truncate text-[24px] leading-tight">
+            {l.name}
+          </Link>
+          <span className="text-[13px] text-muted">{sub}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-tint/15 px-2.5 py-1 text-[13px] font-bold text-tint">{stat}</span>
+          <NearAmount amount={l.priceNear} className="text-[17px] font-bold" />
+        </div>
+        <div className="flex gap-2">
+          {l.status === "buy" && (
+            <button onClick={() => open({ kind: "buy", listingId: l.id })} className="btn-ink h-10 flex-1 text-[14px]">
+              Buy now
+            </button>
+          )}
+          <button onClick={() => open({ kind: "offer", listingId: l.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
+            Make offer
+          </button>
+        </div>
+      </div>
+    </StarBorder>
   );
 }
 

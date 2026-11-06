@@ -6,6 +6,16 @@ import { Money, NearAmount, shade } from "@/components/ui";
 import { type Etf, type HistoryEvent } from "@/lib/mock";
 
 /** Soft pastel version of an ETF's background, used for card surfaces. */
+/** Hex colour pushed toward white (amt > 0) or black (amt < 0). For canvas/WebGL props that cannot read CSS vars. */
+export const mixHex = (hex: string, amt: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (s: number) => {
+    const c = (n >> s) & 255;
+    return Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt));
+  };
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0")}`;
+};
+
 export const tint = (c: string, white = 62) => `color-mix(in oklab, ${c}, var(--surface) ${white}%)`;
 
 export function Change({ value }: { value: number }) {
