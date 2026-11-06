@@ -371,3 +371,34 @@ input[type="radio"],
   .burn-frame::before,
   .burn-frame::after { animation: none; }
 }
+
+/*
+ * Touch: every control gets at least a 40×40 hit area without changing how it looks. An invisible
+ * ::after grows past the edges of anything smaller (insets go negative only when the box is < 40px).
+ * :where() keeps specificity at zero, so utility classes (absolute, fixed, after:*) still win.
+ */
+@media (pointer: coarse), (max-width: 1023px) {
+  :where(button, a, [role="tab"], [role="button"], [role="menuitem"]) {
+    position: relative;
+  }
+  :where(button, a, [role="tab"], [role="button"], [role="menuitem"])::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc(50% - 20px));
+    bottom: min(0px, calc(50% - 20px));
+    left: min(0px, calc(50% - 20px));
+    right: min(0px, calc(50% - 20px));
+  }
+}
+
+/* Reduced motion: CSS loops and transitions stop (motion/react and the canvases check the same query). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

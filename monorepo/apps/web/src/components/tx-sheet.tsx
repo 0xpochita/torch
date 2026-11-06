@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Artwork } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
 import { ConnectPrompt } from "@/components/navbar";
@@ -78,16 +78,45 @@ const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n 
 const DECIMAL = /^\d*\.?\d*$/;
 
 /** Overlay + dialog card shared by every sheet state. `locked` while the wallet is open. */
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
+
 function Frame({ title, locked = false, onClose, children }: { title: string; locked?: boolean; onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  // Modal focus: move in on open, keep Tab inside, give focus back to the opener on close.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    const t = setTimeout(() => {
+      if (!box.current?.contains(document.activeElement)) (box.current?.querySelector<HTMLElement>("[autofocus]") ?? box.current)?.focus();
+    });
+    return () => (clearTimeout(t), opener?.focus?.());
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !locked) onClose();
+      if (e.key !== "Tab" || !box.current) return;
+      const list = [...box.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (!list.length) return;
+      const [first, last] = [list[0], list[list.length - 1]];
+      const wrapTo = e.shiftKey ? (document.activeElement === first || document.activeElement === box.current ? last : null) : document.activeElement === last ? first : null;
+      if (wrapTo) {
+        e.preventDefault();
+        wrapTo.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [locked, onClose]);
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <button aria-label="Close" onClick={() => !locked && onClose()} className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" />
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center px-3 pb-[max(12px,env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] sm:items-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <button aria-label="Close" tabIndex={-1} onClick={() => !locked && onClose()} className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" />
       <motion.div
+        ref={box}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -95,7 +124,7 @@ function Frame({ title, locked = false, onClose, children }: { title: string; lo
         animate={{ y: 0, scale: 1 }}
         exit={{ y: 30, scale: 0.97, opacity: 0 }}
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        className="relative flex max-h-[92dvh] w-full max-w-[440px] flex-col overflow-y-auto rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080]"
+        className="relative flex max-h-full w-full max-w-[440px] flex-col overflow-y-auto overscroll-contain rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080] outline-none"
       >
         {children}
       </motion.div>

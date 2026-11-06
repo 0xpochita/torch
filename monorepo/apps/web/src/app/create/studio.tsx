@@ -650,7 +650,7 @@ function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint
               </div>
               <div className="px-2 pb-1.5 pt-3">
                 <div className="truncate text-[17px] font-semibold text-white">{name}</div>
-                <div className="font-mono text-[11px] text-white/45">by {account ?? "you"}</div>
+                <div className="font-mono text-[11px] text-white/60">by {account ?? "you"}</div>
                 <div className="mt-3 grid grid-cols-3 gap-1.5">
                   {[
                     ["Value", <Money key="v" value={m.funded} />],
@@ -658,7 +658,7 @@ function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint
                     ["Owner", "you"],
                   ].map(([k, v]) => (
                     <div key={k as string} className="rounded-[12px] bg-white/[0.06] px-2.5 py-2">
-                      <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/40">{k}</div>
+                      <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/60">{k}</div>
                       <div className="text-[13px] font-semibold text-white">{v}</div>
                     </div>
                   ))}
@@ -675,13 +675,13 @@ function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint
             <p className="mt-1 text-[15px] text-white/60">Your basket now lives inside its own vault NFT.</p>
           </motion.div>
           <motion.dl {...rise(1.05)} className="grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-[18px] border border-white/10 bg-black/35 px-4 py-3 text-left font-mono text-[12px] backdrop-blur-md">
-            <dt className="text-white/40">Vault</dt>
+            <dt className="text-white/60">Vault</dt>
             <dd className="truncate text-right text-white">{vaultOf(m.tokenId)}</dd>
-            <dt className="text-white/40">Mint</dt>
+            <dt className="text-white/60">Mint</dt>
             <dd className="flex justify-end">
               <TxLink hash={m.hash} className="text-white" />
             </dd>
-            <dt className="text-white/40">Funded</dt>
+            <dt className="text-white/60">Funded</dt>
             <dd className="flex justify-end text-right text-white">
               {m.fundHash ? <TxLink hash={m.fundHash} className="text-white" /> : onFund ? <span className="text-[#ffb766]">not yet</span> : "empty vault"}
             </dd>

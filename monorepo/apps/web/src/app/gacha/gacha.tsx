@@ -215,7 +215,7 @@ export function Gacha() {
                 </span>
                 Live · {today === undefined ? "…" : `${today === 100 ? "100+" : today.toLocaleString("en-US")} pulls today`}
               </span>
-              <span className="text-white/40">Vault machine Nº 01 · {price} NEAR / pull</span>
+              <span className="text-white/60">Vault machine Nº 01 · {price} NEAR / pull</span>
             </span>
             <span className="flex flex-col items-end gap-1.5">
               <span>
@@ -226,7 +226,7 @@ export function Gacha() {
                   <span key={i} className={`h-2.5 w-[3px] rounded-[1px] transition-colors ${i < pity ? "bg-[#ff8a00]" : "bg-white/15"}`} />
                 ))}
               </span>
-              <span className="text-white/40">Legendary in {PITY - pity}</span>
+              <span className="text-white/60">Legendary in {PITY - pity}</span>
             </span>
           </div>
 
@@ -274,7 +274,7 @@ export function Gacha() {
                 </button>
               </span>
             </div>
-            <span className="flex items-center gap-3 text-[12px] text-white/50">
+            <span className="flex items-center gap-3 text-[12px] text-white/60">
               {x10Blocked && !busy && (
                 <span id="x10-gas" className="text-[#ffb766]">
                   ×10 off: this wallet can&apos;t attach 1 PGas.
@@ -428,7 +428,7 @@ function Seed() {
   }, []);
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute left-1/2 top-[18%] flex w-[280px] -translate-x-1/2 flex-col items-center gap-2 font-mono uppercase">
-      <span className="text-[10px] tracking-[0.3em] text-white/50">Rolling seed</span>
+      <span className="text-[10px] tracking-[0.3em] text-white/60">Rolling seed</span>
       <span className="text-[15px] tracking-[0.08em] text-white tabular-nums">{hex}</span>
       <span className="relative h-px w-full bg-white/15">
         <motion.span className="absolute inset-y-0 left-0 bg-[#ff8a00] shadow-[0_0_8px_#ff8a00]" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2.6, ease: "easeInOut" }} />
@@ -456,7 +456,7 @@ function Reveal({ pulls, hash, onClaim, onAgain }: { pulls: Pull[]; hash: string
 
       <div className="relative flex w-full max-w-[760px] flex-col items-center gap-5">
         <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="flex flex-col items-center gap-1">
-          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/50">{single ? "You pulled" : `${pulls.length} flames released`}</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/60">{single ? "You pulled" : `${pulls.length} flames released`}</span>
           <span className="title-chunky flex items-center gap-2 text-[34px] leading-none" style={{ color: c, textShadow: `0 0 24px ${c}88` }}>
             <Icon3D name={top.toLowerCase() as "common" | "rare" | "epic" | "legendary"} size={34} /> {top}
           </span>
@@ -547,7 +547,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
           <div className={big ? "px-2 pb-2" : "px-1 pb-1"}>
             <span className={`block truncate font-semibold text-white ${big ? "text-[18px]" : "text-[11px]"}`}>{p.name}</span>
             {big ? (
-              <div className="mt-2 grid grid-cols-3 border-t border-white/10 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-white/45">
+              <div className="mt-2 grid grid-cols-3 border-t border-white/10 pt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-white/60">
                 <span>
                   Value
                   <Money value={p.valueUsd} className="block text-[14px] normal-case tracking-normal text-white" />
@@ -560,7 +560,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
                 </span>
               </div>
             ) : (
-              <span className="font-mono text-[9px] text-white/45">#{p.id}</span>
+              <span className="font-mono text-[9px] text-white/60">#{p.id}</span>
             )}
           </div>
         </div>

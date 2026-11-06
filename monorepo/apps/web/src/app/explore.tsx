@@ -87,7 +87,7 @@ export function Explore() {
         ))}
       </Topbar>
 
-      <div className="grid gap-5 pb-6 pt-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 pb-6 pt-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <Hero vaults={etfs} loading={vaultsQ.loading} />
 
         <section className="card flex flex-col gap-4 p-5">
