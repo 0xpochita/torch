@@ -10,6 +10,19 @@ const NEAR: u128 = 10u128.pow(24);
 const PRICE: u128 = NEAR;
 const FEE: u128 = PRICE / 50;
 const ROYALTY: u128 = (PRICE - FEE) * 250 / 10_000;
+/// `OFFER_STORAGE_BYTES` (2000) at 10^19 yocto per byte.
+const OFFER_STORAGE: u128 = 2_000 * 10u128.pow(19);
+
+/// The market is a workspace member, so its wasm lands in the workspace target dir.
+fn build_market(root: &Path) -> Vec<u8> {
+    let status = Command::new("cargo")
+        .args(["near", "build", "non-reproducible-wasm", "--no-abi"])
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert!(status.success(), "market wasm build failed");
+    std::fs::read(root.join("../target/near/market/market.wasm")).unwrap()
+}
 
 fn build(manifest_dir: &Path, wasm: &str) -> Vec<u8> {
     let status = Command::new(env!("CARGO"))
@@ -33,7 +46,7 @@ struct Env {
 
 async fn setup() -> Env {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let market_wasm = build(root, "market.wasm");
+    let market_wasm = build_market(root);
     let nft_wasm = build(&root.join("tests/mock-nft"), "mock_nft.wasm");
 
     let worker = near_workspaces::sandbox().await.unwrap();
@@ -98,8 +111,8 @@ impl Env {
         let r = self
             .bob
             .call(self.market.id(), "offer")
-            .args_json(json!({ "token_id": "0", "expires_at": expires_at }))
-            .deposit(NearToken::from_yoctonear(PRICE))
+            .args_json(json!({ "token_id": "0", "amount": PRICE.to_string(), "expires_at": expires_at }))
+            .deposit(NearToken::from_yoctonear(PRICE + OFFER_STORAGE))
             .transact()
             .await
             .unwrap();
@@ -161,7 +174,7 @@ async fn accept_offer_through_approve() {
     let (alice0, fee0) = (e.balance(&e.alice).await, e.balance(&e.fee).await);
 
     let r = e
-        .approve(json!({ "accept_offer": { "buyer_id": e.bob.id() } }))
+        .approve(json!({ "accept_offer": { "buyer_id": e.bob.id(), "amount": PRICE.to_string() } }))
         .await;
     assert!(r.is_success() && has_event(&r, "offer_accept"), "{r:#?}");
     assert_eq!(e.owner().await, e.bob.id().as_str());
@@ -194,7 +207,7 @@ async fn expired_offer_is_refundable_by_anyone() {
     let bob0 = e.balance(&e.bob).await;
     let r = refund().await;
     assert!(r.is_success() && has_event(&r, "offer_cancel"), "{r:#?}");
-    assert_eq!(e.balance(&e.bob).await - bob0, PRICE);
+    assert_eq!(e.balance(&e.bob).await - bob0, PRICE + OFFER_STORAGE);
     assert_eq!(e.view("get_offers_by_buyer", json!({ "account_id": e.bob.id() })).await, json!([]));
 }
 
@@ -242,5 +255,35 @@ async fn stale_listing_after_transfer_refunds_buyer() {
     assert!(!has_event(&r, "sale"), "{r:#?}");
     assert_eq!(e.owner().await, e.creator.id().as_str());
     assert!(bob0 - e.balance(&e.bob).await < NEAR / 100);
+    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_null());
+}
+
+#[tokio::test]
+async fn stale_listing_can_be_pruned_by_anyone() {
+    let e = setup().await;
+    e.list().await;
+    let prune = || async {
+        e.bob
+            .call(e.market.id(), "prune_listing")
+            .args_json(json!({ "token_id": "0" }))
+            .gas(Gas::from_tgas(50))
+            .transact()
+            .await
+            .unwrap()
+    };
+    let r = prune().await;
+    assert!(!has_event(&r, "delist"), "a live listing stays: {r:#?}");
+    assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_object());
+    e.alice
+        .call(e.nft.id(), "nft_revoke")
+        .args_json(json!({ "token_id": "0", "account_id": e.market.id() }))
+        .deposit(NearToken::from_yoctonear(1))
+        .transact()
+        .await
+        .unwrap()
+        .into_result()
+        .unwrap();
+    let r = prune().await;
+    assert!(has_event(&r, "delist"), "{r:#?}");
     assert!(e.view("get_listing", json!({ "token_id": "0" })).await.is_null());
 }
