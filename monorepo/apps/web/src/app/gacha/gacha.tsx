@@ -193,28 +193,62 @@ export function Gacha() {
 
         {/* side */}
         <aside className="flex flex-col gap-4">
-          <section className="card flex flex-col gap-3 p-5">
-            <h2 className="text-[18px] font-bold">Drop rates</h2>
-            {TIERS.slice()
-              .reverse()
-              .map((t) => (
-                <div key={t} className="flex items-center gap-3">
-                  <span className="flex -space-x-3">
-                    {GACHA_POOL[t].map((id) => (
-                      <Artwork key={id} etf={getEtf(id)!} size={36} className="ring-2 ring-surface" />
-                    ))}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold" style={{ color: RARITY[t].color }}>
-                      {t}
-                    </span>
-                    <span className="text-[12px] text-muted">
-                      ${RARITY[t].vault[0]}–${RARITY[t].vault[1]} inside
-                    </span>
-                  </span>
-                  <span className="text-[15px] font-bold tabular-nums">{(RARITY[t].rate * 100).toFixed(0)}%</span>
-                </div>
+          <section className="card flex flex-col gap-4 p-5">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-[18px] font-bold">Drop rates</h2>
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Odds per capsule</span>
+            </div>
+
+            {/* the whole distribution at a glance */}
+            <div className="flex h-2.5 gap-[3px] overflow-hidden rounded-full">
+              {TIERS.map((t) => (
+                <span key={t} title={`${t} ${(RARITY[t].rate * 100).toFixed(0)}%`} style={{ flexGrow: RARITY[t].rate, background: RARITY[t].color }} className="min-w-[6px] first:rounded-l-full last:rounded-r-full" />
               ))}
+            </div>
+
+            <ul className="flex flex-col gap-1.5">
+              {TIERS.slice()
+                .reverse()
+                .map((t) => {
+                  const r = RARITY[t];
+                  const legendary = t === "Legendary";
+                  return (
+                    <li
+                      key={t}
+                      className="relative flex items-center gap-3 overflow-hidden rounded-[16px] px-2.5 py-2.5"
+                      style={legendary ? { background: `radial-gradient(120% 140% at 0% 50%, ${r.color}2e, transparent 60%)`, boxShadow: `inset 0 0 0 1px ${r.color}55` } : undefined}
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-full" style={{ color: r.color, background: `${r.color}1f`, boxShadow: `inset 0 0 0 1.5px ${r.color}88, 0 0 14px -4px ${r.color}` }}>
+                        <Sym name="fire" size={16} weight="fill" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="text-[15px] font-semibold" style={{ color: r.color }}>
+                            {t}
+                          </span>
+                          <span className="font-mono text-[14px] font-semibold tabular-nums">{(r.rate * 100).toFixed(0)}%</span>
+                        </span>
+                        <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-fill">
+                          <span className="block h-full rounded-full" style={{ width: `${(r.rate / RARITY.Common.rate) * 100}%`, background: r.color }} />
+                        </span>
+                        <span className="mt-1.5 flex items-center justify-between gap-2 text-[12px] text-muted">
+                          <span>
+                            ${r.vault[0]}–${r.vault[1]} inside
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="flex -space-x-1.5">
+                              {GACHA_POOL[t].map((id) => (
+                                <Artwork key={id} etf={getEtf(id)!} size={18} className="rounded-full ring-2 ring-surface" />
+                              ))}
+                            </span>
+                            <span className="font-mono">1 in {Math.round(1 / r.rate)}</span>
+                          </span>
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+            </ul>
           </section>
 
           <section className="card flex flex-col gap-3 p-5">
