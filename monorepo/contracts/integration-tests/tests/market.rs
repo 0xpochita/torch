@@ -84,6 +84,16 @@ async fn list_and_buy_pays_exact_fee_and_royalty() {
     assert_eq!(e.ft_balance(&e.usdc, e.bob.id()).await, 500_000);
 }
 
+/// Wave 2 market: an offer attaches `amount + offer_storage_cost()`.
+async fn offer_storage(e: &Env) -> u128 {
+    e.market_view("offer_storage_cost", json!({}))
+        .await
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap()
+}
+
 #[tokio::test]
 async fn offer_then_accept() {
     let e = setup().await;
@@ -91,8 +101,8 @@ async fn offer_then_accept() {
     let r = e
         .bob
         .call(e.market.id(), "offer")
-        .args_json(json!({ "token_id": "0", "expires_at": now_ms + 3_600_000 }))
-        .deposit(NearToken::from_yoctonear(PRICE))
+        .args_json(json!({ "token_id": "0", "amount": PRICE.to_string(), "expires_at": now_ms + 3_600_000 }))
+        .deposit(NearToken::from_yoctonear(PRICE + offer_storage(&e).await))
         .transact()
         .await
         .unwrap();
@@ -113,7 +123,7 @@ async fn offer_then_accept() {
         .approve(
             &e.alice,
             "0",
-            json!({ "accept_offer": { "buyer_id": e.bob.id() } }),
+            json!({ "accept_offer": { "buyer_id": e.bob.id(), "amount": PRICE.to_string() } }),
         )
         .await;
     ok(&r);
@@ -233,8 +243,8 @@ async fn expired_offer_is_refundable_by_anyone() {
     ok(&e
         .bob
         .call(e.market.id(), "offer")
-        .args_json(json!({ "token_id": "0", "expires_at": expires }))
-        .deposit(NearToken::from_yoctonear(PRICE))
+        .args_json(json!({ "token_id": "0", "amount": PRICE.to_string(), "expires_at": expires }))
+        .deposit(NearToken::from_yoctonear(PRICE + offer_storage(&e).await))
         .transact()
         .await
         .unwrap());
@@ -256,7 +266,7 @@ async fn expired_offer_is_refundable_by_anyone() {
         .approve(
             &e.alice,
             "0",
-            json!({ "accept_offer": { "buyer_id": e.bob.id() } }),
+            json!({ "accept_offer": { "buyer_id": e.bob.id(), "amount": PRICE.to_string() } }),
         )
         .await;
     assert!(!has_event(&r, "offer_accept"));
@@ -268,7 +278,11 @@ async fn expired_offer_is_refundable_by_anyone() {
     ok(&r);
     assert!(has_event(&r, "offer_cancel"));
     e.settle().await;
-    assert_eq!(e.near_balance(e.bob.id()).await - bob0, PRICE);
+    // Wave 2 market: the refund returns the offer storage deposit too.
+    assert_eq!(
+        e.near_balance(e.bob.id()).await - bob0,
+        PRICE + offer_storage(&e).await
+    );
     assert_eq!(
         e.market_view("get_offers_by_buyer", json!({ "account_id": e.bob.id() }))
             .await,
