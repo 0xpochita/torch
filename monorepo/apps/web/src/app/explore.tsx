@@ -9,7 +9,7 @@ import { Artwork, BuyCapsule, Change } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
 import { HeroBackdrop } from "@/components/hero-backdrop";
 import { ToolbarChip, Topbar } from "@/components/navbar";
-import { ActionCircle, Money, NearAmount, StatTile, Title, TokenStack } from "@/components/ui";
+import { ActionCircle, Avatar, Money, NearAmount, StatTile, Title, TokenStack } from "@/components/ui";
 import { CATEGORIES, ETFS, ME, type Category, type Etf } from "@/lib/mock";
 
 const TABS = ["All", ...CATEGORIES] as const;
@@ -182,14 +182,14 @@ export function Explore() {
           <ol className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1">
             {CREATORS.map((c, i) => (
               <li key={c.name}>
-                <Link href={`/etf/${c.etf.id}`} className="flex w-[76px] flex-col items-center gap-1.5 text-center">
+                <Link href={`/etf/${c.etf.id}`} className="flex w-[84px] flex-col items-center gap-1.5 text-center">
                   <span className="relative">
-                    <span className="relative block size-[68px] overflow-hidden rounded-full ring-4 ring-fill" style={{ background: c.etf.bg }}>
-                      <BasketArt allocation={c.etf.allocation} />
+                    <span className="block rounded-full ring-4 ring-fill">
+                      <Avatar account={c.name} size={68} />
                     </span>
                     <span className={`absolute bottom-0.5 right-0.5 size-3.5 rounded-full ring-2 ring-surface ${i < 3 ? "bg-up" : "bg-faint"}`} />
                   </span>
-                  <span className="w-full truncate text-[13px] font-semibold">{c.name.replace(".near", "")}</span>
+                  <span className="w-full truncate text-[13px] font-semibold">{c.name}</span>
                   <Money value={c.nav} className="text-[12px] text-muted" />
                 </Link>
               </li>
