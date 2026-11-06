@@ -34,7 +34,7 @@ const best = (rs: Rarity[]) => [...rs].sort((a, b) => TIERS.indexOf(b) - TIERS.i
 const DEFAULT_PRICE = "100000000000000000000000";
 const DEFAULT_PITY = 50;
 
-/** Basket value at mock prices (testnet tokens have no market). */
+/** Basket value at fallback prices (testnet tokens have no market). */
 const usdOf = (items: Item[]) =>
   items.reduce((s, it) => {
     const ft = ftById(it.token);
@@ -84,7 +84,7 @@ export function Gacha() {
   const PITY = config?.pity ?? DEFAULT_PITY;
   const priceYocto = config?.price_per_pull ?? DEFAULT_PRICE;
   const price = near.fromUnits(priceYocto, 24);
-  // Drop rates and baskets per tier from get_config; mock rates until it loads.
+  // Drop rates and baskets per tier from get_config ("…" until it loads).
   const tierOf = (t: Rarity) => config?.tiers.find((x) => x.rarity === t);
   // Recent pulls feed the side list and the HUD's 24h counter (the API keeps the last 100 at most).
   const recent = useApi<GachaPull[]>(`/gacha/recent?limit=100&n=${nonce}`);

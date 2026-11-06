@@ -5,7 +5,7 @@ import { Sym } from "@/components/icons";
 import { ConnectPrompt, Topbar } from "@/components/navbar";
 import { TxLink } from "@/components/tx-sheet";
 import { TokenIcon } from "@/components/ui";
-import { FTS, MOCK_FTS, WNEAR } from "@/lib/contracts";
+import { FTS, TEST_FTS, WNEAR } from "@/lib/contracts";
 import { TOKENS } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
@@ -13,7 +13,7 @@ import { useNear } from "@/providers/near-provider";
 /* Test tokens: each mock NEP-141 pays 0.1 once an hour (faucet), wNEAR comes from wrapping NEAR. */
 
 const FT_IDS = FTS.map((f) => f.id);
-const MOCK_IDS = MOCK_FTS.map((f) => f.id);
+const TEST_IDS = TEST_FTS.map((f) => f.id);
 const MIN = 60_000;
 
 const wait = (at: number, now: number) => {
@@ -32,7 +32,7 @@ export function Faucet() {
   const [now, setNow] = useState(0); // 0 until mounted: the clock is not read during prerender
 
   const balances = near.useFtBalances(accountId, FT_IDS, nonce);
-  const nextAt = near.useEach<number>(accountId ? MOCK_IDS : null, "faucet_next_at", { account_id: accountId }, nonce);
+  const nextAt = near.useEach<number>(accountId ? TEST_IDS : null, "faucet_next_at", { account_id: accountId }, nonce);
 
   // cooldowns tick down without re-reading the chain
   useEffect(() => {
@@ -43,7 +43,7 @@ export function Faucet() {
   }, []);
 
   const cooldowns = now ? nextAt : null;
-  const ready = MOCK_FTS.filter((f) => cooldowns && (cooldowns[f.id] ?? 0) <= now);
+  const ready = TEST_FTS.filter((f) => cooldowns && (cooldowns[f.id] ?? 0) <= now);
 
   const run = async (label: string, txs: near.Tx[]) => {
     if (!wallet || !txs.length) return;
@@ -80,13 +80,13 @@ export function Faucet() {
         <div className="grid gap-4 pt-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <section className="card flex flex-col gap-3 p-5">
             <div className="flex items-center gap-3">
-              <h2 className="flex-1 text-[18px] font-bold">Mock tokens</h2>
+              <h2 className="flex-1 text-[18px] font-bold">Test tokens</h2>
               <button onClick={() => run("all", ready.map((f) => near.faucetTx(f.id)))} disabled={!!busy || !ready.length} className="btn-ink h-10 px-4 text-[14px]">
                 {busy === "all" ? (step ? `Confirm ${step} in your wallet…` : "Confirm in your wallet…") : `Claim all ready · ${ready.length}`}
               </button>
             </div>
             <ul className="grid gap-1 sm:grid-cols-2">
-              {MOCK_FTS.map((f) => {
+              {TEST_FTS.map((f) => {
                 const t = TOKENS[f.key];
                 const at = cooldowns?.[f.id] ?? 0;
                 const cooling = at > now;

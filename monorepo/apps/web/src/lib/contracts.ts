@@ -15,7 +15,7 @@ export const vaultOf = (tokenId: string) => `${tokenId}.${COLLECTION}`;
 
 export type Ft = { key: TokenKey; id: string; decimals: number };
 
-const MOCK_IDS = (
+const TEST_IDS = (
   process.env.NEXT_PUBLIC_FT_IDS ||
   "tusdc,tusdt,tbtc,teth,thot,trhea,tlinear,tstnear,tzec,taurora,tnpro,tdragon,tshitzu,tsweat"
     .split(",")
@@ -34,10 +34,10 @@ function mockFt(id: string): Ft | null {
 }
 
 // NEAR in a basket is wNEAR (24 decimals); the rest are the mock NEP-141s.
-export const FTS: Ft[] = [{ key: "NEAR", id: WNEAR, decimals: 24 }, ...MOCK_IDS.map(mockFt).filter((f): f is Ft => !!f)];
+export const FTS: Ft[] = [{ key: "NEAR", id: WNEAR, decimals: 24 }, ...TEST_IDS.map(mockFt).filter((f): f is Ft => !!f)];
 
 export const ftByKey = (key: TokenKey) => FTS.find((f) => f.key === key)!;
 export const ftById = (id: string) => FTS.find((f) => f.id === id);
 
 /** Faucet tokens (everything but wNEAR, which you wrap yourself). */
-export const MOCK_FTS = FTS.filter((f) => f.id !== WNEAR);
+export const TEST_FTS = FTS.filter((f) => f.id !== WNEAR);

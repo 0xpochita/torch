@@ -51,7 +51,7 @@ export const toNear = (yocto: string) => Number(BigInt(yocto) / YOCTO_PER_MILLI)
 // Mirrors apps/api/src/prices.ts: mock FT `t<sym>.<owner>` mirrors the real token, `wrap` is wNEAR.
 const DECIMALS: Partial<Record<TokenKey, number>> = { USDC: 6, USDT: 6, BTC: 8, NEAR: 24 };
 
-/** `tusdc.torchvault.testnet` -> "USDC" (a key of the mock TOKENS logo table), or undefined if unknown. */
+/** `tusdc.torchvault.testnet` -> "USDC" (a key of the TOKENS logo table), or undefined if unknown. */
 export function tokenKey(ftId: string): TokenKey | undefined {
   const label = ftId.split(".")[0];
   const k = label === "wrap" ? "NEAR" : label.slice(1).toUpperCase();
@@ -142,5 +142,5 @@ export function toEvent(a: ActivityItem): VaultEvent | null {
 
 export const toEvents = (items: ActivityItem[]) => items.flatMap((a) => toEvent(a) ?? []);
 
-/** USD value of an event: token amount at the mock fallback price, sales at the live NEAR price. */
+/** USD value of an event: token amount at the fallback price, sales at the live NEAR price. */
 export const eventUsd = (e: VaultEvent, nearUsd: number) => (e.near !== undefined ? e.near * nearUsd : e.token && e.units ? e.units * TOKENS[e.token].price : 0);

@@ -46,7 +46,7 @@ const NEXT_VAULT = `#.${COLLECTION}`; // the id is assigned on-chain at mint
 const STORAGE_NEAR = 0.11; // collection keeps 0.02 for token storage, vault gets the rest
 const FT_IDS = FTS.map((f) => f.id);
 
-/** Token amounts for a USD deposit at target weights (mock prices: testnet tokens have no market). */
+/** Token amounts for a USD deposit at target weights (fallback prices: testnet tokens have no market). */
 const basketAmounts = (allocation: Allocation[], usd: number) =>
   allocation
     .filter((a) => a.weight > 0)
