@@ -9,6 +9,7 @@ import ShinyText from "@/components/react-bits/ShinyText";
 import BorderGlow from "@/components/react-bits/BorderGlow";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
+import { OrderBook } from "@/components/order-book";
 import { useTx } from "@/components/tx-sheet";
 import ElasticSlider from "@/components/react-bits/ElasticSlider";
 import GlideSelect from "@/components/react-bits/GlideSelect";
@@ -42,6 +43,7 @@ export function Market() {
   const [underValue, setUnderValue] = useState(false);
   const [sort, setSort] = useState<Sort>("low");
   const [layout, setLayout] = useState<(typeof LAYOUTS)[number]>("Grid");
+  const [bookId, setBookId] = useState(ETFS[0].id);
 
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const reset = () => (setCats([]), setRebalance([]), setMaxPrice(MAX_PRICE), setUnderValue(false), setStatus("All"));
@@ -169,7 +171,28 @@ export function Market() {
             <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes} likes`} sub="Most saved basket this week" />
             <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% below value`} sub={`Buy the basket for less than the tokens inside`} />
           </div>
-          <div className="flex flex-wrap items-center gap-2 px-1">
+          <OrderBook
+            etf={ETFS.find((e) => e.id === bookId)!}
+            header={
+              <div className="flex items-center gap-3 px-1">
+                <h2 className="text-[20px] font-bold">Order book</h2>
+                <div className="no-scrollbar -my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1">
+                  {ETFS.map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => setBookId(e.id)}
+                      className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${bookId === e.id ? "bg-text text-surface" : "bg-fill hover:bg-line"}`}
+                    >
+                      <Artwork etf={e} size={28} className="rounded-full" />
+                      {e.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }
+          />
+
+          <div className="flex flex-wrap items-center gap-2 px-1 pt-3">
             <span className="flex-1 text-[15px] font-semibold">
               {items.length} {items.length === 1 ? "listing" : "listings"}
             </span>

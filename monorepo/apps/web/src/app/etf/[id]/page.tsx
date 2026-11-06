@@ -7,7 +7,8 @@ import { Topbar } from "@/components/navbar";
 import { TxAction, TxButton } from "@/components/tx-sheet";
 import { ActionCircle, Money, NearAmount, StatTile, TokenStack } from "@/components/ui";
 import { ETFS, getEtf, offersFor } from "@/lib/mock";
-import { DetailTabs, NavPanel, OffersPanel } from "./panels";
+import { OrderBook } from "@/components/order-book";
+import { DetailTabs, NavPanel } from "./panels";
 
 export function generateStaticParams() {
   return ETFS.map((e) => ({ id: e.id }));
@@ -84,7 +85,7 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
 
         <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="flex min-w-0 flex-col gap-6">
-            <OffersPanel etf={etf} />
+            <OrderBook etf={etf} />
             <DetailTabs etf={etf} />
           </div>
 
