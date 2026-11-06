@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use near_contract_standards::non_fungible_token::core::{
-    NonFungibleTokenCore, NonFungibleTokenResolver,
+    ext_nft_receiver, ext_nft_resolver, NonFungibleTokenCore, NonFungibleTokenResolver,
 };
 use near_contract_standards::non_fungible_token::events::NftMint;
 use near_contract_standards::non_fungible_token::metadata::{
@@ -26,8 +26,10 @@ const MINT_STORAGE: NearToken = NearToken::from_millinear(20);
 /// Keeps a token's storage within what `MINT_STORAGE` pays for.
 /// A max-size token minted to a 64-character owner stores 1,824 bytes (sandbox).
 const MAX_METADATA_BYTES: usize = 1200;
-/// Keeps the `nft_resolve_transfer` revert path (fixed 5 Tgas) within what audit-tests `i9` proves safe.
-const MAX_APPROVALS: usize = 30;
+/// Bounds the `nft_resolve_transfer` revert path (audit-tests `w2_resolve_transfer_at_the_approval_cap`).
+const MAX_APPROVALS: usize = 16;
+/// `nft_resolve_transfer` revert path burns 3.1 Tgas at the approval cap with 62-char ids.
+const GAS_RESOLVE_TRANSFER: Gas = Gas::from_tgas(15);
 /// Creator royalty in basis points (2.5%).
 const ROYALTY_BPS: u128 = 250;
 // Static gas, sandbox burn in brackets. The vault batch's create_account execution fee (7.2 Tgas)
@@ -348,6 +350,8 @@ impl NonFungibleTokenCore for Collection {
     }
 
     /// Locked until `nft_resolve_transfer`, so the temporary receiver cannot drain the vault and hand the NFT back.
+    /// Same as near-contract-standards, except the resolver gets `GAS_RESOLVE_TRANSFER` instead of
+    /// 5 Tgas: if it ran out of gas the token would stay locked forever (I9).
     #[payable]
     fn nft_transfer_call(
         &mut self,
@@ -357,9 +361,22 @@ impl NonFungibleTokenCore for Collection {
         memo: Option<String>,
         msg: String,
     ) -> PromiseOrValue<bool> {
+        assert_one_yocto();
         self.lock(&token_id);
-        self.tokens
-            .nft_transfer_call(receiver_id, token_id, approval_id, memo, msg)
+        let sender_id = env::predecessor_account_id();
+        let (old_owner, old_approvals) =
+            self.tokens
+                .internal_transfer(&sender_id, &receiver_id, &token_id, approval_id, memo);
+        ext_nft_receiver::ext(receiver_id.clone())
+            .with_unused_gas_weight(1)
+            .nft_on_transfer(sender_id, old_owner.clone(), token_id.clone(), msg)
+            .then(
+                ext_nft_resolver::ext(env::current_account_id())
+                    .with_static_gas(GAS_RESOLVE_TRANSFER)
+                    .with_unused_gas_weight(0)
+                    .nft_resolve_transfer(old_owner, receiver_id, token_id, old_approvals),
+            )
+            .into()
     }
 
     fn nft_token(&self, token_id: TokenId) -> Option<Token> {
@@ -402,7 +419,8 @@ impl NonFungibleTokenApproval for Collection {
             .approvals_by_id
             .as_ref()
             .and_then(|by_id| by_id.get(&token_id))
-            .map_or(0, |a| a.len());
+            .map_or(0, |a| a.get(&account_id).map_or(a.len(), |_| 0));
+        // Re-approving an already approved account does not add an entry.
         require!(approvals < MAX_APPROVALS, "too many approvals");
         self.tokens.nft_approve(token_id, account_id, msg)
     }
@@ -667,6 +685,18 @@ mod tests {
             ctx(accounts(1), 10u128.pow(22));
             let _ = c.nft_approve("0".into(), format!("m{i}.testnet").parse().unwrap(), None);
         }
+    }
+
+    #[test]
+    fn full_approvals_can_reapprove() {
+        let mut c = setup();
+        for i in 0..MAX_APPROVALS {
+            ctx(accounts(1), 10u128.pow(22));
+            let _ = c.nft_approve("0".into(), format!("m{i}.testnet").parse().unwrap(), None);
+        }
+        ctx(accounts(1), 10u128.pow(22));
+        let _ = c.nft_approve("0".into(), "m0.testnet".parse().unwrap(), None);
+        assert!(c.nft_is_approved("0".into(), "m0.testnet".parse().unwrap(), None));
     }
 
     #[test]

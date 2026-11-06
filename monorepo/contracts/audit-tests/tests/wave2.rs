@@ -63,7 +63,10 @@ async fn w2_resolve_transfer_at_the_approval_cap() {
         .await
         .unwrap();
     let resolve = *burnt(&r, e.nft.id(), "nft_transfer").last().unwrap();
-    println!("cap = {approvals} approvals (62-char ids): nft_resolve_transfer revert burnt {:.2} Tgas of 5", resolve as f64 / TGAS as f64);
+    println!(
+        "cap = {approvals} approvals (62-char ids): nft_resolve_transfer revert burnt {:.2} Tgas",
+        resolve as f64 / TGAS as f64
+    );
     assert_eq!(owner_of(&e, "0").await, *e.alice.id());
     assert!(!is_locked(&e, "0").await, "I9: unlocked after the revert");
     assert!(

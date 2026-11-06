@@ -278,11 +278,11 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
 
 /// I9 check: `nft_resolve_transfer` gets a fixed 5 Tgas from near-contract-standards (unused gas
 /// weight 0). If the revert path runs out of gas, the lock is never removed and the token is
-/// stuck with the receiver forever. Exercised with no approvals and with 30 approvals.
+/// stuck with the receiver forever. Exercised with no approvals and with 16 (the collection cap).
 #[tokio::test]
 async fn i9_transfer_call_revert_unlocks_with_many_approvals() {
     let e = setup().await;
-    for (token_id, approvals) in [("0", 0), ("1", 30)] {
+    for (token_id, approvals) in [("0", 0), ("1", 16)] {
         mint(&e, token_id).await;
         for i in 0..approvals {
             ok(e.alice

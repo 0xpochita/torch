@@ -29,6 +29,8 @@ const GAS_ON_FUNDED: Gas = Gas::from_tgas(5);
 /// ft_resolve_transfer (1.3) and passes the rest to the vault's ft_on_transfer (1.3).
 const GAS_STORAGE_DEPOSIT: Gas = Gas::from_tgas(3);
 const GAS_FT_TRANSFER_CALL: Gas = Gas::from_tgas(12);
+const GAS_FT_BALANCE_OF: Gas = Gas::from_tgas(5);
+const GAS_ON_RESYNC: Gas = Gas::from_tgas(5);
 const LEGENDARY: &str = "Legendary";
 
 #[near(serializers = [json, borsh])]
@@ -225,7 +227,14 @@ impl Gacha {
                 for item in &items {
                     self.credit(&item.token, item.amount.0);
                 }
-                env::log_str("gacha: unreadable mint result, vault not funded");
+                let result = match env::promise_result_checked(0, 64) {
+                    Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                    Err(_) => "<too long>".into(),
+                };
+                emit(
+                    "gacha_mint_unreadable",
+                    json!({ "player_id": player_id, "rarity": rarity, "result": result }),
+                );
                 return;
             }
         };
@@ -264,7 +273,7 @@ impl Gacha {
             .detach();
     }
 
-    /// Puts back whatever did not reach the vault, then emits `gacha_pull`.
+    /// Puts back whatever the vault returned, then emits `gacha_pull`.
     #[private]
     pub fn on_funded(
         &mut self,
@@ -276,12 +285,20 @@ impl Gacha {
         pity_after: u32,
     ) {
         for (i, item) in items.iter().enumerate() {
-            // `ft_transfer_call` resolves to the amount the vault kept; anything else stayed with us.
+            // `ft_transfer_call` resolves to the amount the vault kept; the rest came back to us.
             let used = env::promise_result_checked(i as u64, 64)
                 .ok()
-                .and_then(|bytes| serde_json::from_slice::<U128>(&bytes).ok())
-                .map_or(0, |used| used.0.min(item.amount.0));
-            let lost = item.amount.0 - used;
+                .and_then(|bytes| serde_json::from_slice::<U128>(&bytes).ok());
+            let Some(used) = used else {
+                // Either the batch failed (nothing moved) or the FT's resolver failed after the
+                // transfer: we cannot tell, so do not credit. The owner fixes it with `resync_treasury`.
+                emit(
+                    "gacha_fund_unknown",
+                    json!({ "player_id": player_id, "token_id": token_id, "ft_id": item.token, "amount": item.amount }),
+                );
+                continue;
+            };
+            let lost = item.amount.0 - used.0.min(item.amount.0);
             if lost > 0 {
                 self.credit(&item.token, lost);
                 emit(
@@ -302,16 +319,44 @@ impl Gacha {
         );
         // `sender_id` is only as honest as the calling contract, so accept basket tokens only.
         let token = env::predecessor_account_id();
-        require!(
-            self.tiers
-                .iter()
-                .flat_map(|t| &t.baskets)
-                .flat_map(|b| &b.items)
-                .any(|i| i.token == token),
-            "token is not in any basket"
-        );
+        require!(self.is_basket_token(&token), "token is not in any basket");
         self.credit(&token, amount.0);
         U128(0)
+    }
+
+    /// Owner only: sets `treasury[token]` to the gacha's actual balance on `token`.
+    // ponytail: run it while no pull is in flight; a pending funding is still in our balance but
+    // already debited, so it would be counted twice.
+    pub fn resync_treasury(&mut self, token: AccountId) -> Promise {
+        require!(
+            env::predecessor_account_id() == self.owner_id,
+            "only the owner"
+        );
+        require!(self.is_basket_token(&token), "token is not in any basket");
+        Promise::new(token.clone())
+            .function_call(
+                "ft_balance_of",
+                json!({ "account_id": env::current_account_id() })
+                    .to_string()
+                    .into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_FT_BALANCE_OF,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_ON_RESYNC)
+                    .on_resync(token),
+            )
+    }
+
+    #[private]
+    pub fn on_resync(&mut self, token: AccountId) -> U128 {
+        let balance: U128 = env::promise_result_checked(0, 64)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_else(|| env::panic_str("ft_balance_of failed"));
+        self.treasury.insert(token, balance.0);
+        balance
     }
 
     pub fn get_pity(&self, account_id: AccountId) -> u32 {
@@ -337,6 +382,14 @@ impl Gacha {
 }
 
 impl Gacha {
+    fn is_basket_token(&self, token: &AccountId) -> bool {
+        self.tiers
+            .iter()
+            .flat_map(|t| &t.baskets)
+            .flat_map(|b| &b.items)
+            .any(|i| &i.token == token)
+    }
+
     fn credit(&mut self, token: &AccountId, amount: u128) {
         let balance = self.treasury.get(token).copied().unwrap_or(0);
         self.treasury.insert(token.clone(), balance + amount);

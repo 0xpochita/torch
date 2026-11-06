@@ -160,4 +160,20 @@ async fn one_pull_and_ten_pull() {
         .json()
         .unwrap();
     assert_eq!(supply, "12");
+
+    // Owner-only resync sets the treasury to the gacha's real balance.
+    let resync = |who: &integration_tests::near_workspaces::Account| {
+        who.call(e.gacha.id(), "resync_treasury")
+            .args_json(json!({ "token": e.usdc.id() }))
+            .gas(Gas::from_tgas(50))
+            .transact()
+    };
+    assert!(resync(&e.bob).await.unwrap().is_failure());
+    let r = resync(&e.owner).await.unwrap();
+    ok(&r);
+    let usdc = e.ft_balance(&e.usdc, e.gacha.id()).await;
+    assert_eq!(r.json::<String>().unwrap(), usdc.to_string());
+    let treasury: Vec<(String, String)> =
+        e.gacha.view("get_treasury").await.unwrap().json().unwrap();
+    assert!(treasury.contains(&(e.usdc.id().to_string(), usdc.to_string())));
 }

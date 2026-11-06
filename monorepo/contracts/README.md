@@ -13,8 +13,9 @@ Method names, JSON shapes and events are fixed by [`INTERFACES.md`](INTERFACES.m
 | `integration-tests` | – | sandbox tests deploying all of the above together (not a contract) |
 
 Design and invariants I1–I9: `skills/near-nft-account/SKILL.md`. The collection caps approvals
-at 30 per token, where audit-tests `i9` proves the fixed 5 Tgas `nft_resolve_transfer` revert
-path still unlocks the token.
+at 16 per token (re-approving an approved account is always allowed) and schedules
+`nft_resolve_transfer` with 15 Tgas instead of the standard 5, so the revert path that unlocks a
+token (3.1 Tgas at the cap with 62-char ids, audit-tests `w2_resolve_…`) has ample headroom.
 
 ## Build
 
