@@ -152,8 +152,17 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
   const { accountId: account, wallet, canBatch, ready, signIn } = useNear();
   const nearUsd = useApi<Stats>("/stats").data?.nearUsd ?? 0; // 0 hides USD estimates until it loads
   // Accept from a page that did not pick an offer: the best live one.
-  const bestOffer = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1))[0];
-  const offerIn = tx.offer ?? (bestOffer ? { from: bestOffer.buyerId, priceNear: toNear(bestOffer.amount) } : undefined);
+  // The exact yocto amount comes from the API's live offers: accept must match it to the yocto.
+  const liveOffers = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1));
+  const picked = tx.offer ? liveOffers.find((o) => o.buyerId === tx.offer!.from) : liveOffers[0];
+  const offerIn = picked && { from: picked.buyerId, amount: picked.amount, priceNear: toNear(picked.amount) };
+  // Offers pin up to 4 basket tokens at the vault's current balance (largest value first), so a drained vault cannot be sold.
+  const pins: near.MinBalance[] = detail.balances
+    .filter((b) => BigInt(b.amount) > BigInt(0))
+    .sort((a, b) => b.valueUsd - a.valueUsd)
+    .slice(0, 4)
+    .map((b) => ({ ft_id: b.ftId, amount: b.amount }));
+  const storage = near.useView<string>(tx.kind === "offer" ? MARKET : null, "offer_storage_cost").data ?? near.OFFER_STORAGE_FALLBACK;
 
   // The live listing decides the buy price (it must match exactly) and blocks withdraw while listed.
   const needsListing = ["buy", "offer", "delist", "withdraw", "list"].includes(tx.kind);
@@ -194,13 +203,13 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
       case "buy":
         return [near.buyTx(tokenId, onChain!.price)];
       case "offer":
-        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)))];
+        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)), pins, storage)];
       case "list":
         return [near.listTx(tokenId, yocto(offer))];
       case "delist":
         return near.delistTxs(tokenId);
       case "accept":
-        return [near.acceptTx(tokenId, offerIn!.from)];
+        return [near.acceptTx(tokenId, offerIn!.from, offerIn!.amount)];
       case "deposit":
         return [near.depositTx(tokenId, ft.id, amountRaw.toString())];
       case "withdraw":
@@ -367,7 +376,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                             ? "Not listed: the owner sees your offer and can accept it any time before it expires."
                             : offer >= price * 0.95
                               ? "Within 5% of the asking price — offers like this usually get accepted."
-                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires.
+                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires, plus {fmt(near.fromUnits(storage, 24))} NEAR offer storage that comes back with it.{pins.length > 0 && ` It only goes through if the vault still holds today's ${pins.map((p) => TOKENS[tokenKey(p.ft_id) ?? "NEAR"].symbol).join(", ")} balance.`}
                       </Note>
                     </>
                   ) : (
@@ -470,7 +479,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                 </>
               )}
 
-              {tx.kind === "accept" && !offerIn && <Note tone="warn">No live offers on this vault right now.</Note>}
+              {tx.kind === "accept" && !offerIn && <Note tone="warn">{tx.offer ? `${tx.offer.from}'s offer is no longer live.` : "No live offers on this vault right now."}</Note>}
               {tx.kind === "withdraw" && !choices.length && <Note tone="warn">This vault holds no tokens yet. Deposit first.</Note>}
 
               {tx.kind === "accept" && offerIn && (
