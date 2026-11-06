@@ -8,9 +8,10 @@ import { NearAmount } from "@/components/ui";
 import { ME, NEAR_USD, offersFor, type Etf } from "@/lib/mock";
 
 // ponytail: synthetic depth around the vault's ask and its open offers; replace with the indexer's order book
-function bookFor(etf: Etf, tick: number) {
-  const offers = offersFor(etf);
-  const floor = etf.listed ? etf.priceNear : Math.round((etf.navUsd / NEAR_USD) * 1.05);
+function bookFor(etf: Etf, tick: number, ask?: number) {
+  const ref = ask ?? (etf.listed ? etf.priceNear : Math.round((etf.navUsd / NEAR_USD) * 1.05));
+  const offers = offersFor(etf).map((o) => ({ ...o, priceNear: Math.round((o.priceNear / etf.priceNear) * ref) }));
+  const floor = ref;
   const n = Number(etf.id);
   const round = (v: number, up: boolean) => (up ? Math.ceil(v / tick) : Math.floor(v / tick)) * tick;
   const group = (rows: { price: number; qty: number }[], up: boolean) =>
@@ -35,12 +36,12 @@ function bookFor(etf: Etf, tick: number) {
 const TICKS = [1, 5, 10, 25] as const;
 
 /** Order book for this basket: asks above the floor band, bids below, trade ticket on the side. */
-export function OrderBook({ etf, header }: { etf: Etf; header?: React.ReactNode }) {
+export function OrderBook({ etf, header, ask }: { etf: Etf; header?: React.ReactNode; ask?: number }) {
   const open = useTx();
   const [tick, setTick] = useState<(typeof TICKS)[number]>(5);
   const [buyQty, setBuyQty] = useState(1);
   const [sellQty, setSellQty] = useState(0);
-  const { asks, bids, floor, offers } = bookFor(etf, tick);
+  const { asks, bids, floor, offers } = bookFor(etf, tick, ask);
   const bestBid = bids[0]?.price ?? 0;
   const max = Math.max(...asks.map((a) => a.qty), ...bids.map((b) => b.qty));
   const mine = etf.owner === ME;

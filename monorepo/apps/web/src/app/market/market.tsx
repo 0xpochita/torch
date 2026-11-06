@@ -43,7 +43,8 @@ export function Market() {
   const [underValue, setUnderValue] = useState(false);
   const [sort, setSort] = useState<Sort>("low");
   const [layout, setLayout] = useState<(typeof LAYOUTS)[number]>("Grid");
-  const [bookId, setBookId] = useState(ETFS[0].id);
+  const [book, setBook] = useState<"popular" | "best">("popular");
+  const bookListing = book === "popular" ? POPULAR : BEST;
 
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const reset = () => (setCats([]), setRebalance([]), setMaxPrice(MAX_PRICE), setUnderValue(false), setStatus("All"));
@@ -168,23 +169,24 @@ export function Market() {
 
         <main className="flex min-w-0 flex-col gap-3">
           <div className="grid gap-3 xl:grid-cols-2">
-            <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes} likes`} sub="Most saved basket this week" />
-            <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% below value`} sub={`Buy the basket for less than the tokens inside`} />
+            <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes} likes`} sub="Most saved basket this week" active={book === "popular"} onSelect={() => setBook("popular")} />
+            <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% below value`} sub={`Buy the basket for less than the tokens inside`} active={book === "best"} onSelect={() => setBook("best")} />
           </div>
           <OrderBook
-            etf={ETFS.find((e) => e.id === bookId)!}
+            etf={bookListing.etf}
+            ask={bookListing.priceNear}
             header={
               <div className="flex items-center gap-3 px-1">
                 <h2 className="text-[20px] font-bold">Order book</h2>
-                <div className="no-scrollbar -my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1">
-                  {ETFS.map((e) => (
+                <div className="flex gap-1.5">
+                  {([["popular", "Most popular", POPULAR], ["best", "Best profit", BEST]] as const).map(([k, label, l]) => (
                     <button
-                      key={e.id}
-                      onClick={() => setBookId(e.id)}
-                      className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${bookId === e.id ? "bg-text text-surface" : "bg-fill hover:bg-line"}`}
+                      key={k}
+                      onClick={() => setBook(k)}
+                      className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${book === k ? "bg-text text-surface" : "bg-fill hover:bg-line"}`}
                     >
-                      <Artwork etf={e} size={28} className="rounded-full" />
-                      {e.name}
+                      <Artwork etf={l.etf} size={28} className="rounded-full" />
+                      {label} · {l.etf.name}
                     </button>
                   ))}
                 </div>
@@ -248,11 +250,12 @@ export function Market() {
 }
 
 /** Highlighted listing: grainy basket art, React Bits BorderGlow edge that lights toward the cursor, ShinyText label. */
-function Featured({ l, label, stat, sub }: { l: Listing; label: string; stat: string; sub: string }) {
+function Featured({ l, label, stat, sub, active, onSelect }: { l: Listing; label: string; stat: string; sub: string; active: boolean; onSelect: () => void }) {
   const open = useTx();
   const bg = l.etf.bg;
   return (
-    <BorderGlow backgroundColor="var(--surface)" borderRadius={28} glowColor="32 100 60" colors={["#ff8a00", "#ffb340", "#ffd9a0"]} glowIntensity={0.9} edgeSensitivity={24} fillOpacity={0.35} className="w-full">
+    <div onClick={onSelect} className="cursor-pointer">
+    <BorderGlow backgroundColor="var(--surface)" borderRadius={28} glowColor="32 100 60" colors={["#ff8a00", "#ffb340", "#ffd9a0"]} glowIntensity={0.9} edgeSensitivity={24} fillOpacity={0.35} className={`w-full transition ${active ? "outline-2 outline-offset-2 outline-tint" : "outline-0"}`}>
       <div className="flex gap-4 p-3">
       <Link href={`/etf/${l.etf.id}`} className="relative isolate aspect-square w-[132px] shrink-0 overflow-hidden rounded-[22px] sm:w-[160px]" style={{ background: bg }}>
         <BasketArt allocation={l.etf.allocation} />
@@ -284,6 +287,7 @@ function Featured({ l, label, stat, sub }: { l: Listing; label: string; stat: st
       </div>
       </div>
     </BorderGlow>
+    </div>
   );
 }
 
