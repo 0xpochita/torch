@@ -5,7 +5,8 @@ import { Artwork } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { useTx } from "@/components/tx-sheet";
 import { NearAmount } from "@/components/ui";
-import { ME, NEAR_USD, offersFor, type Etf } from "@/lib/mock";
+import { NEAR_USD, offersFor, type Etf } from "@/lib/mock";
+import { useAccount } from "@/providers/near-provider";
 
 // ponytail: synthetic depth around the vault's ask and its open offers; replace with the indexer's order book
 function bookFor(etf: Etf, tick: number, ask?: number) {
@@ -44,7 +45,8 @@ export function OrderBook({ etf, header, ask }: { etf: Etf; header?: React.React
   const { asks, bids, floor, offers } = bookFor(etf, tick, ask);
   const bestBid = bids[0]?.price ?? 0;
   const max = Math.max(...asks.map((a) => a.qty), ...bids.map((b) => b.qty));
-  const mine = etf.owner === ME;
+  const account = useAccount();
+  const mine = etf.owner === account;
   const change = etf.change24h;
 
   const accept = () => open({ kind: "accept", etfId: etf.id, offer: { from: offers[0].from, priceNear: offers[0].priceNear } });
