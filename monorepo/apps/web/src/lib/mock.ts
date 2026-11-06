@@ -156,3 +156,42 @@ export const CREATOR_STATS: CreatorStat[] = [
   ),
   ...EXTRA,
 ];
+
+/* ---------- Marketplace listings (mock) ---------- */
+
+export const NEAR_USD = TOKENS.NEAR.price;
+
+export type Listing = {
+  id: string;
+  /** Template vault the listing is built from: artwork, basket and category. */
+  etf: Etf;
+  name: string;
+  seller: string;
+  priceNear: number;
+  navUsd: number;
+  likes: number;
+  status: "buy" | "offer";
+  listedDaysAgo: number;
+};
+
+const SELLERS = ["nearwhale.near", "kat.near", "degen.near", "intents.near", "staker.near", "rhea-maxi.near", "alice.near", "frank.near"];
+
+// ponytail: three deterministic listings per template vault; replace with the indexer's open listings
+export const LISTINGS: Listing[] = ETFS.flatMap((e, i) =>
+  [0, 1, 2].map((j) => {
+    const k = i * 3 + j;
+    const navUsd = Math.round(e.navUsd * (0.55 + ((i * 7 + j * 13) % 9) / 10));
+    const premium = 0.88 + ((i + j * 5) % 6) / 20; // 0.88 – 1.13 of vault value
+    return {
+      id: `${12 + k}`,
+      etf: e,
+      name: `${e.name} #${12 + k}`,
+      seller: SELLERS[(i + j * 3) % SELLERS.length],
+      priceNear: Math.round((navUsd * premium) / NEAR_USD),
+      navUsd,
+      likes: 20 + ((k * 37) % 180),
+      status: (k % 4 === 3 ? "offer" : "buy") as Listing["status"],
+      listedDaysAgo: (k * 5) % 14,
+    };
+  }),
+);

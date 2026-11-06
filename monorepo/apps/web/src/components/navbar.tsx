@@ -17,6 +17,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: "Marketplace",
     items: [
       { href: "/", label: "Explore", icon: "house" },
+      { href: "/market", label: "Market", icon: "store" },
       { href: "/create", label: "Create ETF", icon: "plusCircle", badge: "New" },
     ],
   },
@@ -48,7 +49,7 @@ function useActive() {
 /** Minimal floating rail: icon + label, a black "create" key, appearance and account at the foot. */
 export function Sidebar() {
   const isActive = useActive();
-  const items = [NAV[0].items[0], ...NAV[1].items];
+  const items = [NAV[0].items[0], NAV[0].items[1], ...NAV[1].items];
 
   return (
     <div className="sticky top-0 hidden h-screen shrink-0 p-3 pr-0 md:block">
@@ -58,7 +59,7 @@ export function Sidebar() {
         </Link>
 
         <nav className="mt-8 flex flex-col items-center gap-1.5">
-          {items.slice(0, 1).map((it) => (
+          {items.slice(0, 2).map((it) => (
             <RailItem key={it.href} item={it} active={isActive(it.href)} />
           ))}
           <Link
@@ -70,7 +71,7 @@ export function Sidebar() {
             <Sym name="plus" size={22} stroke={2.4} />
             <span className="sr-only">Create ETF</span>
           </Link>
-          {items.slice(1).map((it) => (
+          {items.slice(2).map((it) => (
             <RailItem key={it.href} item={it} active={isActive(it.href)} />
           ))}
         </nav>
@@ -104,7 +105,7 @@ function RailItem({ item, active }: { item: NavItem; active: boolean }) {
 /** Floating glass tab bar for phones (iOS 26). */
 export function TabBar() {
   const isActive = useActive();
-  const tabs = [NAV[0].items[0], NAV[0].items[1], NAV[1].items[0], NAV[1].items[1]];
+  const tabs = [NAV[0].items[0], NAV[0].items[1], NAV[0].items[2], NAV[1].items[0]];
   return (
     <nav className="material fixed inset-x-4 bottom-[max(env(safe-area-inset-bottom),12px)] z-30 grid grid-cols-4 rounded-full p-1.5 md:hidden">
       {tabs.map((t) => {

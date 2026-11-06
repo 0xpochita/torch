@@ -22,6 +22,8 @@ import {
   Pulse,
   ShieldCheck,
   Sparkle,
+  Storefront,
+  Funnel,
   Stack,
   Tag,
   Trophy,
@@ -59,6 +61,8 @@ const ICONS = {
   wallet: Wallet,
   ellipsis: DotsThree,
   trophy: Trophy,
+  store: Storefront,
+  funnel: Funnel,
   arrowUp: ArrowUp,
   arrowDown: ArrowDown,
 } satisfies Record<string, Icon>;
