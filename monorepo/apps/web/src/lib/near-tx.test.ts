@@ -104,15 +104,17 @@ test("check surfaces contract panics and false results", () => {
   assert.throws(() => tx.check([outcome({ SuccessValue: "" }, [], [{ outcome: { logs: [], status: panic } }])]), /faucet: wait/);
   assert.throws(() => tx.check([outcome({ SuccessValue: btoa("false") })]), /rolled this back/);
   assert.doesNotThrow(() => tx.check([outcome({ SuccessValue: btoa('"7"') })]));
-  assert.doesNotThrow(() => tx.check([outcome(panic)], true));
+  assert.throws(() => tx.check([outcome(panic)], true), /faucet: wait/);
+  assert.doesNotThrow(() => tx.check([outcome({ SuccessValue: "" }, [], [{ outcome: { logs: [], status: panic } }])], true));
   assert.equal(tx.lastResult(outcome({ SuccessValue: btoa('"7"') })), "7");
 });
 
 test("events reads torch NEP-297 logs from every receipt", () => {
   const log = (event: string, data: object) => "EVENT_JSON:" + JSON.stringify({ standard: "torch", version: "1.0.0", event, data: [data] });
   const o = outcome({ SuccessValue: "" }, [log("gacha_pull", { token_id: "1", rarity: "Rare" }), "noise"], [
-    { outcome: { logs: [log("gacha_pull", { token_id: "2", rarity: "Legendary" }), log("vault_created", { token_id: "2" })], status: {} } },
+    { outcome: { logs: [log("gacha_pull", { token_id: "2", rarity: "Legendary" }), log("vault_created", { token_id: "2" })], status: {}, executor_id: GACHA } },
   ]);
+  assert.deepEqual(tx.events([o], "gacha_pull", { from: GACHA }).map((d) => d.token_id), ["2"]);
   assert.deepEqual(tx.events([o], "gacha_pull").map((d) => d.token_id), ["1", "2"]);
   assert.deepEqual(tx.events([o], "vault_created"), [{ token_id: "2" }]);
   assert.deepEqual(tx.events([o], "nft_mint"), []);

@@ -126,7 +126,7 @@ type Status = { SuccessValue?: string; Failure?: unknown } | string;
 export type Outcome = {
   transaction: { hash: string };
   status: Status;
-  receipts_outcome: { outcome: { logs: string[]; status: Status } }[];
+  receipts_outcome: { outcome: { logs: string[]; status: Status; executor_id?: string } }[];
 };
 
 export class TxError extends Error {
@@ -166,14 +166,13 @@ export function lastResult(o: Outcome): unknown {
 /**
  * Throws a TxError with the contract's own message when any receipt failed, or when the call
  * resolved to `false` (our callbacks return false after refunding: on_buy, on_accept_offer, on_vault_op…).
- * `partial` skips both checks for calls where a failed sub-promise is expected and refunded (gacha).
+ * `partial` only checks the call itself, for calls where a failed sub-promise is expected and refunded (gacha).
  */
 export function check(outcomes: Outcome[], partial = false): Outcome[] {
-  if (partial) return outcomes;
   for (const o of outcomes) {
-    const err = failureOf(o.status) ?? o.receipts_outcome.map((r) => failureOf(r.outcome.status)).find(Boolean);
+    const err = failureOf(o.status) ?? (partial ? null : o.receipts_outcome.map((r) => failureOf(r.outcome.status)).find(Boolean));
     if (err) throw new TxError(err.replace(/^Smart contract panicked: /, ""), outcomes);
-    if (lastResult(o) === false) throw new TxError("The contract rolled this back and refunded you. Nothing changed hands.", outcomes);
+    if (!partial && lastResult(o) === false) throw new TxError("The contract rolled this back and refunded you. Nothing changed hands.", outcomes);
   }
   return outcomes;
 }
@@ -197,11 +196,14 @@ export function walletError(e: unknown): string {
 
 export type TorchEvent = { event: string; data: Record<string, unknown>[] };
 
-/** NEP-297 `torch` events (and `nep171` ones) logged by any receipt of these outcomes. */
-export function events(outcomes: Outcome[], name: string, standard = "torch"): Record<string, unknown>[] {
+/**
+ * NEP-297 `torch` events (or another `standard`) logged by any receipt of these outcomes.
+ * `from` keeps only logs written by that contract, so no other receiver in the tx can fake one.
+ */
+export function events(outcomes: Outcome[], name: string, { standard = "torch", from }: { standard?: string; from?: string } = {}): Record<string, unknown>[] {
   return outcomes.flatMap((o) =>
     o.receipts_outcome.flatMap((r) =>
-      r.outcome.logs.flatMap((log) => {
+      (from && r.outcome.executor_id !== from ? [] : r.outcome.logs).flatMap((log) => {
         if (!log.startsWith("EVENT_JSON:")) return [];
         try {
           const e = JSON.parse(log.slice(11)) as TorchEvent & { standard: string };
