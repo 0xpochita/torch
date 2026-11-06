@@ -28,6 +28,17 @@ export const CATEGORY_ICON: Record<Category, IconName> = {
 };
 
 // Each category chip shows the artwork of its most liked basket.
+// ponytail: mock daily volume ending "today" (Thu); replace with indexed sales
+const VOLUME = [
+  { day: "Fri", usd: 6_210 },
+  { day: "Sat", usd: 4_880 },
+  { day: "Sun", usd: 7_340 },
+  { day: "Mon", usd: 9_120 },
+  { day: "Tue", usd: 8_050 },
+  { day: "Wed", usd: 10_960 },
+  { day: "Thu", usd: 12_480 },
+];
+
 const CATEGORY_ART = Object.fromEntries(
   CATEGORIES.map((c) => [c, ETFS.filter((e) => e.category === c).sort((a, b) => b.likes - a.likes)[0] ?? ETFS[0]]),
 ) as Record<Category, Etf>;
@@ -90,6 +101,27 @@ export function Explore() {
                   <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.listed).length / ETFS.length) * 100}%` }} />
                 </span>
               </StatTile>
+            </div>
+          </div>
+          {/* fills whatever height the hero leaves: 7-day volume */}
+          <div className="flex min-h-[120px] flex-1 flex-col gap-3 rounded-[20px] bg-fill p-3.5">
+            <span className="flex items-center justify-between text-[13px] font-semibold">
+              Volume · 7 days
+              <span className="font-normal text-muted">
+                <Money value={VOLUME.reduce((s, v) => s + v.usd, 0)} />
+              </span>
+            </span>
+            <div className="flex flex-1 items-end gap-2">
+              {VOLUME.map((v, i) => (
+                <div key={v.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                  <span
+                    className={`w-full rounded-[8px] ${i === VOLUME.length - 1 ? "bg-tint" : "bg-line"}`}
+                    style={{ height: `${(v.usd / Math.max(...VOLUME.map((x) => x.usd))) * 100}%` }}
+                    title={`$${v.usd.toLocaleString("en-US")}`}
+                  />
+                  <span className="text-[11px] text-muted">{v.day}</span>
+                </div>
+              ))}
             </div>
           </div>
         </section>
