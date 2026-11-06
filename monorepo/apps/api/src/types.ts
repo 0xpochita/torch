@@ -95,6 +95,8 @@ export type GachaPull = {
   at: number;
   /** false when the gacha logged gacha_fund_failed: the vault was minted but part of its basket went back to the treasury. */
   funded: boolean;
+  /** true when the gacha logged gacha_fund_unknown: a basket transfer's outcome could not be read; the owner reconciles it. */
+  fundUnknown: boolean;
   vault: VaultSummary | null;
 };
 

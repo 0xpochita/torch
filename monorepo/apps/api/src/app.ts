@@ -212,9 +212,9 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
   app.get("/gacha/recent", async (c) => {
     const limit = Math.min(Math.max(Number(c.req.query("limit")) || 20, 1), 100);
     const byId = new Map(vaults(await prices()).map((v) => [v.tokenId, summary(v)]));
-    const rows = all<{ token_id: string; player_id: string; rarity: string; pity_after: number; price: string; ts: number; funded: number }>(db, `SELECT * FROM pulls ORDER BY ts DESC LIMIT ${limit}`);
+    const rows = all<{ token_id: string; player_id: string; rarity: string; pity_after: number; price: string; ts: number; funded: number; fund_unknown: number }>(db, `SELECT * FROM pulls ORDER BY ts DESC LIMIT ${limit}`);
     return c.json<GachaPull[]>(
-      rows.map((r) => ({ tokenId: r.token_id, playerId: r.player_id, rarity: r.rarity as Rarity, pityAfter: r.pity_after, price: r.price, at: r.ts, funded: !!r.funded, vault: byId.get(r.token_id) ?? null })),
+      rows.map((r) => ({ tokenId: r.token_id, playerId: r.player_id, rarity: r.rarity as Rarity, pityAfter: r.pity_after, price: r.price, at: r.ts, funded: !!r.funded, fundUnknown: !!r.fund_unknown, vault: byId.get(r.token_id) ?? null })),
     );
   });
 

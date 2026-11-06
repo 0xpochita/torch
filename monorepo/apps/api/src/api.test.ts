@@ -219,6 +219,47 @@ describe("xcheck fixes", async () => {
       recent.map((p) => [p.tokenId, p.rarity, p.pityAfter, p.price, p.funded]).sort(),
       [["7", "Rare", 3, "100", false], ["8", "Rare", 3, "100", true]],
     );
+    assert.ok(recent.every((p) => !p.fundUnknown));
+  });
+
+  test("gacha_fund_unknown marks the pull unfunded + unknown; gacha_mint_unreadable is an activity event", async () => {
+    const { db, get } = fresh();
+    const pull = (token_id: string) => ev("torch", "gacha_pull", { player_id: "bob.testnet", token_id, rarity: "Epic", pity_after: 1, price: "100" });
+    const unknown = (token_id: string) => ev("torch", "gacha_fund_unknown", { player_id: "bob.testnet", token_id, ft_id: USDC, amount: "5" });
+    const failed = (token_id: string) => ev("torch", "gacha_fund_failed", { player_id: "bob.testnet", token_id, ft_id: USDC, amount: "5" });
+    block(db, config.gachaId, unknown("9"), pull("9"));
+    // Mixed basket: one item failed, the other unknown; order must not matter.
+    block(db, config.gachaId, unknown("10"), failed("10"), pull("10"));
+    block(db, config.gachaId, failed("11"), pull("11"));
+    block(db, "evil.testnet", unknown("11"));
+    const unreadable = { player_id: "carol.testnet", rarity: "Common", result: "true" };
+    block(db, config.gachaId, ev("torch", "gacha_mint_unreadable", unreadable));
+    block(db, "evil.testnet", ev("torch", "gacha_mint_unreadable", unreadable));
+
+    const recent = await get<GachaPull[]>("/gacha/recent");
+    assert.deepEqual(
+      recent.map((p) => [p.tokenId, p.rarity, p.funded, p.fundUnknown]).sort(),
+      [["10", "Epic", false, true], ["11", "Epic", false, false], ["9", "Epic", false, true]],
+    );
+    const act = await get<ActivityItem[]>("/activity?type=gacha_mint_unreadable");
+    assert.deepEqual(act.map((a) => [a.contractId, a.tokenId, a.data]), [[config.gachaId, null, unreadable]], "only the gacha's own event");
+    assert.equal((await get<ActivityItem[]>("/activity?account=carol.testnet")).length, 1);
+  });
+
+  test("databases from before fund_unknown get the column", async () => {
+    const { DatabaseSync } = await import("node:sqlite");
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const dir = mkdtempSync(join(tmpdir(), "torch-db-"));
+    const old = new DatabaseSync(join(dir, "t.db"));
+    old.exec("CREATE TABLE pulls (token_id TEXT PRIMARY KEY, player_id TEXT NOT NULL, rarity TEXT NOT NULL, pity_after INTEGER NOT NULL, price TEXT NOT NULL, ts INTEGER NOT NULL)");
+    old.close();
+    const db = openDb(join(dir, "t.db"));
+    const cols = (db.prepare("PRAGMA table_info(pulls)").all() as { name: string }[]).map((c) => c.name);
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+    assert.ok(cols.includes("funded") && cols.includes("fund_unknown"), cols.join());
   });
 
   test("X-5: a reverted nft_transfer_call keeps the listing, a real transfer hides it", async () => {

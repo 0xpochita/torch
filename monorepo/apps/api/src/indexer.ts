@@ -38,7 +38,7 @@ function trusted(cfg: Config, executor: string, ev: Event, d: Record<string, any
   if (ev.event === "vault_withdraw") return executor === cfg.collectionId && cfg.ftIds.includes(d.ft_id);
   if (ev.event === "vault_deposit") return executor === `${d.token_id}.${cfg.collectionId}` && cfg.ftIds.includes(d.ft_id);
   if (MARKET_EVENTS.includes(ev.event)) return executor === cfg.marketId;
-  if (ev.event === "gacha_pull" || ev.event === "gacha_fund_failed") return executor === cfg.gachaId;
+  if (["gacha_pull", "gacha_fund_failed", "gacha_fund_unknown", "gacha_mint_unreadable"].includes(ev.event)) return executor === cfg.gachaId;
   return false;
 }
 
@@ -101,15 +101,19 @@ function applyEvent(db: Db, cfg: Config, event: string, d: Record<string, any>, 
       );
       break;
     case "gacha_fund_failed":
-      // One per basket item that did not reach the vault ({player_id, token_id, ft_id, amount}); the
-      // following gacha_pull fills in rarity, pity and price.
+    case "gacha_fund_unknown": {
+      // One per basket item that did not reach the vault, or whose transfer result was unreadable
+      // ({player_id, token_id, ft_id, amount}); the following gacha_pull fills in rarity, pity and price.
+      const unknown = event === "gacha_fund_unknown" ? 1 : 0;
       run(
         db,
-        `INSERT INTO pulls (token_id, player_id, rarity, pity_after, price, ts, funded) VALUES (?, ?, ?, 0, '0', ?, 0)
-         ON CONFLICT (token_id) DO UPDATE SET funded = 0`,
-        tokenId, str(d.player_id), str(d.rarity ?? ""), ts,
+        `INSERT INTO pulls (token_id, player_id, rarity, pity_after, price, ts, funded, fund_unknown) VALUES (?, ?, ?, 0, '0', ?, 0, ?)
+         ON CONFLICT (token_id) DO UPDATE SET funded = 0, fund_unknown = MAX(fund_unknown, excluded.fund_unknown)`,
+        tokenId, str(d.player_id), str(d.rarity ?? ""), ts, unknown,
       );
       break;
+    }
+    // gacha_mint_unreadable {player_id, rarity, result}: no token id, so it only lives in /activity.
   }
 }
 
