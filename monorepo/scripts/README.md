@@ -4,12 +4,24 @@
 | --- | --- |
 | `deploy-testnet.sh` | near-cli-rs deploy of every contract under `torchvault.testnet`; idempotent, `DRY_RUN=1` prints the plan |
 | `seed-testnet.ts` | near-api-js demo data: 6 template vaults, 4 listings, 2 offers pinned to the vault balances (`min_balances`, amount + `offer_storage_cost()`), a `prune_listing` run on a stale listing, one gacha 10-pull; idempotent, `--check`, `DRY_RUN=1` |
+| `sandbox-e2e.sh` | one command: starts near-sandbox 2.14.0 (same as CI), runs the full deploy, a second deploy (must be a no-op), the full seed and `seed --check`, prints NEAR spent per step, stops everything |
 | `gacha-tiers.mjs` | gacha tiers (60/28/10/2) and basket amounts, used by the deploy |
 | `near-util.mjs` | read-only RPC + base58 helpers for the deploy's state checks |
 | `budget.md` | NEAR needed per step (≈ 47 NEAR for the deploy, < 2.5 per seed creator) |
 
 Tools: near-cli-rs ≥ 0.31 (`near`), `cargo near`, node ≥ 22, pnpm. Install the seed's deps once:
 `cd monorepo/scripts && pnpm install --ignore-workspace`.
+
+## Rehearse on a local sandbox first
+
+```bash
+./scripts/sandbox-e2e.sh      # from monorepo/; ~5 min with built wasm, SKIP_BUILD=1 to reuse it
+```
+
+Accounts keep the testnet shape under `test.near` (`torchvault.test.near`, `nft.torchvault.test.near`,
+...); `wrap.testnet`'s real wasm (read once from testnet, cached in `~/.near-sandbox`) stands in
+for wNEAR. The env files go to a temp dir, a temporary near-cli-rs connection `sandbox` is added and
+the CLI config is restored on exit. Last run: deploy 46.49 NEAR, seed 3.46 NEAR (`budget.md`).
 
 ## Run order
 

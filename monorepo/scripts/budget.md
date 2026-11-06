@@ -31,9 +31,28 @@ The size is near-contract-standards + serde, not our code.
 | 4–5 | deploy + init txs (gas only; code stake is in the balances above) | 0.3 | 0.3 |
 | 6 | `storage_deposit` gacha/market/root on 14 tokens: 42 × 0.00125 | 0.05 | 0.05 |
 | 7 | treasury mint + `ft_transfer_call` × 14 (gas only, mock tokens are free) | 0.2 | 0.2 |
-| 8 | gacha NEAR for mint deposits (`GACHA_NEAR`, ≈ 40 results at 0.115) | 5 | 5 |
+| 8 | gacha NEAR for mint deposits (`GACHA_NEAR`, ≈ 37 results at 0.135 measured) | 5 | 5 |
 | 9 | "Deploy check" vault mint | 0.11 | 0.11 |
 | | **Total** | **≈ 53** | **≈ 47** |
+
+### Measured on near-sandbox 2.14.0 (`scripts/sandbox-e2e.sh`, 6 Nov 2026)
+
+Root balance before and after each step of a full real run (`torchvault.test.near`, same
+account shapes, protocol 88 like testnet):
+
+| Step | Estimate | Measured |
+| --- | --- | --- |
+| 2 sub-accounts (3.5 + 3 + 2.5 + 14 × 0.3 + 17 create gas) | 13.2 | 13.321 |
+| 3 vault + mock_ft global publish | 28.0 | 27.975 |
+| 4–5 token, collection, market, gacha deploy + init (signed and paid by those accounts) | 0.3 | 0 on the root |
+| 6 42 × `storage_deposit` | 0.05 | 0.060 |
+| 7 treasury mint + fund × 14 | 0.2 | 0.011 |
+| 8 gacha NEAR | 5 | 5.000 |
+| 9 "Deploy check" mint + `list-keys` | 0.11 | 0.118 |
+| **Total** | **≈ 47** | **46.485** |
+
+A second run sends nothing (every step skips). Deploy gas for steps 4–5 comes out of each
+sub-account's own balance, inside the 0.3 / 2.5 / 3 / 3.5 NEAR they were created with.
 
 Keep ~2 NEAR extra on the root for retries. 0.3 NEAR per token account covers its metadata and
 ~250 faucet users (the contract pays ~100 bytes per faucet user; users pay their own NEP-145 deposit).
@@ -53,7 +72,8 @@ Not implemented: 8 tokens means rewriting the gacha baskets and the 6 `lib/mock.
 (they use all 14), for ~6 NEAR less than the `GACHA_NEAR=2` row. Only worth it if the faucet budget
 really caps out below ~45 NEAR.
 
-Top-ups later: each gacha result spends ~0.115 NEAR from the gacha's balance (the 0.1 NEAR pull
+Top-ups later: each gacha result spends ~0.135 NEAR from the gacha's balance (measured: a 10-pull
+cost creators + gacha 1.35 NEAR net, i.e. the mint deposits, per-item storage deposits and gas) (the 0.1 NEAR pull
 price stays in the contract and offsets most of it). Re-run with `GACHA_NEAR=<n>` or send NEAR
 directly when pulls start getting refunded.
 
@@ -71,3 +91,8 @@ directly when pulls start getting refunded.
 | gacha 10-pull (first creator only; spent, the gacha pays the mint deposits) | 0.9 |
 | gas | ~0.1 |
 | **Total** | **< 2.5 NEAR** (a faucet-funded 10 NEAR account is plenty) |
+
+Measured on near-sandbox for the whole seed (3 creators + the gacha together): 6 vaults
+0.87 (0.13–0.18 each), 4 listings 0.096, 2 offers 1.218 (1.175 escrow + storage, refundable),
+prune demo −0.075 (the revoke refunds approval storage), gacha 10-pull 1.351; **total 3.46 NEAR**,
+81 transactions.

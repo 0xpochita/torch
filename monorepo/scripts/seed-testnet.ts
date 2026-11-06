@@ -266,6 +266,27 @@ async function gacha(player: Account) {
   await send(player, GACHA, [{ method: "pull", args: { count: 10 }, deposit: nearToYocto("0.9"), gas: GAS_PULL }]);
 }
 
+/** Real runs: what the previous phase cost the creators and the gacha, in NEAR (gas + deposits + escrow). */
+const spendLog: [string, number][] = [];
+let lastPhase: { title: string; total: bigint } | undefined;
+async function balances(): Promise<bigint> {
+  let sum = 0n;
+  for (const id of [...creators.map((c) => c.accountId), GACHA]) sum += BigInt((await provider.viewAccount({ accountId: id })).amount);
+  return sum;
+}
+async function phase(title: string) {
+  if (!DRY_RUN && !CHECK) {
+    const total = await balances();
+    if (lastPhase) {
+      const near = Number(lastPhase.total - total) / 1e24;
+      spendLog.push([lastPhase.title, near]);
+      console.log(`  spent by creators + gacha: ${near.toFixed(4)} NEAR`);
+    }
+    lastPhase = { title, total };
+  }
+  console.log(`\n== ${title}`);
+}
+
 const mode = DRY_RUN ? " (DRY_RUN: plan only, no network)" : CHECK ? " (--check: read-only)" : "";
 console.log(`seed ${NETWORK}${mode}: ${creators.map((c) => c.accountId).join(", ")}`);
 if (READ) {
@@ -278,16 +299,16 @@ if (READ) {
 }
 const minted: { e: Etf; creator: Account; tokenId: string }[] = [];
 for (const [i, e] of ETFS.entries()) {
-  console.log(`\n== ${e.name} (${e.category})`);
+  await phase(`${e.name} (${e.category})`);
   const { tokenId, creator } = await mint(e, creators[i % creators.length]);
   await fund(e, creator, tokenId);
   minted.push({ e, creator, tokenId });
 }
 
-console.log("\n== market: list the 4 templates marked as listed");
+await phase("market: list the 4 templates marked as listed");
 for (const { e, creator, tokenId } of minted.filter((m) => m.e.listed).slice(0, 4)) await list(e, creator, tokenId);
 
-console.log("\n== market: 2 offers on unlisted vaults from another creator");
+await phase("market: 2 offers on unlisted vaults from another creator");
 for (const { e, creator, tokenId } of minted.filter((m) => !m.e.listed).slice(0, 2)) {
   const buyer = creators.find((c) => c !== creator);
   if (!buyer) {
@@ -297,7 +318,7 @@ for (const { e, creator, tokenId } of minted.filter((m) => !m.e.listed).slice(0,
   await offer(e, buyer, tokenId);
 }
 
-console.log("\n== market: prune_listing on a stale listing (list, revoke on the collection, prune)");
+await phase("market: prune_listing on a stale listing (list, revoke on the collection, prune)");
 {
   const target = minted.find((m) => !m.e.listed);
   if (target) {
@@ -306,7 +327,12 @@ console.log("\n== market: prune_listing on a stale listing (list, revoke on the 
   }
 }
 
-console.log(`\n== gacha: one 10-pull by ${creators[0].accountId}`);
+await phase(`gacha: one 10-pull by ${creators[0].accountId}`);
 await gacha(creators[0]);
+await phase("done");
+if (spendLog.length) {
+  const total = spendLog.reduce((a, [, n]) => a + n, 0);
+  console.log(`  total spent by creators + gacha: ${total.toFixed(4)} NEAR (offer escrow is refundable)`);
+}
 
 if (CHECK) console.log(pending ? `\n${pending} step(s) missing; run without --check to do them.` : "\nall seeded.");
