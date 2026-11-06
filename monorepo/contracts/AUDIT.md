@@ -370,3 +370,89 @@ vault). The gacha attaches only 40 Tgas to `mint`. Sandbox passes today. **Fix:*
 - **I-6** All three economic contracts have no admin, pause or upgrade path. This is good for
   trust, but H-2-style storage exhaustion can only be fixed by sending NEAR to the market
   account; document that in the deploy runbook.
+
+---
+
+# Wave 2 re-audit
+
+**Scope:** the contracts worker's changes on `Bimajadivaaa/torch-w2-contracts` up to `c9b5675`,
+which already merges this branch's market. The commits are `cb15198` (mint resolves to
+`Option<TokenId>`), `c08458a` and `8d10609` (integration tests, gas docs), and `735ffc8` (gacha
+`on_funded` / `gacha_fund_failed`, re-budgeted static gas, basket-only treasury). The merge also
+changes the collection's `MAX_APPROVALS` from 16 to 30, `GAS_CALLBACK` from 15 to 10 Tgas and
+`GAS_VAULT_INIT` from 10 to 5 Tgas. Line numbers below are at `c9b5675`.
+
+**Method:** the same skills as before (`near-contract-audit`, `near-nft-account` I1–I9). Every
+audit test (`market_unit`, `sandbox`, and the new `wave2`) was run against a detached checkout of
+`c9b5675`, with this branch's `audit-tests` copied in. All 9 tests pass there. Measured worst
+cases (sandbox 2.14, `cargo test -p audit-tests --test wave2 -- --nocapture`):
+
+| Path | Worst case exercised | Static gas | Burnt | Headroom | Test |
+| --- | --- | --- | --- | --- | --- |
+| `nft_resolve_transfer` revert (I9, L-1) | approval cap reached (**30**) with 62-char ids, `nft_transfer_call` to an account without code | 5 Tgas (fixed by near-contract-standards) | **3.36 Tgas** | 1.64 Tgas (33%) | `w2_resolve_transfer_at_the_approval_cap` |
+| `on_vault_created` (I4, L-8) | max-size metadata (1,130-char title, the largest the 1,200-byte cap accepts) to a **new 64-char owner**, `mint` with the least gas it accepts (27 Tgas) | 10 Tgas (`GAS_CALLBACK`) | **2.61 Tgas** | 7.4 Tgas | `w2_on_vault_created_worst_case_with_minimum_gas` |
+| `on_vault_op` lock release (I9) | `withdraw` with the least gas it accepts (54 Tgas) | 10 Tgas | **1.65 Tgas** | 8.4 Tgas | `w2_on_vault_op_unlocks_with_minimum_gas` |
+| gacha `pull(1)`, 3-item basket | least gas accepted: **100 Tgas** | 30 + 12 + 5 + 3×15 = 92 | 46 total | every step funded, 0 `gacha_fund_failed` | `w2_gacha_minimum_gas_pulls_fund_every_vault` |
+| gacha `pull(10)`, 3-item baskets | least gas accepted: **950 Tgas** (< 1 PGas testnet limit, protocol 88 per contracts README) | 920 | 446 total | all 10 vaults funded with every item, 0 `gacha_fund_failed`, treasury debited exactly once per pull | same |
+
+A smaller prepaid gas makes `mint`, `withdraw` and `pull` revert whole, because their static
+reservations do not fit. Reverting does not take a lock, mint a token or spend treasury, and
+`w2_on_vault_op_…` checks that each rejected withdraw left no lock. A player therefore cannot
+starve a callback by under-gassing, so the M-1 "low gas" trigger is gone.
+
+## New findings
+
+| Id | Severity | Where (`c9b5675`) | Finding | Fix |
+| --- | --- | --- | --- | --- |
+| W2-1 | Low | gacha/src/lib.rs:269-294 | `on_funded` treats a **Failed** `ft_transfer_call` result as "nothing arrived" and credits `amount` back. If the FT moved the tokens into the vault but its `ft_resolve_transfer` then failed (it has a fixed 5 Tgas; mock-ft burns ~1.3), the treasury is credited for tokens it no longer holds. Every later pull of that token is then paid but unfunded (`ft_transfer_call` panics on the balance, the amount is credited again, and the over-credit persists). Not player-triggerable: statics cover it (measured above). | On `Failed`, log `gacha_fund_unknown {token_id, ft_id, amount}` without crediting, and add an owner-only `resync_treasury(token)` that sets `treasury[token] = ft_balance_of(gacha)` through a callback. |
+| W2-2 | Low | gacha/src/lib.rs:223-230 | An unreadable mint result (anything but a token-id string or `null`, e.g. a wave-1 `true`) keeps the price, puts the basket back and only logs plain text. The player may hold an unfunded vault with no event the indexer understands. | Emit `gacha_fund_failed` (or a `gacha_mint_unreadable` event) with `player_id` and the raw result so the API marks the pull unfunded. |
+| W2-3 | Low | collection/src/lib.rs:30, 406 | Raising `MAX_APPROVALS` from 16 to 30 leaves 1.64 Tgas (33%) under the resolver's fixed 5 Tgas at worst-case id lengths. A protocol fee increase could erase that, and an out-of-gas resolver is a permanent lock (I9). The cap also blocks re-approving an already approved account once full. | Keep 16 (≈ 50% headroom), or override `nft_transfer_call` to schedule `nft_resolve_transfer` with ≥ 15 Tgas. Skip the cap when `account_id` is already approved. Keep `w2_resolve_…` in CI as the tripwire. |
+| W2-4 | Info | gacha/src/lib.rs:214-221 | A failed mint refunds the price but keeps the pity increment (documented `ponytail:`). This favours the player slightly. | Accepted. |
+| W2-5 | Info | vault/src/lib.rs:46-65 | The coordinator note "vault `ft_on_transfer` refunds non-basket tokens" does not match the code: the vault still keeps every deposit. The basket-only check is in the **gacha's** `ft_on_transfer` (fixes L-3). The API allow-list (xcheck X-1) therefore stays necessary, and a vault can still receive arbitrary NEP-141s (harmless to the owner). | None needed. Keep the API allow-list. |
+| W2-6 | Info | gacha/src/lib.rs:17-31 | A 10-pull needs ≥ 950 Tgas attached. Wallets that cap prepaid gas below 1 PGas cannot send it, and those pulls revert whole and refund. | The web should fall back to 1-pulls when the wallet rejects 1 PGas (documented in the contracts README). |
+
+No new High or Critical. The no-starve, I4 and I9 claims each have a measuring test in
+`audit-tests/tests/wave2.rs` (shared helpers are now in `tests/common/mod.rs`).
+
+Checked with no finding:
+- `on_vault_created -> Option<TokenId>` (collection:139-169) serializes to the id or `null`. The
+  gacha (198-231) parses `Option<String>` and maps `PromiseError::Failed` to `None` (refund the
+  price, credit the basket back). `null` and Failed both mean no token was minted (a panicking
+  callback rolls back the mint), so the refunds are correct.
+- `GAS_VAULT_INIT` 5 Tgas: if the vault's `new` runs out of gas, the whole create batch fails
+  atomically and the mint refunds (`null`), so no vault is left without a token. Measured mints
+  at minimum gas succeed.
+- Treasury accounting: `take_from_treasury` debits once in `pull`, and each item's batch result
+  is credited back only for `amount − used`. `w2_gacha_…` confirms the treasury ends at
+  `1,000,000 − 11 × 1000` per token after 11 pulls. A batch fails atomically: `storage_deposit`
+  and `ft_transfer_call` are one receipt, so tokens never leave on a failed batch.
+- `gacha_pull` is now emitted only in `on_funded`, after every item resolved (735ffc8).
+  `gacha_fund_failed {player_id, token_id, ft_id, amount}` comes first, in the same receipt. The
+  API indexes both (`pulls.funded`).
+
+## Status of every original finding (at `c9b5675`)
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| C-1 | **Fixed** | `cb15198`; `sandbox::c1_…` passes on `c9b5675` (vault funded, price kept) |
+| H-1 | **Fixed** | market `min_balances` balance check (this branch, merged); `sandbox::h1_…` passes, including the 250 Tgas positive control |
+| H-2 | **Fixed** | token-id bound + `offer_storage_cost()`; `sandbox::h2_…` passes (largest offer 1,347 bytes ≤ 2,000 charged) |
+| H-3 | **Fixed** | accept msg pins `amount`; `market_unit::h3_…` passes |
+| M-1 | **Fixed** | `on_funded` credits undelivered items back and emits `gacha_fund_failed`; `gacha_pull` after funding; statics cover every step (`w2_gacha_…`). Residual W2-1 (Low) |
+| M-2 | **Fixed** | market indexes + pagination; gacha `get_treasury` is bounded by basket tokens (L-3 fix) |
+| M-3 | **Accepted (testnet)** | randomness unchanged; commit-reveal or VRF before mainnet |
+| M-4 | **Fixed** | 10-pull accepted at 950 Tgas < 1 PGas, all vaults funded (`w2_gacha_…`) |
+| L-1 | **Fixed (watch W2-3)** | approval cap 30; resolver revert 3.36 / 5 Tgas at the cap |
+| L-2 | **Fixed** | contracts `integration-tests` `max_size_mint_fits_mint_storage` (1,824 bytes ≤ 2,000) |
+| L-3 | **Fixed** | gacha `ft_on_transfer` accepts basket tokens only (gacha:297-313) |
+| L-4 – L-7 | **Fixed** | market (this branch) |
+| L-8 | **Fixed** | `GAS_CALLBACK` 10 Tgas static vs 2.61 Tgas worst case (`w2_on_vault_created_…`) |
+| I-1 | Accepted | vault `withdraw` `ft_id` unvalidated, owner-only |
+| I-2 | **Fixed in API** | xcheck X-1 (allow-listed `ft_id`, exact-id pricing) |
+| I-3 | Fixed in API | rarity trusted only when `creator == gacha` |
+| I-4 | Open (accepted) | the gacha has no owner withdraw or treasury resync; see W2-1 |
+| I-5, I-6 | Accepted | testnet faucet; no admin by design |
+
+Merge note: xcheck X-6 is resolved by `c9b5675` (the integration tests use the wave-2 market
+shapes). On `torch-w2-audit` itself the collection and gacha are still pre-wave-2, so `c1_…` and `wave2` fail there until the contracts branch merges. At `c9b5675` the copied-in `audit-tests` from this branch (with `tests/common` and
+`wave2.rs`) pass.
