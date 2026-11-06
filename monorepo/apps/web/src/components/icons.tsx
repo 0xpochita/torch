@@ -45,6 +45,7 @@ import {
   User,
   Vault,
   Wallet,
+  SignOut,
 } from "@phosphor-icons/react/ssr";
 import type { Icon, IconWeight } from "@phosphor-icons/react";
 
@@ -94,6 +95,7 @@ const ICONS = {
   funnel: Funnel,
   arrowUp: ArrowUp,
   arrowDown: ArrowDown,
+  signOut: SignOut,
 } satisfies Record<string, Icon>;
 
 export type IconName = keyof typeof ICONS;
