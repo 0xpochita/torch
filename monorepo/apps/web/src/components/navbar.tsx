@@ -229,7 +229,7 @@ export function TabBar() {
 export function Topbar({ title, subtitle, children }: { title?: string; subtitle?: string; children?: ReactNode }) {
   return (
     <>
-      <header className="sticky top-[max(12px,env(safe-area-inset-top))] z-20 mt-3 flex items-center gap-2">
+      <header className="sticky top-0 z-20 -mx-3 flex items-center gap-2 bg-bg px-3 pb-3 pt-[max(12px,env(safe-area-inset-top))] md:-mx-8 md:px-8">
         <Link href="/" aria-label="Torch home" className="md:hidden">
           <Logo size={40} />
         </Link>
