@@ -207,14 +207,29 @@ export function ActionCircle({ icon, label, href, onClick, img }: { icon: IconNa
   );
 }
 
+/** 3D clay icons (public/icons) used in place of line icons on stat tiles. */
+const STAT_ICON: Partial<Record<IconName, string>> = {
+  vault: "/icons/nav/vaults.png",
+  pulse: "/icons/nav/activity.png",
+  store: "/icons/nav/market.png",
+  layers: "/icons/stat/layers.png",
+  person: "/icons/stat/person.png",
+  tag: "/icons/stat/tag.png",
+  swap: "/icons/stat/swap.png",
+};
+
 /** "Daily check-in" style stat tile. */
 export function StatTile({ icon, label, value, children }: { icon: IconName; label: string; value: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-col gap-2 rounded-[20px] bg-fill p-3.5">
       <span className="flex items-center gap-2 text-[13px] font-semibold">
-        <span className="grid size-6 place-items-center rounded-full bg-surface text-text">
-          <Sym name={icon} size={13} weight="bold" />
-        </span>
+        {STAT_ICON[icon] ? (
+          <Image src={STAT_ICON[icon]} alt="" width={28} height={28} className="-my-1" />
+        ) : (
+          <span className="grid size-6 place-items-center rounded-full bg-surface text-text">
+            <Sym name={icon} size={13} weight="bold" />
+          </span>
+        )}
         {label}
       </span>
       <span className="text-[20px] font-bold leading-none tracking-tight">{value}</span>
