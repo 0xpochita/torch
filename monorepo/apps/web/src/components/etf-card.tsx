@@ -3,7 +3,7 @@ import { BasketArt } from "@/components/basket-art";
 import type { ReactNode } from "react";
 import { Sym, SymTile, type IconName } from "@/components/icons";
 import { Money, NearAmount, shade } from "@/components/ui";
-import { type Etf, type HistoryEvent } from "@/lib/mock";
+import { type Etf, type HistoryEvent } from "@/lib/tokens";
 
 /** Soft pastel version of an ETF's background, used for card surfaces. */
 export const tint = (c: string, white = 62) => `color-mix(in oklab, ${c}, var(--surface) ${white}%)`;

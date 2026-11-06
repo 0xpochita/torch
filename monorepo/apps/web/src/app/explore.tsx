@@ -12,7 +12,7 @@ import { HeroBackdrop } from "@/components/hero-backdrop";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { ActionCircle, Avatar, Money, NearAmount, StatTile, Title, TokenStack } from "@/components/ui";
 import { toEvents, toNear, toVault, useApi, type LeaderboardRow, type Stats, type Vault, type VaultSummary } from "@/lib/api";
-import { CATEGORIES, type Category, type Etf } from "@/lib/mock";
+import { CATEGORIES, type Category, type Etf } from "@/lib/tokens";
 import { useAccount } from "@/providers/near-provider";
 
 const TABS = ["All", ...CATEGORIES] as const;

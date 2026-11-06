@@ -16,7 +16,7 @@ import { NETWORK, useAccount } from "@/providers/near-provider";
 import { Avatar, Money, NearAmount, TokenIcon, TokenStack } from "@/components/ui";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { toEvents, toNear, toVault, useApi, type ActivityItem, type OffersResponse, type Stats, type VaultSummary } from "@/lib/api";
-import { TOKENS, type Etf, type TokenKey } from "@/lib/mock";
+import { TOKENS, type Etf, type TokenKey } from "@/lib/tokens";
 
 const DEV_AS = NETWORK === "testnet" && process.env.NODE_ENV !== "production";
 
@@ -299,10 +299,10 @@ export function Vaults() {
                               <td className="px-2 py-3 text-right">
                                 {e.owner === account && (
                                   <span className="inline-flex gap-1.5">
-                                    <button onClick={() => open({ kind: "deposit", etfId: e.id, tokenId: e.id })} className="btn-line h-8 px-3 text-[13px] opacity-0 transition group-hover:opacity-100 focus:opacity-100">
+                                    <button onClick={() => open({ kind: "deposit", tokenId: e.id })} className="btn-line h-8 px-3 text-[13px] opacity-0 transition group-hover:opacity-100 focus:opacity-100">
                                       Deposit
                                     </button>
-                                    <button onClick={() => open({ kind: e.listed ? "delist" : "list", etfId: e.id, tokenId: e.id })} className={`${e.listed ? "btn-line" : "btn-tint"} h-8 px-3 text-[13px]`}>
+                                    <button onClick={() => open({ kind: e.listed ? "delist" : "list", tokenId: e.id })} className={`${e.listed ? "btn-line" : "btn-tint"} h-8 px-3 text-[13px]`}>
                                       {e.listed ? "Delist" : "List"}
                                     </button>
                                   </span>
@@ -384,7 +384,7 @@ export function Vaults() {
                       </td>
                       <td className="px-2 py-3 text-muted">{o.expiresHours < 24 ? `${o.expiresHours}h` : `${Math.round(o.expiresHours / 24)}d`}</td>
                       <td className="px-2 py-3 text-right">
-                        <button onClick={() => open({ kind: "accept", etfId: o.etf.id, tokenId: o.etf.id, offer: { from: o.from, priceNear: o.priceNear } })} className="btn-tint h-8 px-3 text-[13px]">
+                        <button onClick={() => open({ kind: "accept", tokenId: o.etf.id, offer: { from: o.from, priceNear: o.priceNear } })} className="btn-tint h-8 px-3 text-[13px]">
                           Accept
                         </button>
                       </td>

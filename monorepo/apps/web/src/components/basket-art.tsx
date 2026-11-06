@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { TOKENS, type Allocation } from "@/lib/mock";
+import { TOKENS, type Allocation } from "@/lib/tokens";
 
 /**
  * Vault artwork: the basket's token logos side by side, heaviest weight in the middle and the rest

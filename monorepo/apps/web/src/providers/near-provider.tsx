@@ -15,6 +15,11 @@ type NearCtx = {
   /** Liquid NEAR balance of `accountId`, null until loaded. */
   balance: number | null;
   wallet: NearWalletBase | null;
+  /**
+   * The wallet signs several transactions in one approval (`signAndSendTransactions` in its manifest).
+   * Batch flows still work without it: near-tx `send()` falls back to one approval per transaction.
+   */
+  canBatch: boolean;
   connector: NearConnector | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -101,7 +106,7 @@ export function NearProvider({ children }: { children: ReactNode }) {
   }, [connector, wallet]);
 
   return (
-    <Ctx.Provider value={{ ready, accountId, balance: balance?.accountId === accountId ? balance.near : null, wallet, connector, signIn, signOut }}>
+    <Ctx.Provider value={{ ready, accountId, balance: balance?.accountId === accountId ? balance.near : null, wallet, canBatch: !!wallet?.manifest?.features?.signAndSendTransactions, connector, signIn, signOut }}>
       {children}
     </Ctx.Provider>
   );

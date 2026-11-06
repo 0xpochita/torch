@@ -29,13 +29,28 @@ const call = (methodName: string, args: object, tgas: number, deposit = "0"): Ac
 /** Wave 1 delta: buy ~200 Tgas. Attached deposit must equal the listing price exactly. */
 export const buyTx = (tokenId: string, priceYocto: string): Tx => ({ receiverId: MARKET, actions: [call("buy", { token_id: tokenId }, 200, priceYocto)] });
 
-/** Escrows `amountYocto` (≥ 0.01 NEAR) until `expiresAt` (ms). */
-export const offerTx = (tokenId: string, amountYocto: string, expiresAt: number): Tx => ({
+export type MinBalance = { ft_id: string; amount: string };
+/** `offer_storage_cost()` fallback (≈ 0.02 NEAR per INTERFACES); any excess is refunded. */
+export const OFFER_STORAGE_FALLBACK = nearToYocto("0.02").toString();
+
+/**
+ * Escrows `amountYocto` (≥ 0.01 NEAR) until `expiresAt` (ms, ≤ now + 365 d). Attaches amount + the market's
+ * offer storage cost. `minBalances` (max 4) pins basket tokens: accept fails if the vault was drained below them.
+ */
+export const offerTx = (tokenId: string, amountYocto: string, expiresAt: number, minBalances: MinBalance[] = [], storageYocto = OFFER_STORAGE_FALLBACK): Tx => ({
   receiverId: MARKET,
-  actions: [call("offer", { token_id: tokenId, expires_at: expiresAt }, 30, amountYocto)],
+  actions: [
+    call(
+      "offer",
+      { token_id: tokenId, amount: amountYocto, expires_at: expiresAt, min_balances: minBalances.slice(0, 4) },
+      50,
+      (BigInt(amountYocto) + BigInt(storageYocto)).toString(),
+    ),
+  ],
 });
 
-export const cancelOfferTx = (tokenId: string): Tx => ({ receiverId: MARKET, actions: [call("cancel_offer", { token_id: tokenId }, 30)] });
+/** Refunds amount + storage deposit. */
+export const cancelOfferTx = (tokenId: string): Tx => ({ receiverId: MARKET, actions: [call("cancel_offer", { token_id: tokenId }, 30, ONE_YOCTO)] });
 
 /** List = approve the market with a price msg; the market's nft_on_approve records the listing. */
 export const listTx = (tokenId: string, priceYocto: string): Tx => ({
@@ -43,15 +58,15 @@ export const listTx = (tokenId: string, priceYocto: string): Tx => ({
   actions: [call("nft_approve", { token_id: tokenId, account_id: MARKET, msg: JSON.stringify({ list: { price: priceYocto } }) }, 100, APPROVE_DEPOSIT)],
 });
 
-/** Accept an offer in one tx (wave 1 delta: ~250 Tgas). */
-export const acceptTx = (tokenId: string, buyerId: string): Tx => ({
+/** Accept an offer in one tx (~250 Tgas). `amountYocto` must equal the live offer amount exactly. */
+export const acceptTx = (tokenId: string, buyerId: string, amountYocto: string): Tx => ({
   receiverId: COLLECTION,
-  actions: [call("nft_approve", { token_id: tokenId, account_id: MARKET, msg: JSON.stringify({ accept_offer: { buyer_id: buyerId } }) }, 250, APPROVE_DEPOSIT)],
+  actions: [call("nft_approve", { token_id: tokenId, account_id: MARKET, msg: JSON.stringify({ accept_offer: { buyer_id: buyerId, amount: amountYocto } }) }, 250, APPROVE_DEPOSIT)],
 });
 
 /** Delist on the market, then revoke the approval so the vault can withdraw again. */
 export const delistTxs = (tokenId: string): Tx[] => [
-  { receiverId: MARKET, actions: [call("delist", { token_id: tokenId }, 30)] },
+  { receiverId: MARKET, actions: [call("delist", { token_id: tokenId }, 30, ONE_YOCTO)] },
   { receiverId: COLLECTION, actions: [call("nft_revoke", { token_id: tokenId, account_id: MARKET }, 30, ONE_YOCTO)] },
 ];
 
@@ -118,7 +133,7 @@ export function formatUnits(raw: string | bigint, decimals: number): string {
 }
 
 /** Base units → number for display (float is fine here, never sent back on-chain). */
-export const fromUnits = (raw: string | bigint, decimals: number) => Number(BigInt(raw)) / 10 ** decimals;
+export const fromUnits = (raw: string | bigint, decimals: number) => Number(formatUnits(raw, decimals)); // via the exact string: 1e23/1e24 is 0.09999…
 
 /* ---------- send + read results ---------- */
 
@@ -177,15 +192,41 @@ export function check(outcomes: Outcome[], partial = false): Outcome[] {
   return outcomes;
 }
 
-/** One approval for every tx; a single tx uses signAndSendTransaction (wider wallet support). */
-export async function send(wallet: NearWalletBase, txs: Tx[], { partial = false } = {}): Promise<Outcome[]> {
-  let res: unknown;
-  try {
-    res = txs.length === 1 ? [await wallet.signAndSendTransaction(txs[0])] : await wallet.signAndSendTransactions({ transactions: txs });
-  } catch (e) {
-    throw new TxError(walletError(e));
+/** True when the wallet signs several transactions in one approval (manifest feature flag). */
+export const canBatch = (wallet: Pick<NearWalletBase, "manifest"> | null) => !!wallet?.manifest?.features?.signAndSendTransactions;
+
+/**
+ * Signs and sends `txs`. One approval for all of them when the wallet supports batches; otherwise one
+ * signAndSendTransaction per tx in order, stopping at the first failure. `onStep(i, n)` fires before
+ * each wallet prompt in that fallback so the UI can show "step i of n".
+ */
+export async function send(
+  wallet: NearWalletBase,
+  txs: Tx[],
+  { partial = false, onStep }: { partial?: boolean; onStep?: (i: number, n: number) => void } = {},
+): Promise<Outcome[]> {
+  if (txs.length > 1 && canBatch(wallet)) {
+    let res: unknown;
+    try {
+      res = await wallet.signAndSendTransactions({ transactions: txs });
+    } catch (e) {
+      throw new TxError(walletError(e));
+    }
+    return check(res as Outcome[], partial);
   }
-  return check(res as Outcome[], partial);
+  const done: Outcome[] = [];
+  for (const [i, t] of txs.entries()) {
+    if (txs.length > 1) onStep?.(i, txs.length);
+    let res: Outcome;
+    try {
+      res = (await wallet.signAndSendTransaction(t)) as unknown as Outcome;
+    } catch (e) {
+      throw new TxError(txs.length > 1 && i > 0 ? `Step ${i + 1} of ${txs.length}: ${walletError(e)} (earlier steps went through)` : walletError(e), done);
+    }
+    done.push(res);
+    check([res], partial);
+  }
+  return done;
 }
 
 /** Wallets reject with strings, Errors or RPC error objects. */

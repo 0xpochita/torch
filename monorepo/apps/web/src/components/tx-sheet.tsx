@@ -8,19 +8,22 @@ import { Sym, type IconName } from "@/components/icons";
 import { ConnectPrompt } from "@/components/navbar";
 import HoldButton from "@/components/react-bits/HoldButton";
 import { ActionCircle, Avatar, Money, NearAmount, Segmented, TokenIcon } from "@/components/ui";
+import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { useNear } from "@/providers/near-provider";
-import { ETFS, LISTINGS, MY_VAULTS, NEAR_USD, TOKENS, getEtf, type Etf, type TokenKey } from "@/lib/mock";
-import { MARKET, ftByKey, vaultOf } from "@/lib/contracts";
+import { TOKENS, type Etf, type TokenKey } from "@/lib/tokens";
+import { FTS, MARKET, ftByKey, vaultOf } from "@/lib/contracts";
+import { toNear, toVault, tokenKey, useApi, type Stats, type VaultDetail, type VaultSummary } from "@/lib/api";
 import * as near from "@/lib/near-tx";
 
 /* One sheet for every vault transaction: review → wallet signature → done (or the wallet/contract error). */
 
 export type TxKind = "buy" | "offer" | "accept" | "deposit" | "withdraw" | "transfer" | "list" | "delist";
 /**
- * `tokenId` is the on-chain NFT id; it defaults to `listingId ?? etfId`, which is what the pages pass
- * (vault ids are the sequential token ids). Display data still comes from the page's ETF/listing.
+ * `tokenId` is the on-chain NFT id. Without one,
+ * the sheet lets the signed-in owner pick one of their vaults. Everything shown is loaded from the API
+ * (`/vaults/:id`) by that id; the buy price and listing state are re-read on-chain before signing.
  */
-export type Tx = { kind: TxKind; etfId?: string; listingId?: string; tokenId?: string; offer?: { from: string; priceNear: number } };
+export type Tx = { kind: TxKind; tokenId?: string; offer?: { from: string; priceNear: number } };
 
 // Market contract: 2% fee out of the price, then 2.5% creator royalty out of the remaining 98% (wave 1 deltas).
 const MARKET_FEE = 0.02;
@@ -47,7 +50,7 @@ export function TxProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={setTx}>
       {children}
-      <AnimatePresence>{tx && <Sheet key={tx.kind + (tx.tokenId ?? tx.listingId ?? tx.etfId ?? "")} tx={tx} onClose={() => setTx(null)} />}</AnimatePresence>
+      <AnimatePresence>{tx && <Sheet key={tx.kind + (tx.tokenId ?? "")} tx={tx} onClose={() => setTx(null)} />}</AnimatePresence>
     </Ctx.Provider>
   );
 }
@@ -74,30 +77,110 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n < 1 ? 6 : 2 });
 const DECIMAL = /^\d*\.?\d*$/;
 
+/** Overlay + dialog card shared by every sheet state. `locked` while the wallet is open. */
+function Frame({ title, locked = false, onClose, children }: { title: string; locked?: boolean; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [locked, onClose]);
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <button aria-label="Close" onClick={() => !locked && onClose()} className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" />
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        initial={{ y: 40, scale: 0.97 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: 30, scale: 0.97, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+        className="relative flex max-h-[92dvh] w-full max-w-[440px] flex-col overflow-y-auto rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080]"
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/** Resolves which vault the sheet is about and loads it from the API; the review mounts once it has data. */
 function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
-  const listing = tx.listingId ? LISTINGS.find((l) => l.id === tx.listingId) : undefined;
-  const owned = ETFS.filter((e) => (MY_VAULTS.owned as readonly string[]).includes(e.id));
-  const [vaultId, setVaultId] = useState(listing?.etf.id ?? tx.etfId ?? owned[0].id);
-  const etf = getEtf(vaultId)!;
-  const tokenId = tx.tokenId ?? tx.listingId ?? vaultId;
-  const name = listing?.name ?? etf.name;
-  const value = listing?.navUsd ?? etf.navUsd;
-  const seller = listing?.seller ?? etf.owner;
   const m = META[tx.kind];
-  const { accountId: account, wallet } = useNear();
+  const { accountId } = useNear();
+  const given = tx.tokenId ?? null;
+  const [picked, setPicked] = useState<string | null>(null);
+  const mine = useApi<VaultSummary[]>(!given && accountId ? `/vaults?owner=${encodeURIComponent(accountId)}` : null);
+  const tokenId = given ?? picked ?? mine.data?.[0]?.tokenId ?? null;
+  // Signed out still shows the vault (the review swaps its CTA for "connect"); only the picker needs an account.
+  const detail = useApi<VaultDetail>(tokenId ? `/vaults/${encodeURIComponent(tokenId)}` : null);
+
+  if (detail.data && detail.data.tokenId === tokenId)
+    return <Review key={tokenId} tx={tx} detail={detail.data} owned={given ? undefined : mine.data} onPick={setPicked} onClose={onClose} />;
+
+  const failed = detail.error ?? mine.error;
+  return (
+    <Frame title={m.title} onClose={onClose}>
+      {!accountId && !given ? (
+        <ConnectPrompt className="" sub={`Connect a NEAR wallet to ${m.title.toLowerCase()}. Nothing is signed until you confirm.`} />
+      ) : failed ? (
+        <ErrorState error={failed} className="!p-4" />
+      ) : mine.data && !mine.data.length ? (
+        <EmptyState title="No vaults yet" body="Mint a vault first, then come back to fund or move it." className="!p-4">
+          <Link href="/create" onClick={onClose} className="btn-ink mt-2 grid h-11 place-items-center px-5 text-[15px]">
+            Create a vault
+          </Link>
+        </EmptyState>
+      ) : (
+        <div className="flex flex-col gap-4" aria-busy="true" aria-label={`Loading vault ${tokenId ?? ""}`}>
+          <Skeleton className="h-10 w-2/3" />
+          <Skeleton className="h-[76px]" />
+          <Skeleton className="h-36" />
+          <Skeleton className="h-12" />
+        </div>
+      )}
+    </Frame>
+  );
+}
+
+function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultDetail; owned?: VaultSummary[]; onPick: (id: string) => void; onClose: () => void }) {
+  const tokenId = detail.tokenId;
+  const etf = toVault(detail);
+  const name = etf.name;
+  const value = detail.navUsd;
+  const seller = detail.listing?.sellerId ?? detail.ownerId;
+  const m = META[tx.kind];
+  const { accountId: account, wallet, canBatch, ready, signIn } = useNear();
+  const nearUsd = useApi<Stats>("/stats").data?.nearUsd ?? 0; // 0 hides USD estimates until it loads
+  // Accept from a page that did not pick an offer: the best live one.
+  // The exact yocto amount comes from the API's live offers: accept must match it to the yocto.
+  const liveOffers = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1));
+  const picked = tx.offer ? liveOffers.find((o) => o.buyerId === tx.offer!.from) : liveOffers[0];
+  const offerIn = picked && { from: picked.buyerId, amount: picked.amount, priceNear: toNear(picked.amount) };
+  // Offers pin up to 4 basket tokens at the vault's current balance (largest value first), so a drained vault cannot be sold.
+  const pins: near.MinBalance[] = detail.balances
+    .filter((b) => BigInt(b.amount) > BigInt(0))
+    .sort((a, b) => b.valueUsd - a.valueUsd)
+    .slice(0, 4)
+    .map((b) => ({ ft_id: b.ftId, amount: b.amount }));
+  const storage = near.useView<string>(tx.kind === "offer" ? MARKET : null, "offer_storage_cost").data ?? near.OFFER_STORAGE_FALLBACK;
 
   // The live listing decides the buy price (it must match exactly) and blocks withdraw while listed.
   const needsListing = ["buy", "offer", "delist", "withdraw", "list"].includes(tx.kind);
   const live = near.useView<Listing | null>(needsListing ? MARKET : null, "get_listing", { token_id: tokenId });
   const onChain = live.data ?? null;
-  const price = onChain ? near.fromUnits(onChain.price, 24) : (listing?.priceNear ?? etf.priceNear);
+  const price = onChain ? near.fromUnits(onChain.price, 24) : detail.listing ? toNear(detail.listing.price) : 0;
+
+  // Deposit: the basket's tokens (or any token for an empty basket). Withdraw: what the vault holds.
+  const held = detail.balances.filter((b) => BigInt(b.amount) > BigInt(0)).flatMap((b) => tokenKey(b.ftId) ?? []);
+  const choices: TokenKey[] = tx.kind === "withdraw" ? held : etf.allocation.length ? etf.allocation.map((a) => a.token) : FTS.map((f) => f.key);
 
   const [phase, setPhase] = useState<Phase>("review");
+  const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
-  const [offer, setOffer] = useState(r2(price * 0.9));
+  const [offer, setOffer] = useState(price ? r2(price * 0.9) : 0.1);
   const [expiry, setExpiry] = useState<"1 day" | "3 days" | "7 days">("3 days");
-  const [ftKey, setFtKey] = useState<TokenKey>(etf.allocation[0].token);
+  const [ftKey, setFtKey] = useState<TokenKey>(choices[0] ?? "USDC");
   const [amount, setAmount] = useState("");
   const [to, setTo] = useState("");
 
@@ -114,25 +197,19 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
     }
   })();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && phase !== "pending" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [phase, onClose]);
-
   const build = (): near.Tx[] => {
     const yocto = (n: number) => near.toUnits(n, 24);
     switch (tx.kind) {
       case "buy":
         return [near.buyTx(tokenId, onChain!.price)];
       case "offer":
-        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)))];
+        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)), pins, storage)];
       case "list":
         return [near.listTx(tokenId, yocto(offer))];
       case "delist":
         return near.delistTxs(tokenId);
       case "accept":
-        return [near.acceptTx(tokenId, tx.offer!.from)];
+        return [near.acceptTx(tokenId, offerIn!.from, offerIn!.amount)];
       case "deposit":
         return [near.depositTx(tokenId, ft.id, amountRaw.toString())];
       case "withdraw":
@@ -146,9 +223,11 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
   const submit = async () => {
     if (!wallet) return;
     setError(null);
+    setStep(null);
     setPhase("pending");
     try {
-      const outcomes = await near.send(wallet, build());
+      // wallets without batch signing get one prompt per tx; say which one is up
+      const outcomes = await near.send(wallet, build(), { onStep: (i, n) => setStep(`step ${i + 1} of ${n}`) });
       setHash(outcomes[outcomes.length - 1].transaction.hash);
       setPhase("done");
     } catch (e) {
@@ -172,28 +251,13 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
               ? amountRaw > BigInt(0) && amountRaw <= balRaw && !(tx.kind === "withdraw" && onChain)
               : tx.kind === "transfer"
                 ? validTo
-                : !!tx.offer);
+                : !!offerIn && detail.ownerId === account);
   const holdToConfirm = tx.kind === "buy" || tx.kind === "transfer" || tx.kind === "accept";
 
   return (
-    <motion.div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-      <button aria-label="Close" onClick={() => phase !== "pending" && onClose()} className="absolute inset-0 cursor-default bg-black/45 backdrop-blur-sm" />
-      <motion.div
-        role="dialog"
-        aria-modal="true"
-        aria-label={m.title}
-        initial={{ y: 40, scale: 0.97 }}
-        animate={{ y: 0, scale: 1 }}
-        exit={{ y: 30, scale: 0.97, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 420, damping: 34 }}
-        className="relative flex max-h-[92dvh] w-full max-w-[440px] flex-col overflow-y-auto rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080]"
-      >
+    <Frame title={m.title} locked={phase === "pending"} onClose={onClose}>
         <AnimatePresence mode="wait" initial={false}>
-          {!account ? (
-            <motion.div key="connect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <ConnectPrompt className="" sub={`Connect a NEAR wallet to ${m.title.toLowerCase()}. Nothing is signed until you confirm.`} />
-            </motion.div>
-          ) : phase === "done" ? (
+          {phase === "done" ? (
             <Done key="done" kind={tx.kind} etf={etf} name={name} hash={hash} onClose={onClose} detail={doneDetail()} />
           ) : (
             <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4">
@@ -228,10 +292,10 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                 </div>
               </div>
 
-              {!listing && !tx.etfId && !tx.tokenId && (
+              {owned && owned.length > 1 && (
                 <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
-                  {owned.map((e) => (
-                    <button key={e.id} onClick={() => (setVaultId(e.id), setFtKey(e.allocation[0].token), setAmount(""))} className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${vaultId === e.id ? "bg-text text-surface" : "bg-fill"}`}>
+                  {owned.map((v) => toVault(v)).map((e) => (
+                    <button key={e.id} onClick={() => onPick(e.id)} disabled={phase === "pending"} className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${tokenId === e.id ? "bg-text text-surface" : "bg-fill"}`}>
                       <Artwork etf={e} size={28} className="rounded-full" />
                       {e.name}
                     </button>
@@ -241,7 +305,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
 
               {tx.kind === "buy" && (
                 <>
-                  <BigAmount near={price} />
+                  <BigAmount near={price} usd={nearUsd} />
                   <Rows
                     rows={[
                       ["Price", <NearAmount key="p" amount={fmt(price)} />],
@@ -280,7 +344,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                       />
                     </span>
                     <span className="text-[13px] text-muted">
-                      ≈ <Money value={offer * NEAR_USD} />
+                      ≈ <Money value={offer * nearUsd} />
                       {tx.kind === "offer" && onChain && (
                         <>
                           {" "}
@@ -292,12 +356,12 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                   {tx.kind === "offer" ? (
                     <>
                       <div className="flex gap-1.5">
-                        {[5, 10, 15].map((p) => (
+                        {(price ? [5, 10, 15] : []).map((p) => (
                           <Chip key={p} on={offer === r2(price * (1 - p / 100))} onClick={() => setOffer(r2(price * (1 - p / 100)))}>
                             −{p}%
                           </Chip>
                         ))}
-                        <Chip on={offer === r2(value / NEAR_USD)} onClick={() => setOffer(r2(value / NEAR_USD))}>
+                        <Chip on={!!nearUsd && offer === r2(value / nearUsd)} onClick={() => nearUsd && setOffer(r2(value / nearUsd))}>
                           Basket value
                         </Chip>
                       </div>
@@ -305,8 +369,14 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                         <span className="text-[14px] font-semibold">Expires in</span>
                         <Segmented options={["1 day", "3 days", "7 days"] as const} value={expiry} onChange={setExpiry} />
                       </div>
-                      <Note tone={offer < 0.01 ? "warn" : offer >= price * 0.95 ? "up" : "muted"}>
-                        {offer < 0.01 ? "Offers start at 0.01 NEAR." : offer >= price * 0.95 ? "Within 5% of the asking price — offers like this usually get accepted." : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires.
+                      <Note tone={offer < 0.01 ? "warn" : price && offer >= price * 0.95 ? "up" : "muted"}>
+                        {offer < 0.01
+                          ? "Offers start at 0.01 NEAR."
+                          : !price
+                            ? "Not listed: the owner sees your offer and can accept it any time before it expires."
+                            : offer >= price * 0.95
+                              ? "Within 5% of the asking price — offers like this usually get accepted."
+                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires, plus {fmt(near.fromUnits(storage, 24))} NEAR offer storage that comes back with it.{pins.length > 0 && ` It only goes through if the vault still holds today's ${pins.map((p) => TOKENS[tokenKey(p.ft_id) ?? "NEAR"].symbol).join(", ")} balance.`}
                       </Note>
                     </>
                   ) : (
@@ -326,9 +396,13 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
 
               {tx.kind === "delist" && (
                 <>
-                  {onChain && <BigAmount near={price} />}
+                  {onChain && <BigAmount near={price} usd={nearUsd} />}
                   <Note tone={onChain || live.loading ? "muted" : "warn"}>
-                    {live.loading ? "Checking the listing on-chain…" : onChain ? "Removes the listing and revokes the market's approval, so you can withdraw again. Two transactions, one approval." : "This vault is not listed."}
+                    {live.loading
+                      ? "Checking the listing on-chain…"
+                      : onChain
+                        ? `Removes the listing and revokes the market's approval, so you can withdraw again. ${canBatch ? "Two transactions, one approval." : "Your wallet signs them one at a time: two approvals."}`
+                        : "This vault is not listed."}
                   </Note>
                 </>
               )}
@@ -336,10 +410,10 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
               {(tx.kind === "deposit" || tx.kind === "withdraw") && (
                 <>
                   <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
-                    {etf.allocation.map((a) => (
-                      <button key={a.token} onClick={() => (setFtKey(a.token), setAmount(""))} className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${ftKey === a.token ? "bg-text text-surface" : "bg-fill"}`}>
-                        <TokenIcon token={a.token} size={26} />
-                        {TOKENS[a.token].symbol}
+                    {choices.map((t) => (
+                      <button key={t} onClick={() => (setFtKey(t), setAmount(""))} className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${ftKey === t ? "bg-text text-surface" : "bg-fill"}`}>
+                        <TokenIcon token={t} size={26} />
+                        {TOKENS[t].symbol}
                       </button>
                     ))}
                   </div>
@@ -405,23 +479,26 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                 </>
               )}
 
-              {tx.kind === "accept" && tx.offer && (
+              {tx.kind === "accept" && !offerIn && <Note tone="warn">{tx.offer ? `${tx.offer.from}'s offer is no longer live.` : "No live offers on this vault right now."}</Note>}
+              {tx.kind === "withdraw" && !choices.length && <Note tone="warn">This vault holds no tokens yet. Deposit first.</Note>}
+
+              {tx.kind === "accept" && offerIn && (
                 <>
                   <div className="flex flex-col items-center gap-1 py-2">
-                    <NearAmount amount={fmt(tx.offer.priceNear)} className="title-chunky text-[44px]" />
+                    <NearAmount amount={fmt(offerIn.priceNear)} className="title-chunky text-[44px]" />
                     <span className="flex items-center gap-1.5 text-[13px] text-muted">
-                      from <Avatar account={tx.offer.from} size={16} /> {tx.offer.from}
+                      from <Avatar account={offerIn.from} size={16} /> {offerIn.from}
                     </span>
                   </div>
                   <Rows
                     rows={[
-                      ["Offer", <NearAmount key="o" amount={fmt(tx.offer.priceNear)} />],
-                      [`Marketplace fee · ${MARKET_FEE * 100}%`, <NearAmount key="f" amount={`−${fmt(tx.offer.priceNear * MARKET_FEE)}`} />],
-                      [`Creator royalty · ${ROYALTY * 100}%`, <NearAmount key="r" amount={`−${fmt(tx.offer.priceNear * (1 - MARKET_FEE) * ROYALTY)}`} />],
+                      ["Offer", <NearAmount key="o" amount={fmt(offerIn.priceNear)} />],
+                      [`Marketplace fee · ${MARKET_FEE * 100}%`, <NearAmount key="f" amount={`−${fmt(offerIn.priceNear * MARKET_FEE)}`} />],
+                      [`Creator royalty · ${ROYALTY * 100}%`, <NearAmount key="r" amount={`−${fmt(offerIn.priceNear * (1 - MARKET_FEE) * ROYALTY)}`} />],
                     ]}
-                    total={["You receive", <NearAmount key="t" amount={fmt(tx.offer.priceNear * (1 - MARKET_FEE) * (1 - ROYALTY))} />]}
+                    total={["You receive", <NearAmount key="t" amount={fmt(offerIn.priceNear * (1 - MARKET_FEE) * (1 - ROYALTY))} />]}
                   />
-                  <Note tone="warn">The vault and all {etf.allocation.length} tokens inside move to {tx.offer.from} in one transaction. If the offer expired or was withdrawn, nothing moves.</Note>
+                  <Note tone="warn">The vault and all {etf.allocation.length} tokens inside move to {offerIn.from} in one transaction. If the offer expired or was withdrawn, nothing moves.</Note>
                 </>
               )}
 
@@ -440,10 +517,14 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                 <button onClick={onClose} disabled={phase === "pending"} className="btn-line h-12 px-5 text-[15px] disabled:opacity-40">
                   Cancel
                 </button>
-                {phase === "pending" ? (
+                {!account ? (
+                  <button onClick={signIn} disabled={!ready} className="btn-ink h-12 flex-1 text-[15px]">
+                    {ready ? `Connect wallet to ${m.title.toLowerCase()}` : "Loading wallets…"}
+                  </button>
+                ) : phase === "pending" ? (
                   <div className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full bg-fill text-[15px] font-semibold">
                     <motion.span className="size-4 rounded-full border-2 border-text border-t-transparent" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} />
-                    Confirm in your wallet…
+                    {step ? `Confirm ${step} in your wallet…` : "Confirm in your wallet…"}
                   </div>
                 ) : holdToConfirm ? (
                   <HoldButton
@@ -468,8 +549,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
-    </motion.div>
+    </Frame>
   );
 
   function doneDetail(): ReactNode {
@@ -481,7 +561,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
     if (tx.kind === "deposit") return <>{amount} {sym} is now inside {vaultOf(tokenId)}.</>;
     if (tx.kind === "withdraw") return <>{amount} {sym} sent to {account}.</>;
     if (tx.kind === "transfer") return <>{name} now belongs to {to}.</>;
-    return <>Sold to {tx.offer?.from} for <NearAmount amount={fmt(tx.offer?.priceNear ?? 0)} />.</>;
+    return <>Sold to {offerIn?.from} for <NearAmount amount={fmt(offerIn?.priceNear ?? 0)} />.</>;
   }
 }
 
@@ -522,12 +602,12 @@ export function TxLink({ hash, className = "text-muted" }: { hash: string; class
   );
 }
 
-function BigAmount({ near: amount }: { near: number }) {
+function BigAmount({ near: amount, usd }: { near: number; usd: number }) {
   return (
     <div className="flex flex-col items-center gap-1 py-2">
       <NearAmount amount={fmt(amount)} className="title-chunky text-[44px]" />
       <span className="text-[13px] text-muted">
-        ≈ <Money value={amount * NEAR_USD} />
+        ≈ <Money value={amount * usd} />
       </span>
     </div>
   );

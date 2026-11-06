@@ -13,28 +13,37 @@ test("buy attaches the exact listing price with 200 Tgas", () => {
   assert.deepEqual(fc(t), { methodName: "buy", args: { token_id: "7" }, gas: T(200), deposit: "5000000000000000000000000" });
 });
 
-test("offer escrows the amount with expires_at", () => {
-  assert.deepEqual(tx.offerTx("3", "10000000000000000000000", 1_700_000_000_000), {
+test("offer: amount + storage attached, min_balances pinned (max 4)", () => {
+  const pins = [1, 2, 3, 4, 5].map((i) => ({ ft_id: `t${i}.torchvault.testnet`, amount: String(i) }));
+  assert.deepEqual(tx.offerTx("3", "10000000000000000000000", 1_700_000_000_000, pins, "20000000000000000000000"), {
     receiverId: MARKET,
-    actions: [{ type: "FunctionCall", params: { methodName: "offer", args: { token_id: "3", expires_at: 1_700_000_000_000 }, gas: T(30), deposit: "10000000000000000000000" } }],
+    actions: [
+      {
+        type: "FunctionCall",
+        params: { methodName: "offer", args: { token_id: "3", amount: "10000000000000000000000", expires_at: 1_700_000_000_000, min_balances: pins.slice(0, 4) }, gas: T(50), deposit: "30000000000000000000000" },
+      },
+    ],
   });
+  assert.equal(fc(tx.offerTx("3", "1", 1)).deposit, (BigInt(1) + BigInt(tx.OFFER_STORAGE_FALLBACK)).toString());
+  const c = tx.cancelOfferTx("3");
+  assert.deepEqual([c.receiverId, fc(c).methodName, fc(c).deposit], [MARKET, "cancel_offer", "1"]);
 });
 
 test("list and accept are nft_approve to the market with the agreed msgs", () => {
   const list = tx.listTx("2", "42");
   assert.equal(list.receiverId, COLLECTION);
   assert.deepEqual(fc(list).args, { token_id: "2", account_id: MARKET, msg: '{"list":{"price":"42"}}' });
-  const accept = tx.acceptTx("2", "bob.testnet");
+  const accept = tx.acceptTx("2", "bob.testnet", "77");
   assert.equal(accept.receiverId, COLLECTION);
   assert.equal(fc(accept).methodName, "nft_approve");
   assert.equal(fc(accept).gas, T(250));
-  assert.deepEqual(fc(accept).args, { token_id: "2", account_id: MARKET, msg: '{"accept_offer":{"buyer_id":"bob.testnet"}}' });
+  assert.deepEqual(fc(accept).args, { token_id: "2", account_id: MARKET, msg: '{"accept_offer":{"buyer_id":"bob.testnet","amount":"77"}}' });
   assert.ok(BigInt(fc(accept).deposit) > BigInt(0));
 });
 
 test("delist also revokes the market approval (withdraw needs zero approvals)", () => {
   const [d, r] = tx.delistTxs("9");
-  assert.deepEqual([d.receiverId, fc(d).methodName, fc(d).deposit], [MARKET, "delist", "0"]);
+  assert.deepEqual([d.receiverId, fc(d).methodName, fc(d).deposit], [MARKET, "delist", "1"]);
   assert.deepEqual([r.receiverId, fc(r).methodName, fc(r).deposit], [COLLECTION, "nft_revoke", "1"]);
   assert.deepEqual(fc(r).args, { token_id: "9", account_id: MARKET });
 });
@@ -89,6 +98,7 @@ test("toUnits / fromUnits", () => {
   assert.equal(tx.toUnits(0.9, 24), "900000000000000000000000");
   assert.equal(tx.toUnits(1e-7, 8), "10");
   assert.equal(tx.fromUnits("1500000", 6), 1.5);
+  assert.equal(tx.fromUnits("100000000000000000000000", 24), 0.1);
   assert.equal(tx.formatUnits("1500000", 6), "1.5");
   assert.equal(tx.formatUnits("7", 8), "0.00000007");
   assert.equal(tx.formatUnits("100000000000000000000000", 24), "0.1");
@@ -131,4 +141,24 @@ test("token list: wNEAR + the 14 mock FTs with INTERFACES decimals", async () =>
   assert.deepEqual(ftByKey("USDC"), { key: "USDC", id: "tusdc.torchvault.testnet", decimals: 6 });
   assert.equal(ftByKey("BTC").decimals, 8);
   assert.deepEqual(ftByKey("DRAGON"), { key: "DRAGON", id: "tdragon.torchvault.testnet", decimals: 18 });
+});
+
+test("send: one approval with batch wallets, sequential steps otherwise", async () => {
+  const ok = { transaction: { hash: "x" }, status: { SuccessValue: "" }, receipts_outcome: [] };
+  const calls: string[] = [];
+  const wallet = (batch: boolean) =>
+    ({
+      manifest: { features: { signAndSendTransactions: batch } },
+      signAndSendTransaction: async (t: tx.Tx) => (calls.push(`one:${t.receiverId}`), ok),
+      signAndSendTransactions: async (p: { transactions: tx.Tx[] }) => (calls.push(`batch:${p.transactions.length}`), p.transactions.map(() => ok)),
+    }) as unknown as Parameters<typeof tx.send>[0];
+  const txs = tx.delistTxs("1");
+  await tx.send(wallet(true), txs);
+  assert.deepEqual(calls.splice(0), ["batch:2"]);
+  const steps: string[] = [];
+  const outs = await tx.send(wallet(false), txs, { onStep: (i, n) => steps.push(`${i + 1}/${n}`) });
+  assert.equal(outs.length, 2);
+  assert.deepEqual(calls, [`one:${MARKET}`, `one:${COLLECTION}`]);
+  assert.deepEqual(steps, ["1/2", "2/2"]);
+  assert.equal(tx.canBatch(null), false);
 });

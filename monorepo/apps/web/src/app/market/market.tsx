@@ -17,7 +17,7 @@ import SquishSwitch from "@/components/react-bits/SquishSwitch";
 import { Avatar, CountUpNumber, Money, NearAmount, Segmented, StatTile, TokenStack } from "@/components/ui";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { toListing, useApi, type MarketItem, type MarketListing, type Stats } from "@/lib/api";
-import { CATEGORIES, type Category } from "@/lib/mock";
+import { CATEGORIES, type Category } from "@/lib/tokens";
 
 type Listing = MarketItem & { vs: number };
 
@@ -324,11 +324,11 @@ function Featured({ l, label, stat, sub, active, onSelect }: { l: Listing; label
         </div>
         <div className="flex gap-2">
           {l.status === "buy" && (
-            <button onClick={stop(() => open({ kind: "buy", etfId: l.etf.id, tokenId: l.etf.id }))} className="h-10 flex-1 rounded-full bg-[#121212] text-[14px] font-semibold text-white transition active:scale-95">
+            <button onClick={stop(() => open({ kind: "buy", tokenId: l.etf.id }))} className="h-10 flex-1 rounded-full bg-[#121212] text-[14px] font-semibold text-white transition active:scale-95">
               Buy now
             </button>
           )}
-          <button onClick={stop(() => open({ kind: "offer", etfId: l.etf.id, tokenId: l.etf.id }))} className="h-10 rounded-full bg-white/80 px-4 text-[14px] font-semibold transition hover:bg-white active:scale-95">
+          <button onClick={stop(() => open({ kind: "offer", tokenId: l.etf.id }))} className="h-10 rounded-full bg-white/80 px-4 text-[14px] font-semibold transition hover:bg-white active:scale-95">
             Make offer
           </button>
         </div>
@@ -401,11 +401,11 @@ function ListingCard({ l }: { l: Listing }) {
         </div>
         <div className="flex gap-2">
           {l.status === "buy" && (
-            <button onClick={() => open({ kind: "buy", etfId: l.etf.id, tokenId: l.etf.id })} className="btn-ink h-10 flex-1 text-[14px]">
+            <button onClick={() => open({ kind: "buy", tokenId: l.etf.id })} className="btn-ink h-10 flex-1 text-[14px]">
               Buy now
             </button>
           )}
-          <button onClick={() => open({ kind: "offer", etfId: l.etf.id, tokenId: l.etf.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
+          <button onClick={() => open({ kind: "offer", tokenId: l.etf.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
             Make offer
           </button>
         </div>
