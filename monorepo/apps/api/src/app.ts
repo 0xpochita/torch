@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { type Db, all, get, getCursor } from "./db.ts";
-import { type Prices, nearUsd, priceOf, tokenInfo, toUnits } from "./prices.ts";
+import { type Prices, isKnownFt, nearUsd, priceOf, tokenInfo, toUnits } from "./prices.ts";
 import { DAY, navSnapshots, pricesAt, priceReturn, valueAt } from "./snapshots.ts";
 import type {
   ActivityItem, Balance, GachaPull, Holder, LeaderboardPeriod, LeaderboardRow, LeaderboardSort, Listing, MarketListing,
@@ -48,7 +48,7 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
   const balancesOf = (px: Prices) => {
     const m = new Map<string, Balance[]>();
     for (const r of all<{ token_id: string; ft_id: string; amount: string }>(db, "SELECT token_id, ft_id, amount FROM vault_balances ORDER BY ft_id"))
-      m.set(r.token_id, [...(m.get(r.token_id) ?? []), balance(r.ft_id, r.amount, px)]);
+      if (isKnownFt(r.ft_id)) m.set(r.token_id, [...(m.get(r.token_id) ?? []), balance(r.ft_id, r.amount, px)]);
     return m;
   };
 
@@ -58,7 +58,7 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
     const dayAgo = pricesAt(db, Date.now() - DAY);
     return all<TokenRow>(
       db,
-      `SELECT t.*, l.seller_id AS l_seller, l.price AS l_price, l.listed_at AS l_at FROM tokens t LEFT JOIN listings l USING (token_id)
+      `SELECT t.*, l.seller_id AS l_seller, l.price AS l_price, l.listed_at AS l_at FROM tokens t LEFT JOIN listings l ON l.token_id = t.token_id AND l.seller_id = t.owner_id
        WHERE t.vault_id IS NOT NULL ${where} ORDER BY t.minted_at DESC, CAST(t.token_id AS INTEGER) DESC`,
       ...p,
     ).map((r) => {
@@ -113,6 +113,7 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
       navHistory.push({ at: v.mintedAt, navUsd: 0 });
       for (const e of all<EventRow>(db, "SELECT * FROM events WHERE token_id = ? AND event IN ('vault_deposit', 'vault_withdraw') ORDER BY ts, id", id)) {
         const d = JSON.parse(e.data);
+        if (!isKnownFt(d.ft_id)) continue;
         held.set(d.ft_id, (held.get(d.ft_id) ?? 0n) + (e.event === "vault_deposit" ? 1n : -1n) * BigInt(d.amount));
         const navUsd = [...held].reduce((s, [ft, amt]) => s + balance(ft, (amt < 0n ? 0n : amt).toString(), px).valueUsd, 0);
         if (navHistory.at(-1)!.at === e.ts) navHistory.at(-1)!.navUsd = navUsd;
@@ -133,7 +134,11 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
   app.get("/market/orderbook/:id", (c) => {
     const id = c.req.param("id");
     if (!get(db, "SELECT 1 FROM tokens WHERE token_id = ?", id)) return c.json({ error: "vault not found" }, 404);
-    const l = get<{ seller_id: string; price: string; listed_at: number }>(db, "SELECT * FROM listings WHERE token_id = ?", id);
+    const l = get<{ seller_id: string; price: string; listed_at: number }>(
+      db,
+      "SELECT l.* FROM listings l JOIN tokens t ON t.token_id = l.token_id AND t.owner_id = l.seller_id WHERE l.token_id = ?",
+      id,
+    );
     return c.json<Orderbook>({
       tokenId: id,
       ask: l ? { tokenId: id, sellerId: l.seller_id, price: l.price, listedAt: l.listed_at } : null,
@@ -221,7 +226,7 @@ export function createApp(db: Db, prices: () => Promise<Prices>) {
     return c.json<Stats>({
       vaults: vs.length,
       tvlUsd: vs.reduce((s, v) => s + v.navUsd, 0),
-      listings: count("SELECT COUNT(*) AS n FROM listings"),
+      listings: count("SELECT COUNT(*) AS n FROM listings l JOIN tokens t ON t.token_id = l.token_id AND t.owner_id = l.seller_id"),
       offers: count("SELECT COUNT(*) AS n FROM offers WHERE expires_at > ?", Date.now()),
       sales: all_sales.length,
       volume: sum(all_sales.map((s) => s.price)),
