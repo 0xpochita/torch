@@ -38,7 +38,7 @@ function trusted(cfg: Config, executor: string, ev: Event, d: Record<string, any
   if (ev.event === "vault_withdraw") return executor === cfg.collectionId && cfg.ftIds.includes(d.ft_id);
   if (ev.event === "vault_deposit") return executor === `${d.token_id}.${cfg.collectionId}` && cfg.ftIds.includes(d.ft_id);
   if (MARKET_EVENTS.includes(ev.event)) return executor === cfg.marketId;
-  if (ev.event === "gacha_pull") return executor === cfg.gachaId;
+  if (ev.event === "gacha_pull" || ev.event === "gacha_fund_failed") return executor === cfg.gachaId;
   return false;
 }
 
@@ -91,7 +91,24 @@ function applyEvent(db: Db, cfg: Config, event: string, d: Record<string, any>, 
       if (event === "offer_accept") run(db, "DELETE FROM listings WHERE token_id = ?", tokenId);
       break;
     case "gacha_pull":
-      run(db, "INSERT OR REPLACE INTO pulls (token_id, player_id, rarity, pity_after, price, ts) VALUES (?, ?, ?, ?, ?, ?)", tokenId, str(d.player_id), str(d.rarity), Number(d.pity_after), str(d.price), ts);
+      // Upsert that keeps `funded`: gacha_fund_failed for the same vault is logged just before it.
+      run(
+        db,
+        `INSERT INTO pulls (token_id, player_id, rarity, pity_after, price, ts) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (token_id) DO UPDATE SET player_id = excluded.player_id, rarity = excluded.rarity,
+           pity_after = excluded.pity_after, price = excluded.price, ts = excluded.ts`,
+        tokenId, str(d.player_id), str(d.rarity), Number(d.pity_after), str(d.price), ts,
+      );
+      break;
+    case "gacha_fund_failed":
+      // One per basket item that did not reach the vault ({player_id, token_id, ft_id, amount}); the
+      // following gacha_pull fills in rarity, pity and price.
+      run(
+        db,
+        `INSERT INTO pulls (token_id, player_id, rarity, pity_after, price, ts, funded) VALUES (?, ?, ?, 0, '0', ?, 0)
+         ON CONFLICT (token_id) DO UPDATE SET funded = 0`,
+        tokenId, str(d.player_id), str(d.rarity ?? ""), ts,
+      );
       break;
   }
 }

@@ -83,6 +83,7 @@ Everything else matches. The full tables follow.
 | `offer_cancel` | MK:581-590 (cancel, expiry refund, replace, failed-accept refund) | IX:82-84 | `token_id, buyer_id, created_at` | **Fixed X-3** |
 | `offer_accept` | MK:424 | IX:83-85, AP:43-45 | `token_id, buyer_id, amount` ✓ | OK (same `created_at` refinement as X-3 is harmless here) |
 | `gacha_pull` | GC:236-250 | IX:38, 87-88 | `player_id, token_id, rarity, pity_after, price` ✓ | OK |
+| `gacha_fund_failed` (contracts `735ffc8`) | gacha `on_funded`, one per basket item that did not reach the vault: `{player_id, token_id, ft_id, amount}`, logged before that vault's `gacha_pull` | IX `trusted` (gacha only) + `gacha_fund_failed` case | `token_id, player_id` (`rarity` if present) → `pulls.funded = 0`; the following `gacha_pull` upserts without resetting it; `/gacha/recent` returns `funded` | OK (added) |
 
 API view calls: `ft_balance_of{account_id: <token_id>.<collection>}` (IX:133) matches `vault_of` ✓
 but trusts any `ft_id` (X-1). `nft_token{token_id}` (IX:141) ✓.
@@ -114,5 +115,12 @@ The API never removes expired-but-unrefunded offers, but every read filters on
   NEP-178 has already cleared the market approval. `buy` then fails and refunds, and anyone can
   call `prune_listing`.
 
-`pnpm --filter api typecheck`, `test` (6/6) and `e2e` (sandbox, RPC-only indexing) pass. X-2 and
+- **gacha_fund_failed:** indexed into `pulls.funded` (a new column, added with `ALTER TABLE` to
+  existing databases). `GachaPull.funded` is new in `types.ts`, so the web can flag unfunded
+  vaults. The contract code emits `{player_id, token_id, ft_id, amount}` per item; the handler
+  also accepts the `{player_id, token_id, rarity}` shape from the coordinator note. Contracts
+  `735ffc8` also makes the vault refund non-basket tokens, so `vault_deposit` only appears for
+  basket tokens; the allow-list stays as defence in depth.
+
+`pnpm --filter api typecheck`, `test` (7/7) and `e2e` (sandbox, RPC-only indexing) pass. X-2 and
 X-4 (web) and X-6 (contracts merge) are still open.

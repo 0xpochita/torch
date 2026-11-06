@@ -207,6 +207,20 @@ describe("xcheck fixes", async () => {
     assert.deepEqual((await get<VaultDetail>("/vaults/0")).offers, []);
   });
 
+  test("gacha_fund_failed marks the pull unfunded; a plain gacha_pull stays funded", async () => {
+    const { db, get } = fresh();
+    const pull = (token_id: string) => ev("torch", "gacha_pull", { player_id: "bob.testnet", token_id, rarity: "Rare", pity_after: 3, price: "100" });
+    // Same receipt order as the contract's on_funded: failures first, then gacha_pull.
+    block(db, config.gachaId, ev("torch", "gacha_fund_failed", { player_id: "bob.testnet", token_id: "7", ft_id: USDC, amount: "5" }), pull("7"));
+    block(db, config.gachaId, pull("8"));
+    block(db, "evil.testnet", ev("torch", "gacha_fund_failed", { player_id: "bob.testnet", token_id: "8", ft_id: USDC, amount: "5" }));
+    const recent = await get<GachaPull[]>("/gacha/recent");
+    assert.deepEqual(
+      recent.map((p) => [p.tokenId, p.rarity, p.pityAfter, p.price, p.funded]).sort(),
+      [["7", "Rare", 3, "100", false], ["8", "Rare", 3, "100", true]],
+    );
+  });
+
   test("X-5: a reverted nft_transfer_call keeps the listing, a real transfer hides it", async () => {
     const { db, get } = fresh();
     block(db, config.marketId, ev("torch", "list", { token_id: "0", seller_id: "alice.testnet", price: "7" }));
