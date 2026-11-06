@@ -107,7 +107,7 @@ export function Studio() {
         </ol>
       </Topbar>
 
-      <div className="grid flex-1 gap-4 py-4 lg:h-[calc(100dvh-76px)] lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid flex-1 gap-4 pt-4 lg:h-[calc(100dvh-108px)] lg:min-h-0 lg:flex-none lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-[minmax(0,1fr)]">
         {/* Workspace: prompt, canvas, templates */}
         <main className="flex min-h-0 min-w-0 flex-col gap-3">
           <div className="flex flex-col gap-2">
