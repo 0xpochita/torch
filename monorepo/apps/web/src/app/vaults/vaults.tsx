@@ -9,6 +9,7 @@ import { AllocationBar, Change, Group, tint } from "@/components/etf-card";
 import { Sym, SymTile } from "@/components/icons";
 import GlareHover from "@/components/react-bits/GlareHover";
 import { Topbar } from "@/components/navbar";
+import { useTx } from "@/components/tx-sheet";
 import {
   ActionCircle,
   Donut,
@@ -32,6 +33,7 @@ import {
 const VIEWS = ["Owned", "Created", "Listed"] as const;
 
 export function Vaults() {
+  const open = useTx();
   const [view, setView] = useState<(typeof VIEWS)[number]>("Owned");
 
   const owned = ETFS.filter((e) =>
@@ -114,9 +116,9 @@ export function Vaults() {
             </div>
             <div className="card flex flex-col justify-between gap-4 p-5">
               <div className="grid grid-cols-4 gap-2">
-                <ActionCircle icon="down" label="Deposit" />
-                <ActionCircle icon="up" label="Withdraw" />
-                <ActionCircle icon="share" label="Transfer" />
+                <ActionCircle icon="down" label="Deposit" onClick={() => open({ kind: "deposit" })} />
+                <ActionCircle icon="up" label="Withdraw" onClick={() => open({ kind: "withdraw" })} />
+                <ActionCircle icon="share" label="Transfer" onClick={() => open({ kind: "transfer" })} />
                 <ActionCircle icon="plus" label="New" href="/create" />
               </div>
               <div className="flex items-center gap-3 rounded-[20px] bg-fill p-3">

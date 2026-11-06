@@ -7,9 +7,9 @@ import { useState } from "react";
 import { Artwork, Group, tint } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
+import { useTx } from "@/components/tx-sheet";
 import ElasticSlider from "@/components/react-bits/ElasticSlider";
 import GlideSelect from "@/components/react-bits/GlideSelect";
-import HoldButton from "@/components/react-bits/HoldButton";
 import PulseHeart from "@/components/react-bits/PulseHeart";
 import SquishSwitch from "@/components/react-bits/SquishSwitch";
 import { Avatar, CountUpNumber, Money, NearAmount, Segmented, StatTile, TokenStack } from "@/components/ui";
@@ -236,6 +236,7 @@ function VsValue({ l }: { l: Listing }) {
 
 function ListingCard({ l }: { l: Listing }) {
   const href = `/etf/${l.etf.id}`;
+  const open = useTx();
   return (
     <article className="card group relative flex flex-col gap-3 p-2.5">
       <Link href={href} className="relative block aspect-[5/4] overflow-hidden rounded-[20px]" style={{ background: tint(l.etf.bg, 30) }}>
@@ -273,12 +274,13 @@ function ListingCard({ l }: { l: Listing }) {
         </div>
         <div className="flex gap-2">
           {l.status === "buy" && (
-            // ponytail: mock purchase; wire to the collection's nft_buy once the contract is live
-            <HoldButton size="sm" radius={20} holdTime={1200} backgroundColor="var(--text)" fillColor="var(--tint)" textColor="var(--surface)" fillTextColor="#ffffff" doneLabel="Bought" resetAfter={2200} className="h-10 flex-1 text-[14px] font-semibold">
-              Hold to buy
-            </HoldButton>
+            <button onClick={() => open({ kind: "buy", listingId: l.id })} className="btn-ink h-10 flex-1 text-[14px]">
+              Buy now
+            </button>
           )}
-          <button className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>Make offer</button>
+          <button onClick={() => open({ kind: "offer", listingId: l.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
+            Make offer
+          </button>
         </div>
       </div>
     </article>

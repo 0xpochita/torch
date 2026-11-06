@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Artwork, Change } from "@/components/etf-card";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
+import { TxAction, TxButton } from "@/components/tx-sheet";
 import { ActionCircle, Money, NearAmount, StatTile, TokenStack } from "@/components/ui";
 import { ETFS, getEtf } from "@/lib/mock";
 import { DetailTabs, NavPanel } from "./panels";
@@ -42,16 +43,20 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
               </p>
               <p className="mt-1 font-mono text-[12px] text-muted">{etf.id}.torch.near</p>
               <div className="mt-3 flex items-center gap-2">
-                <button disabled={!etf.listed} className="btn-ink h-9 px-5 text-[15px]">
-                  {etf.listed ? (
+                {etf.listed ? (
+                  <TxButton tx={{ kind: "buy", etfId: etf.id }} className="btn-ink h-9 px-5 text-[15px]">
                     <span className="flex items-center gap-1.5">
                       Buy <NearAmount amount={etf.priceNear} />
                     </span>
-                  ) : (
-                    "Not listed"
-                  )}
-                </button>
-                <button className="btn-line h-9 px-4 text-[15px]">Make Offer</button>
+                  </TxButton>
+                ) : (
+                  <button disabled className="btn-ink h-9 px-5 text-[15px]">
+                    Not listed
+                  </button>
+                )}
+                <TxButton tx={{ kind: "offer", etfId: etf.id }} className="btn-line h-9 px-4 text-[15px]">
+                  Make Offer
+                </TxButton>
                 <button className="btn-line grid size-9 place-items-center" aria-label="Share">
                   <Sym name="share" size={17} />
                 </button>
@@ -61,9 +66,9 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
 
           <div className="grid gap-3 border-t border-line-soft pt-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
             <div className="flex gap-5 lg:pr-4">
-              <ActionCircle icon="tag" label={etf.listed ? "Buy" : "Offer"} />
-              <ActionCircle icon="swap" label="Rebalance" />
-              <ActionCircle icon="share" label="Send" />
+              <TxAction tx={{ kind: etf.listed ? "buy" : "offer", etfId: etf.id }} icon="tag" label={etf.listed ? "Buy" : "Offer"} />
+              <TxAction tx={{ kind: "rebalance", etfId: etf.id }} icon="swap" label="Rebalance" />
+              <TxAction tx={{ kind: "transfer", etfId: etf.id }} icon="share" label="Send" />
               <ActionCircle icon="ellipsis" label="More" />
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">

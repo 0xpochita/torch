@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Geist_Mono, Golos_Text } from "next/font/google";
 import { Sidebar, TabBar } from "@/components/navbar";
 import { MotionProvider } from "@/components/motion-provider";
 import { THEME_SCRIPT } from "@/components/theme-toggle";
+import { TxProvider } from "@/components/tx-sheet";
 import "./globals.css";
 
 // SF Pro (system) for UI with Golos as fallback, Bricolage Grotesque for chunky display titles.
@@ -36,11 +37,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full">
         <MotionProvider>
+        <TxProvider>
         <div className="flex min-h-screen">
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col px-3 pb-28 md:px-8 md:pb-8">{children}</div>
         </div>
         <TabBar />
+        </TxProvider>
         </MotionProvider>
       </body>
     </html>
