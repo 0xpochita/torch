@@ -4,17 +4,18 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Change } from "@/components/etf-card";
 import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
-import { Avatar, Money, NearAmount, Segmented } from "@/components/ui";
-import { toNear, useApi, type LeaderboardPeriod, type LeaderboardRow, type LeaderboardSort, type VaultSummary } from "@/lib/api";
+import { Avatar, Money, Segmented } from "@/components/ui";
+import { useApi, type LeaderboardPeriod, type LeaderboardRow, type LeaderboardSort, type VaultSummary } from "@/lib/api";
 import { useAccount } from "@/providers/near-provider";
 
-const SORTS = ["Value", "Volume", "Holders"] as const;
+const SORTS = ["Value", "Return", "Holders"] as const;
 const PERIODS = ["24h", "7D", "30D", "Season"] as const;
 type Sort = (typeof SORTS)[number];
-const SORT_KEY: Record<Sort, LeaderboardSort> = { Value: "value", Volume: "volume", Holders: "holders" };
+const SORT_KEY: Record<Sort, LeaderboardSort> = { Value: "value", Return: "return", Holders: "holders" };
 const PERIOD_KEY: Record<(typeof PERIODS)[number], LeaderboardPeriod> = { "24h": "24h", "7D": "7d", "30D": "30d", Season: "all" };
 // Season 1 closes at the hackathon deadline.
 const SEASON_END = Date.UTC(2026, 10, 14);
@@ -27,7 +28,7 @@ const TIERS = [
 ];
 const tier = (usd: number) => TIERS.find((t) => usd >= t.min)!;
 
-type Row = { account: string; rank: number; vaults: number; valueUsd: number; holders: number; vol: number; etf?: VaultSummary };
+type Row = { account: string; rank: number; vaults: number; valueUsd: number; holders: number; ret: number; etf?: VaultSummary };
 
 export function Leaderboard() {
   const [sort, setSort] = useState<Sort>("Value");
@@ -45,10 +46,11 @@ export function Leaderboard() {
     vaults: r.vaults,
     valueUsd: r.valueUsd,
     holders: r.holders,
-    vol: toNear(r.volume),
+    // price-only return over the period from the API snapshots; 0 before the first snapshot
+    ret: r.return ?? 0,
     etf: vaultsQ.data?.find((v) => v.creator === r.accountId),
   }));
-  const max = { vaults: Math.max(1, ...rows.map((r) => r.vaults)), vol: Math.max(0, ...rows.map((r) => r.vol)), holders: Math.max(1, ...rows.map((r) => r.holders)) };
+  const max = { vaults: Math.max(1, ...rows.map((r) => r.vaults)), ret: Math.max(0, ...rows.map((r) => Math.abs(r.ret))), holders: Math.max(1, ...rows.map((r) => r.holders)) };
   const me = rows.find((r) => r.account === account);
 
   return (
@@ -135,7 +137,7 @@ export function Leaderboard() {
             <TierBadge usd={c.valueUsd} />
             <div className="grid grid-cols-3 gap-3 text-[12px] text-muted">
               <Metric label="Value" value={<Money value={c.valueUsd} />} bar={c.valueUsd / (Math.max(...rows.map((r) => r.valueUsd)) || 1)} color="var(--tint)" />
-              <Metric label={`Volume ${period}`} value={<NearAmount amount={c.vol} />} bar={max.vol ? c.vol / max.vol : 0} color="var(--up)" />
+              <Metric label={`Return ${period}`} value={<Change value={c.ret} />} bar={max.ret ? Math.abs(c.ret) / max.ret : 0} color="var(--up)" />
               <Metric label="Holders" value={c.holders} bar={c.holders / max.holders} color="var(--lilac-ink)" />
             </div>
           </motion.article>
@@ -151,7 +153,7 @@ export function Leaderboard() {
                 <th className="px-5 py-3 font-medium">Place</th>
                 <th className="px-3 py-3 font-medium">Creator</th>
                 <th className="px-3 py-3 font-medium">Vaults</th>
-                <th className="px-3 py-3 font-medium">Volume {period}</th>
+                <th className="px-3 py-3 font-medium">Return {period}</th>
                 <th className="px-3 py-3 font-medium">Holders</th>
                 <th className="px-3 py-3 font-medium">Value</th>
                 <th className="px-5 py-3 font-medium">Tier</th>
@@ -182,8 +184,8 @@ export function Leaderboard() {
                       </Dashed>
                     </td>
                     <td className="px-3 py-3">
-                      <Dashed value={c.vol} of={max.vol} color="var(--up)">
-                        <NearAmount amount={c.vol} />
+                      <Dashed value={Math.abs(c.ret)} of={max.ret} color={c.ret >= 0 ? "var(--up)" : "var(--down)"}>
+                        <Change value={c.ret} />
                       </Dashed>
                     </td>
                     <td className="px-3 py-3">

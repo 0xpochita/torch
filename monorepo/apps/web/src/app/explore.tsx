@@ -17,7 +17,7 @@ import { useAccount } from "@/providers/near-provider";
 
 const TABS = ["All", ...CATEGORIES] as const;
 const LISTS = [
-  // ponytail: no likes or price history indexed yet; "popular" = biggest basket, "rising" = newest mint
+  // ponytail: no likes indexed; "popular" = biggest basket, "rising" = best 24h change
   { key: "popular", label: "Most popular", icon: "heart" },
   { key: "rising", label: "Rising stars", icon: "pulse" },
 ] as const;
@@ -50,7 +50,7 @@ export function Explore() {
   const catArt = categoryArt(etfs);
   const stats = statsQ.data;
   const nearUsd = stats?.nearUsd ?? 0;
-  const items = etfs.filter((e) => tab === "All" || e.category === (tab as Category)).sort((a, b) => (list === "popular" ? b.navUsd - a.navUsd : b.mintedAt - a.mintedAt));
+  const items = etfs.filter((e) => tab === "All" || e.category === (tab as Category)).sort((a, b) => (list === "popular" ? b.navUsd - a.navUsd : b.change24h - a.change24h));
 
   // Sales volume per day, the last 7 days ending today.
   const sales = toEvents(salesQ.data ?? []);
@@ -260,6 +260,9 @@ export function Explore() {
             {CATEGORIES.map((c) => {
               const art = catArt[c];
               const inCat = etfs.filter((e) => e.category === c);
+              // value-weighted 24h change of the category's baskets
+              const nav = inCat.reduce((s, e) => s + e.navUsd, 0);
+              const change = nav ? inCat.reduce((s, e) => s + e.change24h * e.navUsd, 0) / nav : 0;
               return (
                 <motion.button
                   key={c}
@@ -275,9 +278,12 @@ export function Explore() {
                   </span>
                   <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
                   <span className="relative">
-                    <Money value={inCat.reduce((sum, e) => sum + e.navUsd, 0)} className="block text-[22px] font-bold leading-none text-[#138a4b]" />
+                    <span className={`block text-[22px] font-bold tabular-nums leading-none ${change >= 0 ? "text-[#138a4b]" : "text-[#d92d2d]"}`}>
+                      {change >= 0 ? "+" : "−"}
+                      {Math.abs(change).toFixed(2)}%
+                    </span>
                     <span className="text-[12px] font-medium text-[#121212]/55">
-                      {inCat.length} {inCat.length === 1 ? "vault" : "vaults"}
+                      24h · {inCat.length} {inCat.length === 1 ? "vault" : "vaults"}
                     </span>
                   </span>
                 </motion.button>
