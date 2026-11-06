@@ -79,7 +79,7 @@ The collection enforces nine invariants from
 Vault ids are sub-accounts of the collection, so nobody else can create a look-alike, and clients
 derive `vault_of(token_id)` offline. Check I1 yourself:
 `near account list-keys 0.nft.torchvault.testnet network-config testnet now` must list nothing.
-Findings and fixes: [`contracts/AUDIT.md`](contracts/AUDIT.md). Gacha randomness uses
+Wave-2 audit findings (with reproductions): [`contracts/AUDIT.md`](contracts/AUDIT.md). Gacha randomness uses
 `env::random_seed`, which is fine for testnet; mainnet needs commit-reveal or a VRF.
 
 ## Local dev quickstart
