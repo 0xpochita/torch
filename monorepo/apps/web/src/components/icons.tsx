@@ -1,3 +1,4 @@
+import Image from "next/image";
 // Phosphor icons (https://phosphoricons.com) behind one name map so every screen uses the same set.
 // SSR build: renders in server and client components alike.
 import {
@@ -110,4 +111,19 @@ export function SymTile({ name, size = 30, accent = false }: { name: IconName; s
       <Sym name={name} size={size * 0.56} weight="bold" />
     </span>
   );
+}
+
+/** Glossy 3D clay icons (public/icons/3d), generated as one consistent set. */
+const ICON3D = {
+  house: "explore", store: "market", plus: "create", vault: "vaults", trophy: "leaders", pulse: "activity", gift: "gacha",
+  layers: "layers", person: "person", tag: "tag", swap: "swap",
+  sparkle: "mint", down: "deposit", up: "withdraw", calendar: "calendar", wallet: "wallet", clock: "clock",
+  shield: "shield", heart: "heart", fire: "flame", bolt: "bolt", lock: "lock", crown: "crown",
+  diamond: "diamond", platinum: "platinum", gold: "gold", silver: "silver",
+  common: "flame-common", rare: "flame-rare", epic: "flame-epic", legendary: "flame-legendary",
+} as const;
+export type Icon3DName = keyof typeof ICON3D;
+
+export function Icon3D({ name, size = 20, className = "" }: { name: Icon3DName; size?: number; className?: string }) {
+  return <Image src={`/icons/3d/${ICON3D[name]}.png`} alt="" width={size} height={size} className={`shrink-0 ${className}`} />;
 }

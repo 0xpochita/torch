@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import { Artwork, EVENT } from "@/components/etf-card";
-import { Sym, type IconName } from "@/components/icons";
+import { Icon3D, Sym, type Icon3DName } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { Avatar, NearAmount, PASTEL, Segmented, TokenIcon, Title } from "@/components/ui";
 import { ALL_ACTIVITY, NEAR_USD, type HistoryEvent } from "@/lib/mock";
@@ -23,7 +23,7 @@ const COLS = [
   { key: "type", label: "Event", icon: "pulse" },
   { key: "usd", label: "Amount", icon: "wallet" },
   { key: "at", label: "Date", icon: "calendar" },
-] as const satisfies readonly { key: string; label: string; icon: IconName }[];
+] as const satisfies readonly { key: string; label: string; icon: Icon3DName }[];
 type SortKey = (typeof COLS)[number]["key"];
 
 const TODAY = "2026-11-05";
@@ -74,8 +74,8 @@ export function Activity() {
             onClick={() => setFilter(f)}
             count={f === "All" ? inPeriod.length : inPeriod.filter((a) => a.type === f).length}
             icon={
-              <span className="grid size-6 place-items-center rounded-full bg-raised text-text shadow-[0_0_0_1px_var(--line)]">
-                <Sym name={f === "All" ? "pulse" : EVENT[f].icon} size={13} weight="bold" />
+              <span className="grid size-6 place-items-center">
+                <Icon3D name={f === "All" ? "pulse" : (EVENT[f].icon as Icon3DName)} size={16} />
               </span>
             }
           >
@@ -134,7 +134,7 @@ export function Activity() {
                       onClick={() => setSort((s) => ({ key: c.key, dir: s.key === c.key ? (-s.dir as 1 | -1) : c.key === "at" || c.key === "usd" ? -1 : 1 }))}
                       className={`inline-flex items-center gap-1.5 hover:text-text ${sort.key === c.key ? "text-text" : ""}`}
                     >
-                      <Sym name={c.icon} size={14} />
+                      <Icon3D name={c.icon} size={16} />
                       {c.label}
                       <Sym name="sort" size={13} className={sort.key === c.key ? "" : "opacity-40"} />
                     </button>
@@ -173,7 +173,7 @@ export function Activity() {
                     </td>
                     <td className="px-3 py-3">
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ${PASTEL[t].bg} ${PASTEL[t].ink}`}>
-                        <Sym name={EVENT[r.type].icon} size={12} weight="bold" /> {STATUS[r.type]}
+                        <Icon3D name={EVENT[r.type].icon as Icon3DName} size={14} /> {STATUS[r.type]}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right font-semibold tabular-nums">
@@ -206,11 +206,11 @@ export function Activity() {
   );
 }
 
-function Counter({ icon, value, label, sub }: { icon: IconName; value: number; label: string; sub: string }) {
+function Counter({ icon, value, label, sub }: { icon: Icon3DName; value: number; label: string; sub: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid size-10 place-items-center rounded-full border border-line text-muted">
-        <Sym name={icon} size={17} weight="bold" />
+      <span className="grid size-10 place-items-center rounded-full bg-fill">
+        <Icon3D name={icon} size={24} />
       </span>
       <span>
         <span className="block text-[20px] font-bold tabular-nums">${Math.round(value).toLocaleString("en-US")}</span>

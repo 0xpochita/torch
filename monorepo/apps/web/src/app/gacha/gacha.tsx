@@ -8,7 +8,7 @@ import { BasketArt } from "@/components/basket-art";
 import { Artwork } from "@/components/etf-card";
 import { Embers } from "@/components/embers";
 import { GachaMachine, type GachaHandle } from "@/components/gacha-machine";
-import { Sym } from "@/components/icons";
+import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Avatar, Money, NearAmount } from "@/components/ui";
 import { sfxPop, sfxReveal, sfxShake, startMusic, stopMusic } from "@/lib/gacha-audio";
@@ -169,7 +169,7 @@ export function Gacha() {
                 disabled={busy}
                 className="flex h-14 items-center gap-2 rounded-full bg-white px-7 text-[16px] font-semibold text-[#121212] transition active:scale-95 disabled:opacity-60"
               >
-                <Sym name="gift" size={18} weight="bold" /> Pull ×1 · <NearAmount amount={GACHA_PRICE_NEAR} />
+                <Icon3D name="gift" size={22} /> Pull ×1 · <NearAmount amount={GACHA_PRICE_NEAR} />
               </button>
               <button
                 onClick={() => pull(10)}
@@ -216,10 +216,10 @@ export function Gacha() {
                     <li
                       key={t}
                       className="relative flex items-center gap-3 overflow-hidden rounded-[16px] px-2.5 py-2.5"
-                      style={legendary ? { background: `radial-gradient(120% 140% at 0% 50%, ${r.color}2e, transparent 60%)`, boxShadow: `inset 0 0 0 1px ${r.color}55` } : undefined}
+                      style={legendary ? { background: `${r.color}14`, boxShadow: `inset 0 0 0 1px ${r.color}55` } : undefined}
                     >
-                      <span className="grid size-9 shrink-0 place-items-center rounded-full" style={{ color: r.color, background: `${r.color}1f`, boxShadow: `inset 0 0 0 1.5px ${r.color}88, 0 0 14px -4px ${r.color}` }}>
-                        <Sym name="fire" size={16} weight="fill" />
+                      <span className="grid size-10 shrink-0 place-items-center rounded-[12px]" style={{ background: `${r.color}1a` }}>
+                        <Icon3D name={t.toLowerCase() as "common" | "rare" | "epic" | "legendary"} size={28} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-baseline justify-between gap-2">
@@ -330,7 +330,7 @@ function Reveal({ pulls, onClaim, onAgain }: { pulls: Pull[]; onClaim: () => voi
         <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }} className="flex flex-col items-center gap-1">
           <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-white/50">{single ? "You pulled" : `${pulls.length} flames released`}</span>
           <span className="title-chunky flex items-center gap-2 text-[34px] leading-none" style={{ color: c, textShadow: `0 0 24px ${c}88` }}>
-            <Sym name="fire" size={28} weight="fill" /> {best}
+            <Icon3D name={best.toLowerCase() as "common" | "rare" | "epic" | "legendary"} size={34} /> {best}
           </span>
         </motion.div>
 
@@ -384,7 +384,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
       <motion.div animate={{ rotateX: tilt.x, rotateY: tilt.y }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="relative [transform-style:preserve-3d]">
         {/* back: torch sigil, visible during the flip */}
         <div className="absolute inset-0 grid place-items-center rounded-[22px] bg-[radial-gradient(circle_at_50%_40%,#ff8a00,#7a1d00_60%,#1a0a04)] [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          <Sym name="fire" size={big ? 72 : 28} weight="fill" className="text-[#ffd36b] drop-shadow-[0_0_20px_#ff8a00]" />
+          <Icon3D name="fire" size={big ? 84 : 32} className="drop-shadow-[0_0_20px_#ff8a00]" />
         </div>
         {/* front */}
         <div className={`burn-frame flex flex-col gap-2 rounded-[22px] bg-[#140d09] p-2 [backface-visibility:hidden] ${big ? "" : "burn-still"}`} style={{ "--rarity": c } as React.CSSProperties}>
@@ -395,7 +395,7 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
               className={`absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 font-bold uppercase tracking-[0.12em] backdrop-blur-sm ${big ? "px-2.5 py-1 text-[11px]" : "px-1.5 py-0.5 text-[8px]"}`}
               style={{ color: c }}
             >
-              <Sym name="fire" size={big ? 12 : 8} weight="fill" /> {p.rarity}
+              <Icon3D name={p.rarity.toLowerCase() as "common" | "rare" | "epic" | "legendary"} size={big ? 14 : 10} /> {p.rarity}
             </span>
           </div>
           <div className={big ? "px-2 pb-2" : "px-1 pb-1"}>

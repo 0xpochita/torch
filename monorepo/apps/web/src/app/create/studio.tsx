@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { BasketArt } from "@/components/basket-art";
-import { Sym } from "@/components/icons";
+import { Embers } from "@/components/embers";
+import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Donut, Money, Title, TokenIcon } from "@/components/ui";
 import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
@@ -122,7 +124,7 @@ export function Studio() {
                 className="min-w-0 flex-1 bg-transparent px-4 text-[15px] outline-none placeholder:text-faint"
               />
               <button onClick={generate} className="flex h-10 items-center gap-1.5 rounded-full bg-tint px-5 text-[15px] font-bold text-white active:scale-95">
-                <Sym name="sparkle" size={15} /> Generate
+                <Icon3D name="sparkle" size={18} /> Generate
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 px-1 text-[13px]">
@@ -161,7 +163,7 @@ export function Studio() {
             <div className="absolute inset-x-4 bottom-4 flex flex-col gap-3 rounded-[22px] bg-chip p-4 shadow-[0_10px_30px_-12px_#00000040] backdrop-blur-xl">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-ink text-on-ink">
-                  <Sym name="layers" size={18} stroke={2.2} />
+                  <Icon3D name="layers" size={22} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="title-chunky truncate text-[22px]">{name || "Untitled ETF"}</div>
@@ -459,32 +461,108 @@ export function Studio() {
   );
 }
 
+// Gold shards flung out of the card when it lands.
+const BURST = Array.from({ length: 22 }, (_, i) => {
+  const a = (i / 22) * Math.PI * 2 + (i % 2) * 0.2;
+  const d = 150 + (i % 5) * 34;
+  return { x: Math.cos(a) * d, y: Math.sin(a) * d * 0.8, r: (i * 47) % 360, s: 6 + (i % 4) * 3, delay: 0.55 + (i % 6) * 0.03 };
+});
+
 function Minted({ name, deposit, bg, allocation, onReset }: { name: string; deposit: number; bg: string; allocation: Allocation[]; onReset: () => void }) {
+  const rise = (delay: number) => ({ initial: { y: 16, opacity: 0 }, animate: { y: 0, opacity: 1 }, transition: { delay, type: "spring" as const, stiffness: 260, damping: 24 } });
   return (
-    <>
-      <Topbar title="Create ETF" />
-      <div className="grid flex-1 place-items-center py-16">
-        <div className="flex w-full max-w-md flex-col items-center gap-5 text-center">
-          <div className="relative size-48 overflow-hidden rounded-[24%] [container-type:inline-size]" style={{ background: bg }}>
-            <BasketArt allocation={allocation} />
+    <section className="relative -mx-3 mt-3 flex min-h-[calc(100dvh-24px)] flex-1 flex-col overflow-hidden rounded-[28px] bg-[#0b0806] md:-mx-0">
+      <Image src="/brand/mint-banner.png" alt="" fill priority sizes="100vw" className="object-cover" />
+      <div className="absolute inset-0 bg-[radial-gradient(60%_55%_at_50%_45%,transparent,#0b0806d9_80%)]" />
+      <Embers color="#ffb347" count={50} className="absolute inset-0 size-full" />
+
+      <div className="relative grid flex-1 place-items-center px-6 py-12">
+        <div className="flex w-full max-w-md flex-col items-center gap-5 text-center text-[#f5f5f7]">
+          <div className="relative">
+            {/* shockwave rings */}
+            {[0, 0.18].map((d) => (
+              <motion.span
+                key={d}
+                aria-hidden
+                initial={{ scale: 0.6, opacity: 0.9 }}
+                animate={{ scale: 2.6, opacity: 0 }}
+                transition={{ delay: 0.5 + d, duration: 1.1, ease: "easeOut" }}
+                className="absolute inset-0 rounded-[26px] border-2 border-[#ffb347]"
+              />
+            ))}
+            {/* burst */}
+            {BURST.map((p, i) => (
+              <motion.span
+                key={i}
+                aria-hidden
+                initial={{ x: 0, y: 0, opacity: 0, rotate: 0 }}
+                animate={{ x: p.x, y: [0, p.y, p.y + 60], opacity: [0, 1, 0], rotate: p.r }}
+                transition={{ delay: p.delay, duration: 1.4, ease: "easeOut" }}
+                className="absolute left-1/2 top-1/2 rounded-[2px] bg-[#ffc56b]"
+                style={{ width: p.s, height: p.s * 0.6, marginLeft: -p.s / 2, boxShadow: "0 0 8px #ff8a00" }}
+              />
+            ))}
+            {/* card drops in, flips, settles with a glow */}
+            <motion.div
+              initial={{ y: -140, rotateY: 180, scale: 0.6, opacity: 0 }}
+              animate={{ y: 0, rotateY: 0, scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 140, damping: 14, delay: 0.1 }}
+              className="relative w-[260px] overflow-hidden rounded-[26px] bg-[#16110d]/90 p-2 text-left backdrop-blur-md"
+              style={{ boxShadow: "0 0 0 1.5px #ffb34799, 0 30px 80px -20px #ff8a00aa" }}
+            >
+              <div className="relative aspect-square overflow-hidden rounded-[20px] [container-type:inline-size]" style={{ background: bg }}>
+                <BasketArt allocation={allocation} />
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-black/55 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
+                  Nº {NEXT_ID}
+                </span>
+                <motion.span aria-hidden initial={{ x: "-120%" }} animate={{ x: "220%" }} transition={{ delay: 0.9, duration: 1, ease: "easeInOut" }} className="absolute inset-y-0 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent" />
+              </div>
+              <div className="px-2 pb-1.5 pt-3">
+                <div className="truncate text-[17px] font-semibold text-white">{name}</div>
+                <div className="font-mono text-[11px] text-white/45">by bob.near</div>
+                <div className="mt-3 grid grid-cols-3 gap-1.5">
+                  {[
+                    ["Value", <Money key="v" value={deposit} />],
+                    ["Tokens", allocation.length],
+                    ["Owner", "you"],
+                  ].map(([k, v]) => (
+                    <div key={k as string} className="rounded-[12px] bg-white/[0.06] px-2.5 py-2">
+                      <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-white/40">{k}</div>
+                      <div className="text-[13px] font-semibold text-white">{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
           </div>
-          <span className="flex items-center gap-1.5 rounded-full bg-up/15 px-3 py-1 text-[13px] font-semibold text-up-text"><Sym name="check" size={14} stroke={2.8} /> Mock mint complete</span>
-          <Title size="text-[44px]">Congratulations</Title>
-          <p className="-mt-2 text-[17px] font-semibold">{name} is live</p>
-          <p className="text-sm text-muted">
-            Vault <span className="font-mono text-text">{NEXT_ID}.torch.near</span> would be created and funded with <Money value={deposit} />. Contracts aren&apos;t deployed
-            yet, so nothing was sent on-chain.
-          </p>
-          <div className="grid w-full grid-cols-2 gap-2">
-            <button onClick={onReset} className="btn-line h-11 text-sm">
+
+          <motion.span {...rise(0.8)} className="flex items-center gap-1.5 rounded-full bg-[#34c759]/20 px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7ee8a0]">
+            <Sym name="check" size={13} stroke={2.8} /> Vault minted
+          </motion.span>
+          <motion.div {...rise(0.9)} className="-mt-1">
+            <Title size="text-[44px]">It&apos;s yours.</Title>
+            <p className="mt-1 text-[15px] text-white/60">Your basket now lives inside its own vault NFT.</p>
+          </motion.div>
+          <motion.dl {...rise(1.05)} className="grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-[18px] border border-white/10 bg-black/35 px-4 py-3 text-left font-mono text-[12px] backdrop-blur-md">
+            <dt className="text-white/40">Vault</dt>
+            <dd className="truncate text-right text-white">{NEXT_ID}.torch.near</dd>
+            <dt className="text-white/40">Funded</dt>
+            <dd className="text-right text-white">
+              <Money value={deposit} /> USDC
+            </dd>
+            <dt className="text-white/40">Status</dt>
+            <dd className="text-right text-[#ffb766]">Mock · not on-chain yet</dd>
+          </motion.dl>
+          <motion.div {...rise(1.2)} className="grid w-full grid-cols-2 gap-2">
+            <button onClick={onReset} className="h-12 rounded-full border border-white/15 bg-white/5 text-[15px] font-semibold text-white transition hover:bg-white/10 active:scale-95">
               Create another
             </button>
-            <Link href="/etf/0" className="grid h-12 place-items-center rounded-full bg-tint text-[15px] font-bold text-white active:scale-95">
+            <Link href="/etf/0" className="grid h-12 place-items-center rounded-full bg-[#ff8a00] text-[15px] font-bold text-white shadow-[0_10px_40px_-8px_#ff6a00] active:scale-95">
               View example vault
             </Link>
-          </div>
+          </motion.div>
         </div>
       </div>
-    </>
+    </section>
   );
 }

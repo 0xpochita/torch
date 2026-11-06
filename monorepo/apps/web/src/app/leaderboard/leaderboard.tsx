@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Change } from "@/components/etf-card";
-import { Sym } from "@/components/icons";
+import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Avatar, Money, Segmented } from "@/components/ui";
 import { CREATOR_STATS, ETFS, ME, type CreatorStat } from "@/lib/mock";
@@ -18,12 +18,11 @@ const SCALE: Record<(typeof PERIODS)[number], number> = { "24h": 0.08, "7D": 0.3
 // Season 1 closes at the hackathon deadline.
 const SEASON_END = Date.UTC(2026, 10, 14);
 
-const TROPHY = ["#f5b73b", "#c9ced6", "#c98a5b"];
 const TIERS = [
-  { min: 3500, name: "Diamond", color: "#8fd3ff" },
-  { min: 2000, name: "Platinum", color: "#c9ced6" },
-  { min: 1000, name: "Gold", color: "#f5b73b" },
-  { min: 0, name: "Silver", color: "#9aa0a8" },
+  { min: 3500, name: "Diamond", color: "#8fd3ff", icon: "diamond" as const },
+  { min: 2000, name: "Platinum", color: "#c9ced6", icon: "platinum" as const },
+  { min: 1000, name: "Gold", color: "#f5b73b", icon: "gold" as const },
+  { min: 0, name: "Silver", color: "#9aa0a8", icon: "silver" as const },
 ];
 const tier = (usd: number) => TIERS.find((t) => usd >= t.min)!;
 
@@ -62,10 +61,10 @@ export function Leaderboard() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button aria-label="Save" className="btn-line grid size-11 place-items-center">
-                <Sym name="heart" size={17} />
+                <Icon3D name="heart" size={22} />
               </button>
               <Link href="/vaults" className="btn-line flex h-11 items-center gap-2 px-4 text-[14px]">
-                <Sym name="person" size={16} /> My stats
+                <Icon3D name="person" size={20} /> My stats
               </Link>
               <Link href="/create" className="flex h-11 items-center gap-2 rounded-full bg-tint px-5 text-[14px] font-semibold text-white transition active:scale-95">
                 <Sym name="plus" size={16} weight="bold" /> Create an ETF
@@ -99,9 +98,7 @@ export function Leaderboard() {
             <div className="flex items-center gap-3">
               <Avatar account={c.account} size={40} />
               <span className="min-w-0 flex-1 truncate text-[17px] font-semibold">{c.account}</span>
-              <span style={{ color: TROPHY[i] }}>
-                <Sym name="trophy" size={36} weight="fill" className="drop-shadow-[0_4px_12px_#00000055]" />
-              </span>
+              <Icon3D name={(["crown", "platinum", "gold"] as const)[i]} size={40} className={i === 2 ? "sepia-[0.4] hue-rotate-[-12deg] saturate-[0.8] brightness-90" : ""} />
             </div>
             <TierBadge usd={c.valueUsd} />
             <div className="grid grid-cols-3 gap-3 text-[12px] text-muted">
@@ -201,7 +198,7 @@ function TierBadge({ usd, plain = false }: { usd: number; plain?: boolean }) {
   const t = tier(usd);
   return (
     <span className={`inline-flex w-fit items-center gap-1.5 text-[13px] font-semibold ${plain ? "" : "rounded-full bg-fill px-2.5 py-1"}`}>
-      <Sym name="shield" size={15} weight="fill" className="shrink-0" />
+      <Icon3D name={t.icon} size={18} />
       <span style={{ color: t.color }}>{t.name}</span>
     </span>
   );
