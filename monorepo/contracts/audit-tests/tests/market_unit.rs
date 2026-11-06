@@ -3,6 +3,7 @@
 //! whatever the buyer has escrowed at that moment.
 use market::Market;
 use near_sdk::test_utils::VMContextBuilder;
+use near_sdk::json_types::U128;
 use near_sdk::{testing_env, AccountId, NearToken};
 
 fn ctx(predecessor: &str, deposit: NearToken) {
@@ -15,20 +16,20 @@ fn ctx(predecessor: &str, deposit: NearToken) {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "offer amount changed")]
 fn h3_accept_offer_must_reject_an_offer_swapped_for_less() {
     ctx("deployer.testnet", NearToken::from_near(0));
     let mut m = Market::new("nft.testnet".parse().unwrap(), "fee.testnet".parse().unwrap());
 
     // Buyer offers 100 NEAR; the seller sees it and signs nft_approve(accept_offer).
-    ctx("buyer.testnet", NearToken::from_near(100));
-    m.offer("0".into(), u64::MAX);
+    ctx("buyer.testnet", NearToken::from_near(101));
+    m.offer("0".into(), U128(NearToken::from_near(100).as_yoctonear()), 1_000_000, None);
     // Before nft_on_approve lands, the buyer replaces it with 0.01 NEAR (old one is refunded).
-    ctx("buyer.testnet", NearToken::from_millinear(10));
-    m.offer("0".into(), u64::MAX);
+    ctx("buyer.testnet", NearToken::from_millinear(1010));
+    m.offer("0".into(), U128(NearToken::from_millinear(10).as_yoctonear()), 1_000_000, None);
 
     // The seller's message names the amount they agreed to; the market must refuse to settle
-    // for less. Today the field is ignored and the NFT is sold for 0.01 NEAR.
+    // for less. Before the fix the field was ignored and the NFT sold for 0.01 NEAR.
     ctx("nft.testnet", NearToken::from_near(0));
     let _ = m.nft_on_approve(
         "0".into(),

@@ -98,6 +98,15 @@ impl MockNft {
         self.tokens.nft_approve(token_id, account_id, msg)
     }
 
+    pub fn nft_is_approved(
+        &self,
+        token_id: TokenId,
+        approved_account_id: AccountId,
+        approval_id: Option<u64>,
+    ) -> bool {
+        self.tokens.nft_is_approved(token_id, approved_account_id, approval_id)
+    }
+
     #[payable]
     pub fn nft_revoke(&mut self, token_id: TokenId, account_id: AccountId) {
         self.tokens.nft_revoke(token_id, account_id)

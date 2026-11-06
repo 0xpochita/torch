@@ -1,5 +1,5 @@
 //! Sandbox reproductions for ../AUDIT.md. Each test asserts the SAFE behaviour, so it fails
-//! while the finding is open. Builds the real wasm of every contract with `cargo near build`.
+//! while the finding is open and stays as a regression test once fixed. Builds the real wasm of every contract with `cargo near build`.
 use near_workspaces::network::Sandbox;
 use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::NearToken;
@@ -97,9 +97,8 @@ async fn deploy(root: &Account, name: &str, near: u128, krate: &str) -> Contract
         .unwrap()
 }
 
-fn ok(r: ExecutionFinalResult) -> ExecutionFinalResult {
+fn ok(r: ExecutionFinalResult) {
     assert!(r.is_success(), "{r:#?}");
-    r
 }
 
 /// Real collection (vault as global contract by hash) + mock-ft usdc; alice and bob registered.
@@ -291,11 +290,16 @@ async fn h1_accepting_an_offer_after_draining_the_vault_must_fail() {
         .await
         .unwrap());
 
-    // Bob offers 5 NEAR for a vault holding 1_000_000 usdc.
+    // Bob offers 5 NEAR for a vault holding 1_000_000 usdc and pins that balance.
     ok(e.bob
         .call(market.id(), "offer")
-        .args_json(json!({ "token_id": "0", "expires_at": u64::MAX }))
-        .deposit(NearToken::from_near(5))
+        .args_json(json!({
+            "token_id": "0",
+            "amount": NearToken::from_near(5).as_yoctonear().to_string(),
+            "expires_at": e.worker.view_block().await.unwrap().timestamp() / 1_000_000 + 3_600_000,
+            "min_balances": [{ "ft_id": e.usdc.id(), "amount": "1000000" }],
+        }))
+        .deposit(NearToken::from_millinear(5_020))
         .transact()
         .await
         .unwrap());
@@ -308,13 +312,16 @@ async fn h1_accepting_an_offer_after_draining_the_vault_must_fail() {
         .transact()
         .await
         .unwrap());
-    let _ = e
+    let r = e
         .alice
         .call(e.nft.id(), "nft_approve")
         .args_json(json!({
             "token_id": "0",
             "account_id": market.id(),
-            "msg": json!({ "accept_offer": { "buyer_id": e.bob.id() } }).to_string(),
+            "msg": json!({ "accept_offer": {
+                "buyer_id": e.bob.id(),
+                "amount": NearToken::from_near(5).as_yoctonear().to_string(),
+            } }).to_string(),
         }))
         .deposit(NearToken::from_millinear(10))
         .max_gas()
@@ -322,18 +329,59 @@ async fn h1_accepting_an_offer_after_draining_the_vault_must_fail() {
         .await
         .unwrap();
 
+    assert!(
+        r.logs().iter().any(|l| l.contains("less than the offer's min_balances")),
+        "the sale must stop at the balance check: {r:#?}"
+    );
+    let offers: Value = market
+        .view("get_offers")
+        .args_json(json!({ "token_id": "0" }))
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(offers[0]["buyer_id"], json!(e.bob.id()), "bob's offer is kept");
     let sold = owner_of(&e, "0").await == *e.bob.id();
     assert!(
         !sold || usdc_of(&e, &vault).await == 1_000_000,
         "bob paid 5 NEAR for token 0 but its vault was drained to {}",
         usdc_of(&e, &vault).await
     );
+
+    // Control: refill the vault and accept again; the pinned balance now holds, so it sells.
+    ok(e.alice
+        .call(e.usdc.id(), "ft_transfer_call")
+        .args_json(json!({ "receiver_id": vault, "amount": "1000000", "msg": "" }))
+        .deposit(YOCTO)
+        .max_gas()
+        .transact()
+        .await
+        .unwrap());
+    let r = e
+        .alice
+        .call(e.nft.id(), "nft_approve")
+        .args_json(json!({
+            "token_id": "0",
+            "account_id": market.id(),
+            "msg": json!({ "accept_offer": {
+                "buyer_id": e.bob.id(),
+                "amount": NearToken::from_near(5).as_yoctonear().to_string(),
+            } }).to_string(),
+        }))
+        .deposit(NearToken::from_millinear(10))
+        .gas(near_workspaces::types::Gas::from_tgas(250))
+        .transact()
+        .await
+        .unwrap();
+    assert!(r.is_success(), "{r:#?}");
+    assert!(r.logs().iter().any(|l| l.contains(r#""event":"offer_accept""#)), "{r:#?}");
+    assert_eq!(owner_of(&e, "0").await, *e.bob.id());
+    assert_eq!(usdc_of(&e, &vault).await, 1_000_000);
 }
 
-/// H-2: `offer` stores an unbounded caller-chosen `token_id` three times in market storage that
-/// the market pays for, out of a balance that includes other buyers' escrow. A few 0.01 NEAR
-/// offers with ~1.9 kB ids push storage above the free balance, and honest buyers can no
-/// longer cancel (LackBalanceForState) until someone tops the market up.
+/// H-2: offers used to store an unbounded caller-chosen `token_id` in storage the market paid
+/// for out of other buyers' escrow, so a few 0.01 NEAR offers froze honest refunds. Now ids are
+/// bounded and every offer escrows `offer_storage_cost()` for its own storage.
 #[tokio::test]
 async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
     let e = setup().await;
@@ -347,44 +395,60 @@ async fn h2_long_token_id_offers_must_not_freeze_other_buyers_escrow() {
         .transfer_near(e.root.id(), NearToken::from_yoctonear(excess))
         .await
         .unwrap());
+    let storage: String = market.view("offer_storage_cost").await.unwrap().json().unwrap();
+    let storage: u128 = storage.parse().unwrap();
+    let expires_at = e.worker.view_block().await.unwrap().timestamp() / 1_000_000 + 3_600_000;
+    let offer = |who: &Account, token_id: String, min_balances: Value| {
+        who.call(market.id(), "offer")
+            .args_json(json!({
+                "token_id": token_id,
+                "amount": NearToken::from_millinear(10).as_yoctonear().to_string(),
+                "expires_at": expires_at,
+                "min_balances": min_balances,
+            }))
+            .deposit(NearToken::from_yoctonear(NearToken::from_millinear(10).as_yoctonear() + storage))
+            .max_gas()
+            .transact()
+    };
 
+    // Long ids are rejected outright.
+    let mallory = sub(&e.root, "mallory", 10).await;
+    let r = offer(&mallory, "x".repeat(1900), json!([])).await.unwrap();
+    assert!(r.is_failure(), "1.9 kB token id accepted");
+
+    // The largest allowed offer (20-digit id, 64-char buyer, 4 x 64-char ft ids, both index
+    // sets new) fits the storage it pays for.
+    let long = sub(&e.root, &"l".repeat(64 - ".test.near".len()), 10).await;
+    assert_eq!(long.id().len(), 64);
+    let fts: Vec<_> = (0..4)
+        .map(|i| json!({ "ft_id": format!("{i}{}", "f".repeat(63)), "amount": u128::MAX.to_string() }))
+        .collect();
+    let before = market.view_account().await.unwrap().storage_usage;
+    ok(offer(&long, "9".repeat(20), json!(fts)).await.unwrap());
+    let used = market.view_account().await.unwrap().storage_usage - before;
+    assert!(used as u128 * 10u128.pow(19) <= storage, "offer used {used} bytes");
+
+    // Many short-id offers never eat into bob's escrow.
     ok(e.bob
         .call(market.id(), "offer")
-        .args_json(json!({ "token_id": "0", "expires_at": u64::MAX }))
-        .deposit(NearToken::from_near(1))
+        .args_json(json!({ "token_id": "0", "amount": NearToken::from_near(1).as_yoctonear().to_string(), "expires_at": expires_at }))
+        .deposit(NearToken::from_yoctonear(NearToken::from_near(1).as_yoctonear() + storage))
         .transact()
         .await
         .unwrap());
-
-    let mallory = sub(&e.root, "mallory", 10).await;
-    let mut placed = 0;
     for i in 0..20 {
-        let r = mallory
-            .call(market.id(), "offer")
-            .args_json(json!({ "token_id": format!("{i:02}{}", "x".repeat(1900)), "expires_at": u64::MAX }))
-            .deposit(NearToken::from_millinear(10))
-            .max_gas()
-            .transact()
-            .await
-            .unwrap();
-        if r.is_failure() {
-            break;
-        }
-        placed += 1;
+        ok(offer(&mallory, format!("{}", 10_000_000 + i), json!([])).await.unwrap());
     }
     let r = e
         .bob
         .call(market.id(), "cancel_offer")
         .args_json(json!({ "token_id": "0" }))
+        .deposit(YOCTO)
         .max_gas()
         .transact()
         .await
         .unwrap();
-    assert!(
-        r.is_success(),
-        "after {placed} attacker offers (0.01 NEAR each) bob cannot get his 1 NEAR back: {:?}",
-        r.failures()
-    );
+    assert!(r.is_success(), "bob cannot get his 1 NEAR back: {:?}", r.failures());
 }
 
 /// I9 check: `nft_resolve_transfer` gets a fixed 5 Tgas from near-contract-standards (unused gas
