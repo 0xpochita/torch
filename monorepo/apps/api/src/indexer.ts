@@ -76,7 +76,8 @@ function applyEvent(db: Db, cfg: Config, event: string, d: Record<string, any>, 
       run(db, "DELETE FROM listings WHERE token_id = ?", tokenId);
       break;
     case "offer":
-      run(db, "INSERT OR REPLACE INTO offers (token_id, buyer_id, amount, expires_at, created_at) VALUES (?, ?, ?, ?, ?)", tokenId, str(d.buyer_id), str(d.amount), Number(d.expires_at), ts);
+      // Wave 2 market: `created_at` (and `min_balances`) are in the event; older events only have the block time.
+      run(db, "INSERT OR REPLACE INTO offers (token_id, buyer_id, amount, expires_at, created_at) VALUES (?, ?, ?, ?, ?)", tokenId, str(d.buyer_id), str(d.amount), Number(d.expires_at), Number(d.created_at ?? ts));
       break;
     case "offer_cancel":
     case "offer_accept":

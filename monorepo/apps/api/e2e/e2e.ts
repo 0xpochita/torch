@@ -147,10 +147,13 @@ async function run(rootKey: KeyPairString, code: Record<string, Uint8Array>) {
   await call(bob, MARKET, "buy", { token_id: "0" }, NEAR(2), 200);
   log("4. alice listed at 2 NEAR, bob bought");
 
-  // 5. carol offers 1.5 NEAR, bob accepts in one approve
-  await call(carol, MARKET, "offer", { token_id: "0", expires_at: Date.now() + 86_400_000 }, NEAR(1.5), 30);
-  await call(bob, NFT, "nft_approve", { token_id: "0", account_id: MARKET, msg: JSON.stringify({ accept_offer: { buyer_id: carol.accountId } }) }, NEAR(0.01), 250);
-  log("5. carol offered 1.5 NEAR, bob accepted");
+  // 5. carol offers 1.5 NEAR pinned to the current vault balances (wave 2 market), bob accepts in one approve
+  const storage = await view<string>(MARKET, "offer_storage_cost", {});
+  const minBalances = [{ ft_id: USDC, amount: "500000000" }, { ft_id: ETH, amount: "100000000000000000" }];
+  await call(carol, MARKET, "offer", { token_id: "0", amount: NEAR(1.5), expires_at: Date.now() + 86_400_000, min_balances: minBalances }, (BigInt(NEAR(1.5)) + BigInt(storage)).toString(), 30);
+  const offerCreatedAt = (await view<{ created_at: number }[]>(MARKET, "get_offers", { token_id: "0" }))[0].created_at;
+  await call(bob, NFT, "nft_approve", { token_id: "0", account_id: MARKET, msg: JSON.stringify({ accept_offer: { buyer_id: carol.accountId, amount: NEAR(1.5) } }) }, NEAR(0.01), 250);
+  log(`5. carol offered 1.5 NEAR (+${storage} yocto offer storage, min_balances pinned), bob accepted`);
 
   // 6. gacha: owner funds the treasury, bob pulls once
   await reg(USDC, GACHA);
@@ -218,6 +221,9 @@ async function run(rootKey: KeyPairString, code: Record<string, Uint8Array>) {
   assert.deepEqual(count(act), { vault_created: 1, nft_mint: 1, vault_deposit: 2, vault_withdraw: 1, list: 1, sale: 1, nft_transfer: 2, offer: 1, offer_accept: 1 });
   assert.ok(act.every((a, i) => i === 0 || act[i - 1].at >= a.at), "newest first");
   assert.ok(act.every((a) => a.txHash), "every event carries its tx hash");
+  const offerEv = act.find((a) => a.event === "offer")!.data;
+  assert.deepEqual([offerEv.created_at, offerEv.min_balances], [offerCreatedAt, minBalances], "wave 2 offer fields indexed");
+  assert.equal(act.find((a) => a.event === "offer_accept")!.data.created_at, offerCreatedAt);
   const all = await get<ActivityItem[]>("/activity?limit=500");
   assert.equal(all.filter((a) => a.event === "gacha_pull").length, gachaWorks ? 1 : 0);
 
