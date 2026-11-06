@@ -109,36 +109,33 @@ export function Gacha() {
           <div className="absolute inset-0 bg-[radial-gradient(70%_60%_at_50%_45%,transparent,#0d0a08cc)]" />
           <GachaMachine ref={machine} className="absolute inset-0" />
 
-          {/* slim glass chrome, nothing shouting */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-5">
-            <span className="flex items-center gap-2 rounded-full bg-black/45 py-1.5 pl-1.5 pr-3.5 text-[13px] font-semibold backdrop-blur-md">
-              <span className="grid size-7 place-items-center rounded-full bg-[#ff8a00] text-white">
-                <Sym name="gift" size={14} weight="bold" />
+          {/* HUD: mono type, hairlines, no pills */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-6 px-6 pt-5 font-mono text-[11px] uppercase tracking-[0.14em] text-white/70">
+            <span className="flex flex-col gap-1">
+              <span className="flex items-center gap-2 text-white">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-[#ff8a00]" />
+                  <span className="relative size-1.5 rounded-full bg-[#ff8a00]" />
+                </span>
+                Live · 1,284 pulls today
               </span>
-              Mystery vault
-              <span className="font-normal text-white/55">· {PITY} pulls to a Legendary</span>
+              <span className="text-white/40">Vault machine Nº 01 · {GACHA_PRICE_NEAR} NEAR / pull</span>
             </span>
-            <span className="flex w-[200px] flex-col gap-1.5 rounded-[16px] bg-black/45 px-3.5 py-2.5 backdrop-blur-md">
-              <span className="flex justify-between text-[12px] text-white/60">
-                Pity <b className="font-semibold text-white">{pity}/{PITY}</b>
+            <span className="flex flex-col items-end gap-1.5">
+              <span>
+                Pity <span className="text-white">{String(pity).padStart(2, "0")}</span>/{PITY}
               </span>
-              <span className="h-1 overflow-hidden rounded-full bg-white/10">
-                <motion.span className="block h-full rounded-full bg-[#ff8a00]" animate={{ width: `${(pity / PITY) * 100}%` }} />
+              <span className="flex gap-[2px]" aria-label={`${pity} of ${PITY} pulls to a guaranteed Legendary`}>
+                {Array.from({ length: PITY }, (_, i) => (
+                  <span key={i} className={`h-2.5 w-[3px] rounded-[1px] transition-colors ${i < pity ? "bg-[#ff8a00]" : "bg-white/15"}`} />
+                ))}
               </span>
+              <span className="text-white/40">Legendary in {PITY - pity}</span>
             </span>
           </div>
 
           <AnimatePresence>
-            {phase === "rolling" && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute left-1/2 top-20 w-[300px] -translate-x-1/2 rounded-[14px] bg-black/55 px-4 py-3 backdrop-blur-md">
-                <span className="flex items-center gap-2 text-[13px] font-semibold">
-                  <Sym name="clock" size={14} weight="bold" className="text-[#ff8a00]" /> Rolling a fair seed…
-                </span>
-                <span className="mt-2 block h-1 overflow-hidden rounded-full bg-white/10">
-                  <motion.span className="block h-full rounded-full bg-[#ff8a00]" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2.6, ease: "easeInOut" }} />
-                </span>
-              </motion.div>
-            )}
+            {phase === "rolling" && <Seed key="seed" />}
             {phase === "ready" && (
               <motion.button
                 key="crack"
@@ -147,10 +144,10 @@ export function Gacha() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 z-[5] flex cursor-pointer items-start justify-center bg-black/35 pt-[16%]"
-                aria-label="Crack the capsule"
+                aria-label="Release the flame"
               >
-                <motion.span animate={{ opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.6 }} className="text-[13px] font-semibold uppercase tracking-[0.2em] text-white">
-                  Tap to crack the capsule
+                <motion.span animate={{ opacity: [0.45, 1, 0.45] }} transition={{ repeat: Infinity, duration: 1.6 }} className="font-mono text-[12px] uppercase tracking-[0.3em] text-white">
+                  Tap to release the flame
                 </motion.span>
               </motion.button>
             )}
@@ -251,6 +248,24 @@ export function Gacha() {
         </aside>
       </div>
     </>
+  );
+}
+
+/** Scrambling hex seed with a hairline progress, like a block hash resolving. */
+function Seed() {
+  const [hex, setHex] = useState("0x0000000000000000");
+  useEffect(() => {
+    const id = setInterval(() => setHex("0x" + Array.from({ length: 16 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")), 60);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute left-1/2 top-[18%] flex w-[280px] -translate-x-1/2 flex-col items-center gap-2 font-mono uppercase">
+      <span className="text-[10px] tracking-[0.3em] text-white/50">Rolling seed</span>
+      <span className="text-[15px] tracking-[0.08em] text-white tabular-nums">{hex}</span>
+      <span className="relative h-px w-full bg-white/15">
+        <motion.span className="absolute inset-y-0 left-0 bg-[#ff8a00] shadow-[0_0_8px_#ff8a00]" initial={{ width: "0%" }} animate={{ width: "100%" }} transition={{ duration: 2.6, ease: "easeInOut" }} />
+      </span>
+    </motion.div>
   );
 }
 

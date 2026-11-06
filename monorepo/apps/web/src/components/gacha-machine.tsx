@@ -16,30 +16,77 @@ export type GachaHandle = { pull: (color: string) => Promise<void>; crack: () =>
 const DOME_R = 1.5;
 const CAP_R = 0.26;
 const CENTER = new THREE.Vector3(0, 0.75, 0);
-// bottom-half colours: saturated, like real toy capsules
-const PALETTE = ["#ff8a00", "#2f8cff", "#21c47a", "#ff4f7b", "#9b5cff", "#ffc31f"];
 const COUNT = 30;
 const SHARDS = 48;
 
-type Capsule = { group: THREE.Group; top: THREE.Object3D; bottom: THREE.Mesh; v: THREE.Vector3; spin: THREE.Vector3 };
+type Capsule = { group: THREE.Group; core: THREE.Mesh; halo: THREE.Sprite; mat: THREE.ShaderMaterial; v: THREE.Vector3; spin: THREE.Vector3 };
 
-type Parts = { shell: THREE.SphereGeometry; clear: THREE.Material; seam: THREE.TorusGeometry; prize: THREE.CylinderGeometry; gold: THREE.Material };
+// Animated fire: fbm noise scrolling upward, dark red → orange → white-hot core, glowing rim.
+const FIRE_VERT = /* glsl */ `
+varying vec3 vPos;
+varying vec3 vNormal;
+varying vec3 vView;
+void main() {
+  vPos = position;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vNormal = normalize(normalMatrix * normal);
+  vView = normalize(-mv.xyz);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FIRE_FRAG = /* glsl */ `
+uniform float uTime;
+uniform float uHeat;
+uniform float uSeed;
+uniform vec3 uTint;
+uniform float uTintAmt;
+varying vec3 vPos;
+varying vec3 vNormal;
+varying vec3 vView;
+float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float noise(vec3 x) {
+  vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x), mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float fbm(vec3 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
+void main() {
+  float speed = 1.2 + uHeat * 3.0;
+  vec3 q = vPos * 9.0 + vec3(uSeed, -uTime * speed, uSeed * 0.7);
+  float n = fbm(q + fbm(q * 0.6) * 1.5);
+  float fres = pow(1.0 - max(dot(normalize(vNormal), normalize(vView)), 0.0), 2.2);
+  vec3 col = mix(vec3(0.35, 0.04, 0.0), vec3(1.0, 0.38, 0.02), smoothstep(0.25, 0.6, n));
+  col = mix(col, vec3(1.0, 0.82, 0.38), smoothstep(0.55, 0.85, n));
+  col = mix(col, col * uTint * 1.6, uTintAmt * 0.3);
+  col *= 0.85 + uHeat * 1.0;
+  col += vec3(1.0, 0.55, 0.12) * fres * (0.8 + uHeat);
+  gl_FragColor = vec4(col, 1.0);
+}`;
 
-/** Real gacha capsule: clear upper dome, solid coloured base, raised seam, a coin-sized prize inside. */
-function makeCapsule(color: string, p: Parts): Capsule {
+function glowTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  r.addColorStop(0, "rgba(255,200,120,1)");
+  r.addColorStop(0.25, "rgba(255,140,30,0.55)");
+  r.addColorStop(1, "rgba(255,90,0,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeFireball(geo: THREE.SphereGeometry, haloTex: THREE.Texture): Capsule {
   const group = new THREE.Group();
-  const bottom = new THREE.Mesh(p.shell, new THREE.MeshPhysicalMaterial({ color, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.08 }));
-  bottom.rotation.x = Math.PI;
-  const top = new THREE.Group();
-  top.add(new THREE.Mesh(p.shell, p.clear));
-  const seam = new THREE.Mesh(p.seam, bottom.material);
-  seam.rotation.x = Math.PI / 2;
-  const prize = new THREE.Mesh(p.prize, p.gold);
-  prize.rotation.set(Math.PI / 2.4, 0, Math.random());
-  prize.position.y = -0.04;
-  group.add(bottom, top, seam, prize);
-  group.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-  return { group, top, bottom, v: new THREE.Vector3(), spin: new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2) };
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: FIRE_VERT,
+    fragmentShader: FIRE_FRAG,
+    uniforms: { uTime: { value: 0 }, uHeat: { value: 0.15 }, uSeed: { value: Math.random() * 50 }, uTint: { value: new THREE.Color("#ff8a00") }, uTintAmt: { value: 0 } },
+  });
+  const core = new THREE.Mesh(geo, mat);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: "#ff9a30", blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.55 }));
+  halo.scale.setScalar(CAP_R * 4);
+  group.add(halo, core);
+  return { group, core, halo, mat, v: new THREE.Vector3(), spin: new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2) };
 }
 
 export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; className?: string }) {
@@ -153,24 +200,24 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
     knob.position.set(0, -0.4, 1.22);
     machine.add(knob);
 
-    // capsules
-    const parts: Parts = {
-      shell: new THREE.SphereGeometry(CAP_R, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-      clear: new THREE.MeshPhysicalMaterial({ color: "#ffffff", roughness: 0, clearcoat: 1, transparent: true, opacity: 0.28, envMapIntensity: 2, depthWrite: false }),
-      seam: new THREE.TorusGeometry(CAP_R * 0.995, 0.01, 6, 40),
-      prize: new THREE.CylinderGeometry(CAP_R * 0.55, CAP_R * 0.55, 0.05, 24),
-      gold,
-    };
-    const caps: Capsule[] = Array.from({ length: COUNT }, (_, i) => {
-      const c = makeCapsule(PALETTE[i % PALETTE.length], parts);
+    // fireballs
+    const ballGeo = new THREE.SphereGeometry(CAP_R, 40, 24);
+    const haloTex = glowTexture();
+    const caps: Capsule[] = Array.from({ length: COUNT }, () => {
+      const c = makeFireball(ballGeo, haloTex);
       c.group.position.copy(new THREE.Vector3().randomDirection().multiplyScalar(Math.random() * (DOME_R - CAP_R) * 0.9).add(CENTER));
       machine.add(c.group);
       return c;
     });
+    // fire inside the dome lights the gold from within
+    const domeLight = new THREE.PointLight("#ff7a1a", 6, 6);
+    domeLight.position.copy(CENTER).setY(CENTER.y - 0.6);
+    machine.add(domeLight);
+    let heat = 0.15;
 
     // shards for the crack burst
     const shardGeo = new THREE.TetrahedronGeometry(0.07);
-    const shardMat = new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: "#ffffff", emissiveIntensity: 1, transparent: true });
+    const shardMat = new THREE.MeshStandardMaterial({ color: "#ffb04a", emissive: "#ff7a1a", emissiveIntensity: 2, transparent: true });
     const shards = Array.from({ length: SHARDS }, () => {
       const m = new THREE.Mesh(shardGeo, shardMat);
       m.visible = false;
@@ -242,7 +289,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
       active.t += dt;
       const { cap: c, t } = active;
       const g = c.group;
-      const tint = c.bottom.material as THREE.MeshPhysicalMaterial;
+      const u = c.mat.uniforms;
       if (active.stage === "drop") {
         if (t < 0.5) g.position.lerp(exit, ease(t / 0.5) * 0.35);
         else {
@@ -250,9 +297,9 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
           g.position.lerpVectors(exit, front, k);
           g.scale.setScalar(1 + k * 0.9);
           g.rotation.y += dt * (10 - k * 8);
-          // settle upright: clear dome up, tipped a little toward the camera
-          g.rotation.x = THREE.MathUtils.lerp(g.rotation.x % (Math.PI * 2), 0.35, k);
-          g.rotation.z = THREE.MathUtils.lerp(g.rotation.z % (Math.PI * 2), 0, k);
+          u.uTintAmt.value = k;
+          // the halo carries the rarity colour, the fire keeps burning orange
+          (c.halo.material as THREE.SpriteMaterial).color.set("#ff9a30").lerp(active.color, k);
           glow.color.copy(active.color);
           glow.position.copy(g.position).add(machine.position).add(tmp2.set(0, 0, 0.8));
           glow.intensity = k * 40;
@@ -269,16 +316,17 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         g.position.y = front.y + Math.sin(now / 420) * 0.06;
         g.rotation.y += dt * 0.9;
         glow.intensity = 40 + Math.sin(now / 300) * 10;
-        tint.emissive.copy(active.color).multiplyScalar(0.25 + Math.sin(now / 300) * 0.1);
+        u.uHeat.value = 0.55 + Math.sin(now / 260) * 0.15;
+        c.halo.scale.setScalar(CAP_R * (5 + Math.sin(now / 180) * 0.6));
       } else {
         // crack: split, flare, shards
         const k = ease(t / 0.5);
-        c.top.position.y = k * 0.9;
-        c.bottom.position.y = -k * 0.9;
-        c.top.rotation.z = k * 0.9;
-        c.bottom.rotation.z = -k * 0.5;
+        // the fireball swells, burns white-hot, then bursts into embers
+        g.scale.setScalar(1.9 + k * 1.6);
+        u.uHeat.value = 1.5 + k * 3;
+        c.halo.scale.setScalar(CAP_R * (5 + k * 10));
+        (c.halo.material as THREE.SpriteMaterial).opacity = 0.55 + k * 0.45;
         glow.intensity = 40 + k * 260;
-        tint.emissive.copy(active.color).multiplyScalar(0.6 + k);
         if (t > 0.9) {
           g.visible = false;
           const done = active.done;
@@ -308,10 +356,10 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         if (c.group.visible && active?.cap !== c) continue;
         c.group.visible = true;
         c.group.scale.setScalar(1);
-        c.top.position.y = c.bottom.position.y = 0;
-        c.top.rotation.z = c.bottom.rotation.z = 0;
-        (c.bottom.material as THREE.MeshPhysicalMaterial).emissive.set("#000000");
-        (c.bottom.material as THREE.MeshPhysicalMaterial).color.set(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
+        c.mat.uniforms.uTintAmt.value = 0;
+        (c.halo.material as THREE.SpriteMaterial).color.set("#ff9a30");
+        c.halo.scale.setScalar(CAP_R * 4);
+        (c.halo.material as THREE.SpriteMaterial).opacity = 0.55;
         c.group.position.copy(CENTER).add(tmp.set(0, 0.8, 0));
         c.v.set(0, 0, 0);
       }
@@ -326,7 +374,7 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         shake = 1.3;
         setTimeout(() => {
           const lowest = [...caps].sort((a, b) => a.group.position.y - b.group.position.y)[0];
-          (lowest.bottom.material as THREE.MeshPhysicalMaterial).color.set(color);
+          lowest.mat.uniforms.uTint.value.set(color);
           lowest.v.set(0, 0, 0);
           active = { cap: lowest, t: 0, stage: "drop", color: new THREE.Color(color), done: resolve };
         }, 1300);
@@ -339,8 +387,8 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
         active.t = 0;
         active.done = resolve;
         const origin = active.cap.group.position.clone().add(machine.position);
-        shardMat.color.copy(active.color).lerp(new THREE.Color("#ffffff"), 0.4);
-        shardMat.emissive.copy(active.color);
+        shardMat.color.set("#ffb04a").lerp(active.color, 0.5);
+        shardMat.emissive.set("#ff7a1a").lerp(active.color, 0.5);
         for (const s of shards) {
           s.m.visible = true;
           s.m.position.copy(origin);
@@ -368,6 +416,17 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
       machine.rotation.y = active ? machine.rotation.y * 0.95 : Math.sin(now / 2800) * 0.2;
       orange.emissiveIntensity = 1.4 + Math.sin(now / 500) * 0.4;
       rimLight.intensity = 14 + Math.sin(now / 500) * 4 + (shake > 0 ? 20 : 0);
+      // everything burns hotter while a pull is running
+      heat = THREE.MathUtils.lerp(heat, shake > 0 || active ? 1 : 0.15, dt * 3);
+      const flicker = Math.sin(now / 90) * 0.06 + Math.sin(now / 37) * 0.04;
+      for (const c of caps) {
+        c.mat.uniforms.uTime.value = now / 1000;
+        if (active?.cap !== c) {
+          c.mat.uniforms.uHeat.value = heat;
+          c.halo.scale.setScalar(CAP_R * (3.6 + heat * 2.2 + flicker * 3));
+        }
+      }
+      domeLight.intensity = 5 + heat * 35 + flicker * 20;
       animate(dt, now);
       animateShards(dt);
       camera.lookAt(look);
@@ -385,6 +444,8 @@ export function GachaMachine({ ref, className = "" }: { ref?: Ref<GachaHandle>; 
           (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => m.dispose());
         }
       });
+      caps.forEach((c) => c.halo.material.dispose());
+      haloTex.dispose();
       envTex.dispose();
       pmrem.dispose();
       renderer.dispose();
