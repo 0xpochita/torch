@@ -43,3 +43,6 @@ next-env.d.ts
 
 # rust / near
 target/
+
+# api sqlite index
+apps/api/data/
