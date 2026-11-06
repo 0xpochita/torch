@@ -58,8 +58,8 @@ export function OrderBook({ etf, header }: { etf: Etf; header?: React.ReactNode 
   const max = Math.max(1, ...asks.map((a) => a.qty), ...bids.map((b) => b.qty));
   const mine = etf.owner === account;
 
-  const accept = () => offers[0] && open({ kind: "accept", etfId: etf.id, offer: { from: offers[0].from, priceNear: offers[0].priceNear } });
-  const trade = () => (sellQty > 0 && mine ? accept() : buyQty > 0 ? open({ kind: etf.listed ? "buy" : "offer", etfId: etf.id }) : open({ kind: "offer", etfId: etf.id }));
+  const accept = () => offers[0] && open({ kind: "accept", tokenId: etf.id, offer: { from: offers[0].from, priceNear: offers[0].priceNear } });
+  const trade = () => (sellQty > 0 && mine ? accept() : buyQty > 0 ? open({ kind: etf.listed ? "buy" : "offer", tokenId: etf.id }) : open({ kind: "offer", tokenId: etf.id }));
 
   return (
     <section className="card flex flex-col gap-3 p-3">
@@ -86,7 +86,7 @@ export function OrderBook({ etf, header }: { etf: Etf; header?: React.ReactNode 
         <div className="flex flex-col overflow-hidden rounded-[20px] bg-fill/50">
           <ol className="flex flex-col">
             {asks.map((a) => (
-              <Level key={`a${a.price}`} etf={etf} price={a.price} qty={a.qty} max={max} side="ask" onClick={() => open({ kind: etf.listed ? "buy" : "offer", etfId: etf.id })} />
+              <Level key={`a${a.price}`} etf={etf} price={a.price} qty={a.qty} max={max} side="ask" onClick={() => open({ kind: etf.listed ? "buy" : "offer", tokenId: etf.id })} />
             ))}
           </ol>
           <div className="flex items-center justify-between bg-fill px-3 py-2.5 text-[13px]">
@@ -101,7 +101,7 @@ export function OrderBook({ etf, header }: { etf: Etf; header?: React.ReactNode 
           </div>
           <ol className="flex flex-col">
             {bids.map((b) => (
-              <Level key={`b${b.price}`} etf={etf} price={b.price} qty={b.qty} max={max} side="bid" onClick={mine ? accept : () => open({ kind: "offer", etfId: etf.id })} />
+              <Level key={`b${b.price}`} etf={etf} price={b.price} qty={b.qty} max={max} side="bid" onClick={mine ? accept : () => open({ kind: "offer", tokenId: etf.id })} />
             ))}
           </ol>
         </div>

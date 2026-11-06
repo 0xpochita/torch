@@ -14,7 +14,9 @@ import { TxLink } from "@/components/tx-sheet";
 import { Avatar, Money, NearAmount } from "@/components/ui";
 import { sfxPop, sfxReveal, sfxShake, startMusic, stopMusic } from "@/lib/gacha-audio";
 import { COLLECTION, GACHA, ftById } from "@/lib/contracts";
-import { RARITY, RECENT_PULLS, TOKENS, getEtf, type Allocation, type Rarity } from "@/lib/mock";
+import { ErrorState, Skeleton } from "@/components/load-state";
+import { toVault, useApi, type GachaPull } from "@/lib/api";
+import { RARITY, TOKENS, type Allocation, type Rarity } from "@/lib/mock";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
@@ -24,6 +26,8 @@ type Basket = { name: string; category: string; bg: string; items: Item[] };
 type Config = { price_per_pull: string; pity: number; tiers: { rarity: string; weight_bps: number; baskets: Basket[] }[] };
 
 const TIERS = Object.keys(RARITY) as Rarity[];
+/** 90 s → "1m", 5 h → "5h", 3 d → "3d". */
+const ago = (ms: number) => (ms < 3_600_000 ? `${Math.max(0, Math.floor(ms / 60_000))}m` : ms < 86_400_000 ? `${Math.floor(ms / 3_600_000)}h` : `${Math.floor(ms / 86_400_000)}d`);
 const isRarity = (r: unknown): r is Rarity => typeof r === "string" && r in RARITY;
 const best = (rs: Rarity[]) => [...rs].sort((a, b) => TIERS.indexOf(b) - TIERS.indexOf(a))[0];
 // INTERFACES defaults until get_config loads: 0.1 NEAR per pull, pity 50.
@@ -82,6 +86,9 @@ export function Gacha() {
   const price = near.fromUnits(priceYocto, 24);
   // Drop rates and baskets per tier from get_config; mock rates until it loads.
   const tierOf = (t: Rarity) => config?.tiers.find((x) => x.rarity === t);
+  // Recent pulls feed the side list and the HUD's 24h counter (the API keeps the last 100 at most).
+  const recent = useApi<GachaPull[]>(`/gacha/recent?limit=100&n=${nonce}`);
+  const today = recent.data?.filter((p) => p.at >= recent.at - 86_400_000).length;
   const rate = (t: Rarity) => (config ? (tierOf(t)?.weight_bps ?? 0) / 10_000 : RARITY[t].rate);
   const [result, setResult] = useState<Pull[] | null>(null);
   const [collected, setCollected] = useState<Pull[]>([]);
@@ -186,7 +193,7 @@ export function Gacha() {
                   <span className="absolute inset-0 animate-ping rounded-full bg-[#ff8a00]" />
                   <span className="relative size-1.5 rounded-full bg-[#ff8a00]" />
                 </span>
-                Live · 1,284 pulls today
+                Live · {today === undefined ? "…" : `${today === 100 ? "100+" : today.toLocaleString("en-US")} pulls today`}
               </span>
               <span className="text-white/40">Vault machine Nº 01 · {price} NEAR / pull</span>
             </span>
@@ -349,19 +356,27 @@ export function Gacha() {
 
           <section className="card flex flex-1 flex-col gap-1 p-5">
             <h2 className="pb-2 text-[18px] font-bold">Recent pulls</h2>
-            {RECENT_PULLS.map((r, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-[12px] px-1 py-1.5">
-                <Avatar account={r.account} size={28} />
-                <span className="min-w-0 flex-1 truncate text-[13px]">
-                  <span className="font-semibold">{r.account}</span> <span className="text-muted">pulled</span>{" "}
-                  <span className="font-semibold" style={{ color: RARITY[r.rarity].color }}>
-                    {r.rarity}
+            {recent.error ? (
+              <ErrorState error={recent.error} className="!p-4" />
+            ) : !recent.data ? (
+              [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-9" />)
+            ) : !recent.data.length ? (
+              <p className="text-[13px] text-muted">No pulls yet. Be the first.</p>
+            ) : (
+              recent.data.slice(0, 8).map((r) => (
+                <Link key={`${r.tokenId}-${r.at}`} href={`/etf/${r.tokenId}`} className="flex items-center gap-3 rounded-[12px] px-1 py-1.5 hover:bg-fill">
+                  <Avatar account={r.playerId} size={28} />
+                  <span className="min-w-0 flex-1 truncate text-[13px]">
+                    <span className="font-semibold">{r.playerId}</span> <span className="text-muted">pulled</span>{" "}
+                    <span className="font-semibold" style={{ color: RARITY[r.rarity].color }}>
+                      {r.rarity}
+                    </span>
                   </span>
-                </span>
-                <Artwork etf={getEtf(r.etfId)!} size={28} />
-                <span className="w-8 text-right text-[12px] text-muted">{r.ago}</span>
-              </div>
-            ))}
+                  {r.vault && <Artwork etf={toVault(r.vault)} size={28} />}
+                  <span className="w-8 text-right text-[12px] text-muted">{ago(recent.at - r.at)}</span>
+                </Link>
+              ))
+            )}
           </section>
         </aside>
       </div>

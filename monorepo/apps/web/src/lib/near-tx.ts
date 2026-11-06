@@ -177,15 +177,41 @@ export function check(outcomes: Outcome[], partial = false): Outcome[] {
   return outcomes;
 }
 
-/** One approval for every tx; a single tx uses signAndSendTransaction (wider wallet support). */
-export async function send(wallet: NearWalletBase, txs: Tx[], { partial = false } = {}): Promise<Outcome[]> {
-  let res: unknown;
-  try {
-    res = txs.length === 1 ? [await wallet.signAndSendTransaction(txs[0])] : await wallet.signAndSendTransactions({ transactions: txs });
-  } catch (e) {
-    throw new TxError(walletError(e));
+/** True when the wallet signs several transactions in one approval (manifest feature flag). */
+export const canBatch = (wallet: Pick<NearWalletBase, "manifest"> | null) => !!wallet?.manifest?.features?.signAndSendTransactions;
+
+/**
+ * Signs and sends `txs`. One approval for all of them when the wallet supports batches; otherwise one
+ * signAndSendTransaction per tx in order, stopping at the first failure. `onStep(i, n)` fires before
+ * each wallet prompt in that fallback so the UI can show "step i of n".
+ */
+export async function send(
+  wallet: NearWalletBase,
+  txs: Tx[],
+  { partial = false, onStep }: { partial?: boolean; onStep?: (i: number, n: number) => void } = {},
+): Promise<Outcome[]> {
+  if (txs.length > 1 && canBatch(wallet)) {
+    let res: unknown;
+    try {
+      res = await wallet.signAndSendTransactions({ transactions: txs });
+    } catch (e) {
+      throw new TxError(walletError(e));
+    }
+    return check(res as Outcome[], partial);
   }
-  return check(res as Outcome[], partial);
+  const done: Outcome[] = [];
+  for (const [i, t] of txs.entries()) {
+    if (txs.length > 1) onStep?.(i, txs.length);
+    let res: Outcome;
+    try {
+      res = (await wallet.signAndSendTransaction(t)) as unknown as Outcome;
+    } catch (e) {
+      throw new TxError(txs.length > 1 && i > 0 ? `Step ${i + 1} of ${txs.length}: ${walletError(e)} (earlier steps went through)` : walletError(e), done);
+    }
+    done.push(res);
+    check([res], partial);
+  }
+  return done;
 }
 
 /** Wallets reject with strings, Errors or RPC error objects. */

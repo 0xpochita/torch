@@ -132,3 +132,23 @@ test("token list: wNEAR + the 14 mock FTs with INTERFACES decimals", async () =>
   assert.equal(ftByKey("BTC").decimals, 8);
   assert.deepEqual(ftByKey("DRAGON"), { key: "DRAGON", id: "tdragon.torchvault.testnet", decimals: 18 });
 });
+
+test("send: one approval with batch wallets, sequential steps otherwise", async () => {
+  const ok = { transaction: { hash: "x" }, status: { SuccessValue: "" }, receipts_outcome: [] };
+  const calls: string[] = [];
+  const wallet = (batch: boolean) =>
+    ({
+      manifest: { features: { signAndSendTransactions: batch } },
+      signAndSendTransaction: async (t: tx.Tx) => (calls.push(`one:${t.receiverId}`), ok),
+      signAndSendTransactions: async (p: { transactions: tx.Tx[] }) => (calls.push(`batch:${p.transactions.length}`), p.transactions.map(() => ok)),
+    }) as unknown as Parameters<typeof tx.send>[0];
+  const txs = tx.delistTxs("1");
+  await tx.send(wallet(true), txs);
+  assert.deepEqual(calls.splice(0), ["batch:2"]);
+  const steps: string[] = [];
+  const outs = await tx.send(wallet(false), txs, { onStep: (i, n) => steps.push(`${i + 1}/${n}`) });
+  assert.equal(outs.length, 2);
+  assert.deepEqual(calls, [`one:${MARKET}`, `one:${COLLECTION}`]);
+  assert.deepEqual(steps, ["1/2", "2/2"]);
+  assert.equal(tx.canBatch(null), false);
+});

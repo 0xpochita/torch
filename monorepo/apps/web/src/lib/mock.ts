@@ -160,23 +160,3 @@ export const RARITY: Record<Rarity, { rate: number; color: string; vault: [numbe
   Epic: { rate: 0.1, color: "#b06bff", vault: [40, 120] },
   Legendary: { rate: 0.02, color: "#ff8a00", vault: [120, 500] },
 };
-
-/** Which template basket each tier mints from. */
-export const GACHA_POOL: Record<Rarity, string[]> = {
-  Common: ["1", "5"],
-  Rare: ["2", "4"],
-  Epic: ["3"],
-  Legendary: ["0"],
-};
-
-export const GACHA_PRICE_NEAR = 5;
-export const PITY = 50;
-
-export const RECENT_PULLS: { account: string; rarity: Rarity; etfId: string; ago: string }[] = [
-  { account: "degen.near", rarity: "Legendary", etfId: "0", ago: "2m" },
-  { account: "kat.near", rarity: "Rare", etfId: "4", ago: "6m" },
-  { account: "intents.near", rarity: "Common", etfId: "1", ago: "9m" },
-  { account: "staker.near", rarity: "Epic", etfId: "3", ago: "14m" },
-  { account: "nearwhale.near", rarity: "Common", etfId: "5", ago: "21m" },
-  { account: "rhea-maxi.near", rarity: "Rare", etfId: "2", ago: "33m" },
-];

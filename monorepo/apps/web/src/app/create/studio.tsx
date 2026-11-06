@@ -51,6 +51,7 @@ export function Studio() {
   const { accountId, wallet } = useNear();
   const [minted, setMinted] = useState<Mint | null>(null);
   const [busy, setBusy] = useState<"mint" | "fund" | null>(null);
+  const [fundStep, setFundStep] = useState<string | null>(null); // wallets without batch signing: one prompt per token
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<Category>(ETFS[0].category);
   const [prompt, setPrompt] = useState("");
@@ -96,7 +97,12 @@ export function Studio() {
     setBusy("fund");
     try {
       // one approval: register the vault on each token, then ft_transfer_call into it
-      const outs = await near.send(wallet, parts.map((p) => near.depositTx(m.tokenId, p.ft.id, p.units)));
+      setFundStep(null);
+      const outs = await near.send(
+        wallet,
+        parts.map((p) => near.depositTx(m.tokenId, p.ft.id, p.units)),
+        { onStep: (i, n) => setFundStep(`${TOKENS[parts[i].ft.key].symbol} · ${i + 1} of ${n}`) },
+      );
       setMinted({ ...m, fundHash: outs[outs.length - 1].transaction.hash, fundError: undefined, funded: deposit });
     } catch (e) {
       setMinted({ ...m, fundError: near.walletError(e) });
@@ -546,7 +552,7 @@ export function Studio() {
                     <span className={`grid size-5 place-items-center rounded-full text-[11px] ${busy === k ? "bg-ink text-on-ink" : k === "mint" ? "bg-up text-white" : "border border-faint"}`}>
                       {busy !== k && k === "mint" ? <Sym name="check" size={12} stroke={3} /> : i + 1}
                     </span>
-                    {k === "mint" ? "Mint vault" : "Fund basket"}
+                    {k === "mint" ? "Mint vault" : fundStep && busy === "fund" ? `Fund basket (${fundStep})` : "Fund basket"}
                     {i === 0 && deposit > 0 && <span className="h-px w-4 bg-line" />}
                   </li>
                 )).slice(0, deposit > 0 ? 2 : 1)}

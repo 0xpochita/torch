@@ -25,6 +25,7 @@ export function Faucet() {
   const { accountId, wallet, balance } = useNear();
   const [nonce, setNonce] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const [step, setStep] = useState<string | null>(null); // wallets without batch signing: one prompt per claim
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
   const [wrap, setWrap] = useState("1");
@@ -47,9 +48,10 @@ export function Faucet() {
   const run = async (label: string, txs: near.Tx[]) => {
     if (!wallet || !txs.length) return;
     setBusy(label);
+    setStep(null);
     setError(null);
     try {
-      const outs = await near.send(wallet, txs);
+      const outs = await near.send(wallet, txs, { onStep: (i, n) => setStep(`${i + 1} of ${n}`) });
       setHash(outs[outs.length - 1].transaction.hash);
     } catch (e) {
       setError(near.walletError(e));
@@ -80,7 +82,7 @@ export function Faucet() {
             <div className="flex items-center gap-3">
               <h2 className="flex-1 text-[18px] font-bold">Mock tokens</h2>
               <button onClick={() => run("all", ready.map((f) => near.faucetTx(f.id)))} disabled={!!busy || !ready.length} className="btn-ink h-10 px-4 text-[14px]">
-                {busy === "all" ? "Confirm in your wallet…" : `Claim all ready · ${ready.length}`}
+                {busy === "all" ? (step ? `Confirm ${step} in your wallet…` : "Confirm in your wallet…") : `Claim all ready · ${ready.length}`}
               </button>
             </div>
             <ul className="grid gap-1 sm:grid-cols-2">

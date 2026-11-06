@@ -54,7 +54,7 @@ export function VaultDetail({ id }: { id: string }) {
               <p className="mt-1 font-mono text-[12px] text-muted">{d.vaultId}</p>
               <div className="mt-3 flex items-center gap-2">
                 {etf.listed ? (
-                  <TxButton tx={{ kind: "buy", etfId: etf.id }} className="btn-ink h-9 px-5 text-[15px]">
+                  <TxButton tx={{ kind: "buy", tokenId: etf.id }} className="btn-ink h-9 px-5 text-[15px]">
                     <span className="flex items-center gap-1.5">
                       Buy <NearAmount amount={etf.priceNear} />
                     </span>
@@ -64,7 +64,7 @@ export function VaultDetail({ id }: { id: string }) {
                     Not listed
                   </button>
                 )}
-                <TxButton tx={{ kind: "offer", etfId: etf.id }} className="btn-line h-9 px-4 text-[15px]">
+                <TxButton tx={{ kind: "offer", tokenId: etf.id }} className="btn-line h-9 px-4 text-[15px]">
                   Make Offer
                 </TxButton>
                 <button className="btn-line grid size-9 place-items-center" aria-label="Share">
@@ -76,9 +76,9 @@ export function VaultDetail({ id }: { id: string }) {
 
           <div className="grid gap-3 border-t border-line-soft pt-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
             <div className="flex gap-5 lg:pr-4">
-              <TxAction tx={{ kind: etf.listed ? "buy" : "offer", etfId: etf.id }} icon="tag" label={etf.listed ? "Buy" : "Offer"} />
-              {etf.listed && <TxAction tx={{ kind: "offer", etfId: etf.id }} icon="swap" label="Offer" />}
-              <TxAction tx={{ kind: "transfer", etfId: etf.id }} icon="share" label="Send" />
+              <TxAction tx={{ kind: etf.listed ? "buy" : "offer", tokenId: etf.id }} icon="tag" label={etf.listed ? "Buy" : "Offer"} />
+              {etf.listed && <TxAction tx={{ kind: "offer", tokenId: etf.id }} icon="swap" label="Offer" />}
+              <TxAction tx={{ kind: "transfer", tokenId: etf.id }} icon="share" label="Send" />
               <ActionCircle icon="ellipsis" label="More" />
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
