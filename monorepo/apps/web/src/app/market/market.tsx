@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Artwork, Group, mixHex, tint } from "@/components/etf-card";
 import Grainient from "@/components/react-bits/Grainient";
 import ShinyText from "@/components/react-bits/ShinyText";
-import StarBorder from "@/components/react-bits/StarBorder";
+import BorderGlow from "@/components/react-bits/BorderGlow";
 import { Sym } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { useTx } from "@/components/tx-sheet";
@@ -225,15 +225,16 @@ export function Market() {
   );
 }
 
-/** Highlighted listing: React Bits Grainient art, a StarBorder star tracing the card, ShinyText label. */
+/** Highlighted listing: React Bits Grainient art, BorderGlow edge that lights toward the cursor, ShinyText label. */
 function Featured({ l, label, stat, sub }: { l: Listing; label: string; stat: string; sub: string }) {
   const open = useTx();
   const bg = l.etf.bg;
   return (
-    <StarBorder as="div" radius={28} thickness={1.5} duration={6} color="#ffb340" trailColor="#ff8a00" glow={0.9} hover="brighten" backgroundColor="var(--surface)" borderColor="var(--line)" textColor="var(--text)" className="!flex w-full !items-stretch !justify-start !gap-4 !p-3">
+    <BorderGlow backgroundColor="var(--surface)" borderRadius={28} glowColor="32 100 60" colors={["#ff8a00", "#ffb340", "#ffd9a0"]} glowIntensity={0.9} edgeSensitivity={24} fillOpacity={0.35} className="w-full">
+      <div className="flex gap-4 p-3">
       <Link href={`/etf/${l.etf.id}`} className="relative isolate aspect-square w-[132px] shrink-0 overflow-hidden rounded-[22px] sm:w-[160px]">
         <span className="absolute inset-0 -z-10">
-          <Grainient colors={[mixHex(bg, -0.3), bg, mixHex(bg, 0.6)]} speed={0.6} grainAmount={0.07} intro={false} />
+          <Grainient colors={[mixHex(bg, -0.3), bg, mixHex(bg, 0.6)]} speed={0} grainAnimated={false} interactive={false} clickSwirl={false} dpr={1} grainAmount={0.07} intro={false} />
         </span>
         <BasketArt allocation={l.etf.allocation} />
       </Link>
@@ -262,7 +263,8 @@ function Featured({ l, label, stat, sub }: { l: Listing; label: string; stat: st
           </button>
         </div>
       </div>
-    </StarBorder>
+      </div>
+    </BorderGlow>
   );
 }
 

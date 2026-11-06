@@ -142,7 +142,7 @@ export function Studio() {
 
           <div className="relative min-h-[340px] flex-1 overflow-hidden rounded-[26px]" style={{ background: bg }}>
             <div className="absolute inset-0">
-              <Grainient colors={[mixHex(bg, -0.35), bg, mixHex(bg, 0.55), mixHex(bg, -0.15)]} speed={0.35} grainAmount={0.06} softness={0.8} intro={false} />
+              <Grainient colors={[mixHex(bg, -0.35), bg, mixHex(bg, 0.55), mixHex(bg, -0.15)]} speed={0} grainAnimated={false} interactive={false} clickSwirl={false} dpr={1} grainAmount={0.06} softness={0.8} intro={false} />
             </div>
             <div className="absolute inset-0 grid place-items-center p-6 pb-24 pt-14">
               <div className="relative aspect-square h-full max-w-full [container-type:inline-size]">
