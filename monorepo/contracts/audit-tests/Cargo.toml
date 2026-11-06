@@ -1,0 +1,21 @@
+[package]
+name = "audit-tests"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Reproductions for findings in ../AUDIT.md. Tests here FAIL on purpose until the finding is fixed.
+[lib]
+path = "src/lib.rs"
+
+[dev-dependencies]
+market = { path = "../market" }
+near-sdk = { workspace = true, features = ["unit-testing"] }
+near-workspaces = "0.24"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1"
+# Same versions near-workspaces uses; only for signing DeployGlobalContract.
+near-jsonrpc-client = "0.23"
+near-jsonrpc-primitives = "0.38"
+near-primitives = "0.38"
+near-crypto = "0.38"

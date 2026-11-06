@@ -9,8 +9,11 @@ import { Embers } from "@/components/embers";
 import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Donut, Money, Title, TokenIcon } from "@/components/ui";
-import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
-import { useAccount } from "@/providers/near-provider";
+import { TxLink } from "@/components/tx-sheet";
+import { COLLECTION, FTS, ftByKey, vaultOf } from "@/lib/contracts";
+import { ETFS, TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/mock";
+import * as near from "@/lib/near-tx";
+import { useNear } from "@/providers/near-provider";
 
 const STEPS = ["Theme", "Basket", "Weights", "Deposit", "Review"] as const;
 const SUGGESTIONS = [
@@ -22,8 +25,21 @@ const SUGGESTIONS = [
 ];
 const BACKGROUNDS = ["#9fd3ff", "#b8f0d8", "#ffd8a8", "#e5c8ff", "#ffc2a8", "#c5f5b0", "#d7d7e0"];
 const MAX_TOKENS = 6;
-const NEXT_ID = ETFS.length;
-const STORAGE_NEAR = 0.11; // collection keeps 0.01 for token storage, vault gets the rest
+const NEXT_VAULT = `#.${COLLECTION}`; // the id is assigned on-chain at mint
+const STORAGE_NEAR = 0.11; // collection keeps 0.02 for token storage, vault gets the rest
+const FT_IDS = FTS.map((f) => f.id);
+
+/** Token amounts for a USD deposit at target weights (mock prices: testnet tokens have no market). */
+const basketAmounts = (allocation: Allocation[], usd: number) =>
+  allocation
+    .filter((a) => a.weight > 0)
+    .map((a) => {
+      const ft = ftByKey(a.token);
+      return { ft, units: near.toUnits((usd * a.weight) / 100 / TOKENS[a.token].price, ft.decimals) };
+    })
+    .filter((x) => x.units !== "0");
+
+type Mint = { tokenId: string; hash: string; fundHash?: string; fundError?: string; funded: number };
 
 export function Studio() {
   const [step, setStepRaw] = useState(0);
@@ -32,14 +48,19 @@ export function Studio() {
     setDir(n >= step ? 1 : -1);
     setStepRaw(n);
   };
-  const [minted, setMinted] = useState(false);
+  const { accountId, wallet } = useNear();
+  const [minted, setMinted] = useState<Mint | null>(null);
+  const [busy, setBusy] = useState<"mint" | "fund" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [category, setCategory] = useState<Category>(ETFS[0].category);
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
   const [name, setName] = useState("My NEAR Index");
   const [allocation, setAllocation] = useState<Allocation[]>(ETFS[0].allocation);
   const [bg, setBg] = useState(BACKGROUNDS[0]);
   const [slippage, setSlippage] = useState(50);
-  const [deposit, setDeposit] = useState(250);
+  const [deposit, setDeposit] = useState(0);
+  const balances = near.useFtBalances(accountId, FT_IDS, minted ? 1 : 0);
 
   const total = allocation.reduce((s, a) => s + a.weight, 0);
   // Same token set as a template → show its generated 3D art; custom baskets get the live coin preview.
@@ -47,13 +68,64 @@ export function Studio() {
   const art = ETFS.find((e) => key(e.allocation) === key(allocation));
   const live = allocation.filter((a) => a.weight > 0);
 
-  const blocker = [null, allocation.length < 2 ? "Pick at least 2 tokens" : null, total !== 100 ? `Weights total ${total}%, need 100%` : null, deposit < 10 ? "Deposit at least $10" : null, null][step];
+  // Most you can fund at these weights from your wallet: the scarcest token caps the basket.
+  const maxDeposit = balances
+    ? Math.floor(Math.min(...live.map((a) => (near.fromUnits(balances[ftByKey(a.token).id] ?? "0", ftByKey(a.token).decimals) * TOKENS[a.token].price) / (a.weight / 100))) * 100) / 100
+    : 0;
+  const short = deposit > 0 && deposit > maxDeposit;
+  const blocker = [
+    null,
+    allocation.length < 2 ? "Pick at least 2 tokens" : null,
+    total !== 100 ? `Weights total ${total}%, need 100%` : null,
+    short ? (balances ? "Not enough test tokens in your wallet for this deposit" : "Loading your balances…") : null,
+    null,
+  ][step];
 
   const applyTemplate = (etf: (typeof ETFS)[number]) => {
     setAllocation(etf.allocation);
     setBg(etf.bg);
     setName(etf.name);
     setSlippage(etf.slippageBps);
+    setCategory(etf.category);
+  };
+
+  const fund = async (m: Mint) => {
+    if (!wallet) return;
+    const parts = basketAmounts(live, deposit);
+    if (!parts.length) return;
+    setBusy("fund");
+    try {
+      // one approval: register the vault on each token, then ft_transfer_call into it
+      const outs = await near.send(wallet, parts.map((p) => near.depositTx(m.tokenId, p.ft.id, p.units)));
+      setMinted({ ...m, fundHash: outs[outs.length - 1].transaction.hash, fundError: undefined, funded: deposit });
+    } catch (e) {
+      setMinted({ ...m, fundError: near.walletError(e) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Step 1 mints (the vault id only exists after it resolves), step 2 funds that exact vault.
+  const mint = async () => {
+    if (!wallet) return;
+    setError(null);
+    setBusy("mint");
+    let m: Mint;
+    try {
+      const extra = { basket: live.map((a) => ({ token: ftByKey(a.token).id, weight: a.weight })), bg, category, creator: accountId, rarity: null };
+      const outs = await near.send(wallet, [near.mintTx({ title: name.trim() || "Untitled ETF", description: `${category} basket vault`, extra: JSON.stringify(extra) })]);
+      const ret = near.lastResult(outs[0]);
+      const tokenId = typeof ret === "string" ? ret : (near.events(outs, "vault_created", { from: COLLECTION })[0]?.token_id as string | undefined);
+      if (!tokenId) throw new Error("Minted, but the token id was not in the result. Check My Vaults.");
+      m = { tokenId, hash: outs[0].transaction.hash, funded: 0 };
+      setMinted(m);
+    } catch (e) {
+      setError(near.walletError(e));
+      setBusy(null);
+      return;
+    }
+    if (deposit > 0) await fund(m);
+    else setBusy(null);
   };
 
   // ponytail: keyword match stands in for an AI basket generator
@@ -86,7 +158,8 @@ export function Studio() {
     return !q || TOKENS[t].symbol.toLowerCase().includes(q) || TOKENS[t].name.toLowerCase().includes(q);
   });
 
-  if (minted) return <Minted name={name} deposit={deposit} bg={bg} allocation={live} onReset={() => (setMinted(false), setStep(0))} />;
+  if (minted && !busy)
+    return <Minted m={minted} name={name} deposit={deposit} bg={bg} allocation={live} onFund={deposit > 0 && !minted.fundHash ? () => fund(minted) : undefined} onReset={() => (setMinted(null), setStep(0))} />;
 
   return (
     <>
@@ -159,7 +232,7 @@ export function Studio() {
             </div>
             <div className="absolute left-4 top-4 flex items-center gap-2">
               <span className="rounded-full bg-chip px-3 py-1 text-xs font-semibold backdrop-blur">Live preview</span>
-              <span className="rounded-full bg-chip px-3 py-1 font-mono text-[11px] backdrop-blur">{NEXT_ID}.torch.near</span>
+              <span className="rounded-full bg-chip px-3 py-1 font-mono text-[11px] backdrop-blur">{NEXT_VAULT}</span>
             </div>
             <div className="absolute inset-x-4 bottom-4 flex flex-col gap-3 rounded-[22px] bg-chip p-4 shadow-[0_10px_30px_-12px_#00000040] backdrop-blur-xl">
               <div className="flex items-center gap-3">
@@ -169,7 +242,7 @@ export function Studio() {
                 <div className="min-w-0 flex-1">
                   <div className="title-chunky truncate text-[22px]">{name || "Untitled ETF"}</div>
                   <div className="truncate font-mono text-[11px] text-muted">
-                    {NEXT_ID}.torch.near · {allocation.length} tokens
+                    {NEXT_VAULT} · {allocation.length} tokens
                   </div>
                 </div>
                 <div className="text-right">
@@ -355,27 +428,53 @@ export function Studio() {
                   <input type="range" min={10} max={300} step={10} value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
                 </label>
                 <label className="flex flex-col gap-2">
-                  <span className="font-medium">Initial deposit (USDC)</span>
+                  <span className="flex justify-between font-medium">
+                    Initial deposit <span className="text-xs font-normal text-muted">{accountId ? <>max <Money value={maxDeposit} /></> : "connect to fund"}</span>
+                  </span>
                   <div className="flex items-center rounded-[12px] bg-fill px-3 focus-within:ring-2 focus-within:ring-tint/40">
                     <span className="text-muted">$</span>
                     <input
                       type="number"
-                      min={10}
-                      max={1250}
+                      min={0}
+                      step="any"
                       value={deposit}
-                      onChange={(e) => setDeposit(Math.min(1250, Math.max(0, Number(e.target.value))))}
+                      onChange={(e) => setDeposit(Math.max(0, Number(e.target.value)))}
                       className="w-full px-2 py-2.5 tabular-nums outline-none"
                     />
-                    <span className="text-xs text-muted">max 1,250</span>
+                    <span className="text-xs text-muted">0 = mint empty</span>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
-                    {[100, 250, 500, 1250].map((v) => (
-                      <button key={v} onClick={() => setDeposit(v)} className={`rounded-full py-1.5 text-xs font-medium ${deposit === v ? "bg-ink text-on-ink" : "bg-fill"}`}>
-                        {v === 1250 ? "Max" : `$${v}`}
-                      </button>
-                    ))}
+                    {[0.25, 0.5, 0.75, 1].map((f) => {
+                      const v = Math.floor(maxDeposit * f * 100) / 100;
+                      return (
+                        <button key={f} onClick={() => setDeposit(v)} disabled={!maxDeposit} className={`rounded-full py-1.5 text-xs font-medium disabled:opacity-40 ${deposit === v && v > 0 ? "bg-ink text-on-ink" : "bg-fill"}`}>
+                          {f === 1 ? "Max" : `${f * 100}%`}
+                        </button>
+                      );
+                    })}
                   </div>
                 </label>
+                <ul className="flex flex-col gap-1.5">
+                  {live.map((a) => {
+                    const ft = ftByKey(a.token);
+                    const need = (deposit * a.weight) / 100 / TOKENS[a.token].price;
+                    const have = balances ? near.fromUnits(balances[ft.id] ?? "0", ft.decimals) : null;
+                    return (
+                      <li key={a.token} className="flex items-center gap-2.5">
+                        <TokenIcon token={a.token} size={22} />
+                        <span className="flex-1 font-medium">{TOKENS[a.token].symbol}</span>
+                        <span className={`tabular-nums ${have !== null && need > have ? "text-down" : ""}`}>{need.toLocaleString("en-US", { maximumSignificantDigits: 4 })}</span>
+                        <span className="w-24 text-right text-xs tabular-nums text-muted">of {have === null ? "…" : have.toLocaleString("en-US", { maximumSignificantDigits: 4 })}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="text-xs text-muted">
+                  Tokens move straight from your wallet into the vault at target weights.{" "}
+                  <Link href="/faucet" className="font-semibold text-text underline">
+                    Get test tokens
+                  </Link>
+                </p>
               </div>
             )}
 
@@ -387,7 +486,7 @@ export function Studio() {
                     <dt className="text-muted">Name</dt>
                     <dd className="truncate font-medium">{name}</dd>
                     <dt className="text-muted">Vault</dt>
-                    <dd className="truncate font-mono">{NEXT_ID}.torch.near</dd>
+                    <dd className="truncate font-mono">{NEXT_VAULT}</dd>
                     <dt className="text-muted">Swaps</dt>
                     <dd>
                       ≤{(slippage / 100).toFixed(2)}% slippage
@@ -396,9 +495,9 @@ export function Studio() {
                 </div>
                 <dl className="flex flex-col gap-2">
                   {[
-                    ["Deposit into basket", <Money key="d" value={deposit} />],
+                    ["Deposit into basket", deposit > 0 ? <Money key="d" value={deposit} /> : "none, fund later"],
                     ["Vault account storage", `${STORAGE_NEAR} NEAR`],
-                    ["Est. swap cost", <Money key="s" value={(deposit * slippage) / 20000} />],
+                    ...(deposit > 0 ? [["Token registration", `≤ ${live.length} × 0.00125 NEAR`]] : []),
                     ["Network fee", "≈ 0.003 NEAR"],
                     ["Protocol fee", "0%"],
                   ].map(([k, v]) => (
@@ -440,7 +539,20 @@ export function Studio() {
                 </dd>
               </dl>
             </div>
-            {blocker && <p className="text-xs text-down">{blocker}</p>}
+            {busy && (
+              <ol className="flex items-center gap-2 text-xs">
+                {(["mint", "fund"] as const).map((k, i) => (
+                  <li key={k} className={`flex items-center gap-1.5 ${busy === k ? "font-semibold" : k === "mint" ? "text-up" : "text-faint"}`}>
+                    <span className={`grid size-5 place-items-center rounded-full text-[11px] ${busy === k ? "bg-ink text-on-ink" : k === "mint" ? "bg-up text-white" : "border border-faint"}`}>
+                      {busy !== k && k === "mint" ? <Sym name="check" size={12} stroke={3} /> : i + 1}
+                    </span>
+                    {k === "mint" ? "Mint vault" : "Fund basket"}
+                    {i === 0 && deposit > 0 && <span className="h-px w-4 bg-line" />}
+                  </li>
+                )).slice(0, deposit > 0 ? 2 : 1)}
+              </ol>
+            )}
+            {(error ?? blocker) && <p role="alert" className="text-xs text-down">{error ?? blocker}</p>}
             <div className="grid grid-cols-[auto_1fr] gap-2">
               <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className="btn-line h-11 px-5 text-sm disabled:opacity-40">
                 Back
@@ -450,8 +562,8 @@ export function Studio() {
                   Continue
                 </button>
               ) : (
-                <button onClick={() => setMinted(true)} disabled={total !== 100} className="btn-ink h-11 text-sm">
-                  Mint ETF NFT · <Money value={deposit} />
+                <button onClick={mint} disabled={total !== 100 || !wallet || !!busy || short} className="btn-ink h-11 text-sm">
+                  {busy ? "Confirm in your wallet…" : !wallet ? "Connect a wallet to mint" : error ? "Try again" : <>Mint ETF NFT{deposit > 0 && <> · <Money value={deposit} /></>}</>}
                 </button>
               )}
             </div>
@@ -469,8 +581,8 @@ const BURST = Array.from({ length: 22 }, (_, i) => {
   return { x: Math.cos(a) * d, y: Math.sin(a) * d * 0.8, r: (i * 47) % 360, s: 6 + (i % 4) * 3, delay: 0.55 + (i % 6) * 0.03 };
 });
 
-function Minted({ name, deposit, bg, allocation, onReset }: { name: string; deposit: number; bg: string; allocation: Allocation[]; onReset: () => void }) {
-  const account = useAccount();
+function Minted({ m, name, deposit, bg, allocation, onFund, onReset }: { m: Mint; name: string; deposit: number; bg: string; allocation: Allocation[]; onFund?: () => void; onReset: () => void }) {
+  const account = useNear().accountId;
   const rise = (delay: number) => ({ initial: { y: 16, opacity: 0 }, animate: { y: 0, opacity: 1 }, transition: { delay, type: "spring" as const, stiffness: 260, damping: 24 } });
   return (
     <section className="relative -mx-3 mt-3 flex min-h-[calc(100dvh-24px)] flex-1 flex-col overflow-hidden rounded-[28px] bg-[#0b0806] md:-mx-0">
@@ -515,7 +627,7 @@ function Minted({ name, deposit, bg, allocation, onReset }: { name: string; depo
               <div className="relative aspect-square overflow-hidden rounded-[20px] [container-type:inline-size]" style={{ background: bg }}>
                 <BasketArt allocation={allocation} />
                 <span className="absolute left-2.5 top-2.5 rounded-full bg-black/55 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
-                  Nº {NEXT_ID}
+                  Nº {m.tokenId}
                 </span>
                 <motion.span aria-hidden initial={{ x: "-120%" }} animate={{ x: "220%" }} transition={{ delay: 0.9, duration: 1, ease: "easeInOut" }} className="absolute inset-y-0 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent" />
               </div>
@@ -524,7 +636,7 @@ function Minted({ name, deposit, bg, allocation, onReset }: { name: string; depo
                 <div className="font-mono text-[11px] text-white/45">by {account ?? "you"}</div>
                 <div className="mt-3 grid grid-cols-3 gap-1.5">
                   {[
-                    ["Value", <Money key="v" value={deposit} />],
+                    ["Value", <Money key="v" value={m.funded} />],
                     ["Tokens", allocation.length],
                     ["Owner", "you"],
                   ].map(([k, v]) => (
@@ -547,20 +659,30 @@ function Minted({ name, deposit, bg, allocation, onReset }: { name: string; depo
           </motion.div>
           <motion.dl {...rise(1.05)} className="grid w-full grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-[18px] border border-white/10 bg-black/35 px-4 py-3 text-left font-mono text-[12px] backdrop-blur-md">
             <dt className="text-white/40">Vault</dt>
-            <dd className="truncate text-right text-white">{NEXT_ID}.torch.near</dd>
-            <dt className="text-white/40">Funded</dt>
-            <dd className="text-right text-white">
-              <Money value={deposit} /> USDC
+            <dd className="truncate text-right text-white">{vaultOf(m.tokenId)}</dd>
+            <dt className="text-white/40">Mint</dt>
+            <dd className="flex justify-end">
+              <TxLink hash={m.hash} className="text-white" />
             </dd>
-            <dt className="text-white/40">Status</dt>
-            <dd className="text-right text-[#ffb766]">Mock · not on-chain yet</dd>
+            <dt className="text-white/40">Funded</dt>
+            <dd className="flex justify-end text-right text-white">
+              {m.fundHash ? <TxLink hash={m.fundHash} className="text-white" /> : onFund ? <span className="text-[#ffb766]">not yet</span> : "empty vault"}
+            </dd>
           </motion.dl>
+          {onFund && (
+            <motion.div {...rise(1.1)} className="flex w-full flex-col gap-2">
+              {m.fundError && <p role="alert" className="text-[13px] text-[#ff9b8a]">Funding not sent: {m.fundError}</p>}
+              <button onClick={onFund} className="h-12 rounded-full bg-white text-[15px] font-semibold text-[#121212] transition active:scale-95">
+                Fund basket · <Money value={deposit} />
+              </button>
+            </motion.div>
+          )}
           <motion.div {...rise(1.2)} className="grid w-full grid-cols-2 gap-2">
             <button onClick={onReset} className="h-12 rounded-full border border-white/15 bg-white/5 text-[15px] font-semibold text-white transition hover:bg-white/10 active:scale-95">
               Create another
             </button>
-            <Link href="/etf/0" className="grid h-12 place-items-center rounded-full bg-[#ff8a00] text-[15px] font-bold text-white shadow-[0_10px_40px_-8px_#ff6a00] active:scale-95">
-              View example vault
+            <Link href={`/etf/${m.tokenId}`} className="grid h-12 place-items-center rounded-full bg-[#ff8a00] text-[15px] font-bold text-white shadow-[0_10px_40px_-8px_#ff6a00] active:scale-95">
+              View vault
             </Link>
           </motion.div>
         </div>

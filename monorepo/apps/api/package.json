@@ -7,7 +7,8 @@
     "start": "tsx --env-file-if-exists=.env src/index.ts",
     "fixture": "FIXTURE=1 tsx src/index.ts",
     "typecheck": "tsc",
-    "test": "tsx --test src/*.test.ts"
+    "test": "tsx --test src/*.test.ts",
+    "e2e": "tsx e2e/e2e.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1",
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^22",
+    "near-api-js": "^7.4.0",
     "tsx": "^4.23.15",
     "typescript": "^5"
   }

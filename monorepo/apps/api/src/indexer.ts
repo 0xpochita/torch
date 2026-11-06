@@ -41,7 +41,7 @@ function trusted(cfg: Config, executor: string, ev: Event, d: Record<string, any
 
 type Followups = { balances: { tokenId: string; ftId: string }[]; titles: string[] };
 
-function applyEvent(db: Db, event: string, d: Record<string, any>, tokenId: string, ts: number, out: Followups) {
+function applyEvent(db: Db, cfg: Config, event: string, d: Record<string, any>, tokenId: string, ts: number, out: Followups) {
   const str = (v: unknown) => String(v);
   switch (event) {
     case "nft_mint":
@@ -51,12 +51,15 @@ function applyEvent(db: Db, event: string, d: Record<string, any>, tokenId: stri
       break;
     case "vault_created": {
       const extra = (typeof d.extra === "string" ? JSON.parse(d.extra) : d.extra) ?? {};
+      const creator = str(d.creator ?? extra.creator);
+      // Anyone can mint with any metadata; rarity only means something on gacha mints (INTERFACES wave 1 deltas).
+      const rarity = creator === cfg.gachaId ? (extra.rarity ?? null) : null;
       run(
         db,
         `INSERT INTO tokens (token_id, vault_id, owner_id, creator, category, bg, rarity, basket, minted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (token_id) DO UPDATE SET vault_id = excluded.vault_id, owner_id = COALESCE(tokens.owner_id, excluded.owner_id),
            creator = excluded.creator, category = excluded.category, bg = excluded.bg, rarity = excluded.rarity, basket = excluded.basket, minted_at = excluded.minted_at`,
-        tokenId, str(d.vault_id), str(d.owner_id), str(d.creator ?? extra.creator), extra.category ?? null, extra.bg ?? null, extra.rarity ?? null, JSON.stringify(extra.basket ?? []), ts,
+        tokenId, str(d.vault_id), str(d.owner_id), creator, extra.category ?? null, extra.bg ?? null, rarity, JSON.stringify(extra.basket ?? []), ts,
       );
       out.titles.push(tokenId);
       break;
@@ -73,7 +76,8 @@ function applyEvent(db: Db, event: string, d: Record<string, any>, tokenId: stri
       run(db, "DELETE FROM listings WHERE token_id = ?", tokenId);
       break;
     case "offer":
-      run(db, "INSERT OR REPLACE INTO offers (token_id, buyer_id, amount, expires_at, created_at) VALUES (?, ?, ?, ?, ?)", tokenId, str(d.buyer_id), str(d.amount), Number(d.expires_at), ts);
+      // Wave 2 market: `created_at` (and `min_balances`) are in the event; older events only have the block time.
+      run(db, "INSERT OR REPLACE INTO offers (token_id, buyer_id, amount, expires_at, created_at) VALUES (?, ?, ?, ?, ?)", tokenId, str(d.buyer_id), str(d.amount), Number(d.expires_at), Number(d.created_at ?? ts));
       break;
     case "offer_cancel":
     case "offer_accept":
@@ -105,7 +109,7 @@ export function applyBlock(db: Db, cfg: Config, b: Block): Followups {
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               b.height, b.timestamp, o.txHash, o.receiptId, li, di, o.executorId, ev.standard, ev.event, tokenId, JSON.stringify(d),
             );
-            if (r.changes) applyEvent(db, ev.event, d, tokenId, b.timestamp, out); // replayed blocks are no-ops
+            if (r.changes) applyEvent(db, cfg, ev.event, d, tokenId, b.timestamp, out); // replayed blocks are no-ops
           }
         });
       });
@@ -231,6 +235,7 @@ export function nearChain(cfg: Config): Chain {
 
   return {
     async finalHeight() {
+      if (!cfg.neardataUrl) return (await rpc<any>(cfg.rpcUrl, "block", { finality: "final" })).header.height;
       try {
         return (await neardata("/v0/last_block/final")).block.header.height;
       } catch {
@@ -238,6 +243,7 @@ export function nearChain(cfg: Config): Chain {
       }
     },
     async block(h) {
+      if (!cfg.neardataUrl) return rpcBlock(h);
       try {
         return await neardataBlock(h);
       } catch (e) {

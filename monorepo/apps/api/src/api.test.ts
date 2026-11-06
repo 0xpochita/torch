@@ -6,6 +6,7 @@ import { openDb } from "./db.ts";
 import { FIXTURE_START, fixtureChain } from "./fixture.ts";
 import { indexOnce } from "./indexer.ts";
 import { staticPrices } from "./prices.ts";
+import { DAY, fixtureSnapshots, takeSnapshot } from "./snapshots.ts";
 import type { ActivityItem, GachaPull, LeaderboardRow, MarketListing, OffersResponse, Orderbook, Stats, VaultDetail, VaultSummary } from "./types.ts";
 
 const NEAR = (n: number) => (BigInt(Math.round(n * 1000)) * 10n ** 21n).toString();
@@ -40,6 +41,7 @@ test("fixture replay serves every endpoint", async () => {
   assert.equal(v1.listing?.price, NEAR(10));
   assert.equal(v2.rarity, "Epic");
   assert.equal(v2.creator, config.gachaId);
+  assert.ok(vaults.every((v) => v.change24h === null), "no snapshots yet");
 
   assert.deepEqual((await get<VaultSummary[]>("/vaults?owner=carol.testnet")).map((v) => v.tokenId), ["1"]);
   assert.deepEqual((await get<VaultSummary[]>("/vaults?creator=alice.testnet")).map((v) => v.tokenId), ["0"]);
@@ -82,6 +84,7 @@ test("fixture replay serves every endpoint", async () => {
 
   const lb = await get<LeaderboardRow[]>("/leaderboard");
   assert.deepEqual(lb.map((r) => [r.rank, r.accountId]), [[1, "carol.testnet"], [2, "alice.testnet"], [3, config.gachaId]]);
+  assert.ok(lb.every((r) => r.return === null));
   const alice = (await get<LeaderboardRow[]>("/leaderboard?sort=volume&period=all"))[0];
   assert.deepEqual([alice.accountId, alice.sales, alice.volume, alice.holders], ["alice.testnet", 2, NEAR(11), 3]);
   assert.equal((await get<LeaderboardRow[]>("/leaderboard?sort=volume&period=24h"))[0].sales, 1, "only the accepted offer is within 24h");
@@ -100,4 +103,56 @@ test("fixture replay serves every endpoint", async () => {
   const { applyBlock } = await import("./indexer.ts");
   applyBlock(db, cfg, chain.blocks[3]);
   assert.equal((await get<MarketListing[]>("/market/listings")).length, 1);
+});
+
+async function replayed(now = Date.now()) {
+  const db = openDb(":memory:");
+  const chain = fixtureChain(config, now);
+  await indexOnce(db, chain, { ...config, startHeight: FIXTURE_START });
+  const app = createApp(db, async () => staticPrices());
+  const get = async <T>(path: string) => {
+    const res = await app.request(path);
+    assert.equal(res.status, 200, path);
+    return (await res.json()) as T;
+  };
+  return { db, get, now };
+}
+
+test("24h change and leaderboard return are price-only, from snapshots", async () => {
+  const { db, get, now } = await replayed();
+  const px = staticPrices();
+  // ETH was half its price 25h ago and a week ago; nothing else moved.
+  takeSnapshot(db, { ...px, teth: px.teth / 2 }, now - 8 * DAY);
+  takeSnapshot(db, { ...px, teth: px.teth / 2 }, now - DAY - 3_600_000);
+  takeSnapshot(db, px, now - 3_600_000);
+
+  const byId = Object.fromEntries((await get<VaultSummary[]>("/vaults")).map((v) => [v.tokenId, v]));
+  assert.equal(Math.round(byId["2"].change24h!), 100, "100% ETH basket doubled");
+  assert.equal(byId["1"].change24h, 0, "stables did not move");
+  // 0.1 ETH out of a $937.35 basket: 342 / (937.35 - 171) - 1
+  assert.ok(Math.abs(byId["0"].change24h! - (937.35 / (937.35 - 171) - 1) * 100) < 1e-6, String(byId["0"].change24h));
+
+  const lb = await get<LeaderboardRow[]>("/leaderboard?sort=return&period=7d");
+  assert.deepEqual(lb.map((r) => [r.accountId, Math.round(r.return!)]), [[config.gachaId, 100], ["alice.testnet", 22], ["carol.testnet", 0]]);
+  // 24h window: the closest snapshot at or before then is the half-price one too.
+  assert.equal(Math.round((await get<LeaderboardRow[]>("/leaderboard?sort=return&period=24h"))[0].return!), 100);
+
+  const d = await get<VaultDetail>("/vaults/2");
+  assert.deepEqual(d.navHistory.map((p) => Math.round(p.navUsd)), [34, 34, 68, 68], "snapshots, then the live point");
+});
+
+test("fixture snapshots: hourly history ending at today's NAV", async () => {
+  const { db, get, now } = await replayed();
+  fixtureSnapshots(db, staticPrices(), now);
+  const vaults = await get<VaultSummary[]>("/vaults");
+  assert.ok(vaults.every((v) => typeof v.change24h === "number" && Number.isFinite(v.change24h)));
+  assert.ok(Math.abs(vaults.find((v) => v.tokenId === "1")!.change24h!) < 1, "stables barely move");
+
+  const d = await get<VaultDetail>("/vaults/0");
+  const hist = d.navHistory;
+  assert.ok(hist.length > 24, String(hist.length));
+  assert.ok(hist.every((p, i) => i === 0 || hist[i - 1].at <= p.at));
+  assert.ok(hist[0].at >= d.mintedAt, "nothing before the mint");
+  assert.ok(Math.abs(hist.at(-2)!.navUsd - d.navUsd) < 1e-6, "last snapshot = live NAV");
+  assert.ok((await get<LeaderboardRow[]>("/leaderboard?period=30d")).every((r) => typeof r.return === "number"));
 });

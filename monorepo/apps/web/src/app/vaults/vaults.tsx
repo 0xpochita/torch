@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { BasketArt } from "@/components/basket-art";
 import { ActivityRow, AllocationBar, Artwork, Change, tint } from "@/components/etf-card";
@@ -11,34 +12,19 @@ import { ConnectPrompt, Topbar } from "@/components/navbar";
 import GlareHover from "@/components/react-bits/GlareHover";
 import GlideSelect from "@/components/react-bits/GlideSelect";
 import { useTx } from "@/components/tx-sheet";
-import { useAccount } from "@/providers/near-provider";
+import { NETWORK, useAccount } from "@/providers/near-provider";
 import { Avatar, Money, NearAmount, TokenIcon, TokenStack } from "@/components/ui";
-import { ALL_ACTIVITY, ETFS, MY_VAULTS, NEAR_USD, TOKENS, offersFor, type Etf, type TokenKey } from "@/lib/mock";
+import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
+import { toEvents, toNear, toVault, useApi, type ActivityItem, type OffersResponse, type Stats, type VaultSummary } from "@/lib/api";
+import { TOKENS, type Etf, type TokenKey } from "@/lib/mock";
+
+const DEV_AS = NETWORK === "testnet" && process.env.NODE_ENV !== "production";
 
 const TABS = ["Holdings", "Created", "Listed", "Offers", "Activity"] as const;
 type Tab = (typeof TABS)[number];
 const KINDS = ["All", "Vaults", "Tokens"] as const;
 const SORTS = { recent: "Recently received", value: "Value: high to low", pl: "Best P/L" } as const;
 type Sort = keyof typeof SORTS;
-
-const owned = ETFS.filter((e) => (MY_VAULTS.owned as readonly string[]).includes(e.id));
-const created = ETFS.filter((e) => (MY_VAULTS.created as readonly string[]).includes(e.id));
-const total = owned.reduce((s, e) => s + e.navUsd, 0);
-// ponytail: cost basis = value 30 days ago; replace with the mint/purchase price from the indexer
-const cost = (e: Etf) => e.nav30d[0];
-
-// Look-through exposure: every token across every owned vault, weighted by value.
-const exposure = Object.entries(
-  owned.reduce<Record<string, number>>((acc, e) => {
-    e.allocation.forEach((a) => (acc[a.token] = (acc[a.token] ?? 0) + (e.navUsd * a.weight) / 100));
-    return acc;
-  }, {}),
-)
-  .map(([token, usd]) => ({ token: token as TokenKey, usd }))
-  .sort((a, b) => b.usd - a.usd);
-
-const offers = owned.flatMap((e) => offersFor(e).map((o) => ({ ...o, etf: e }))).sort((a, b) => b.priceNear - a.priceNear);
-const activity = ALL_ACTIVITY.filter((a) => (MY_VAULTS.owned as readonly string[]).includes(a.etf.id));
 
 export function Vaults() {
   const open = useTx();
@@ -49,12 +35,56 @@ export function Vaults() {
   const [grid, setGrid] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [copied, setCopied] = useState(false);
-  const account = useAccount();
+  // Dev-only: /vaults?as=<account> views any account without a wallet (testnet, non-production builds).
+  const params = useSearchParams();
+  const as = DEV_AS ? params.get("as") : null;
+  const wallet = useAccount();
+  const account = as || wallet;
+
+  // ponytail: all vaults in one read (owned, created and the activity join); filter server-side with ?owner= once there are thousands
+  const vaultsQ = useApi<VaultSummary[]>(account && "/vaults");
+  const offersQ = useApi<OffersResponse>(account && `/offers?owner=${encodeURIComponent(account)}`);
+  const activityQ = useApi<ActivityItem[]>(account && `/activity?account=${encodeURIComponent(account)}&limit=500`);
+  const statsQ = useApi<Stats>("/stats");
+  const nearUsd = statsQ.data?.nearUsd ?? 0;
+
+  const all = (vaultsQ.data ?? []).map((v) => toVault(v));
+  const byId = new Map(all.map((e) => [e.id, e]));
+  const owned = all.filter((e) => e.owner === account);
+  const created = all.filter((e) => e.creator === account);
+  const total = owned.reduce((s, e) => s + e.navUsd, 0);
+  const events = toEvents(activityQ.data ?? []);
+  // Cost basis = what this account last paid for the vault; null when it minted it (or got it as a gift).
+  const paid = new Map<string, number>();
+  for (const e of [...events].reverse()) if (e.type === "transfer" && e.account === account && e.near !== undefined) paid.set(e.tokenId, e.near * nearUsd);
+  const cost = (e: Etf) => paid.get(e.id) ?? null;
+
+  // Look-through exposure: every token across every owned vault, weighted by value.
+  const exposure = Object.entries(
+    owned.reduce<Record<string, number>>((acc, e) => {
+      e.allocation.forEach((a) => (acc[a.token] = (acc[a.token] ?? 0) + (e.navUsd * a.weight) / 100));
+      return acc;
+    }, {}),
+  )
+    .map(([token, usd]) => ({ token: token as TokenKey, usd }))
+    .sort((a, b) => b.usd - a.usd);
+
+  const offers = (offersQ.data?.received ?? []).flatMap((o) => {
+    const etf = byId.get(o.tokenId);
+    const hours = Math.max(0, Math.round((o.expiresAt - offersQ.at) / 3_600_000));
+    return etf ? [{ id: `${o.tokenId}-${o.buyerId}`, from: o.buyerId, priceNear: toNear(o.amount), expiresHours: hours, etf }] : [];
+  });
+  const activity = events.flatMap((e) => {
+    const etf = byId.get(e.tokenId);
+    return etf ? [{ ...e, etf }] : [];
+  });
+  const error = vaultsQ.error ?? offersQ.error ?? activityQ.error ?? statsQ.error;
+  const loading = vaultsQ.loading || offersQ.loading || activityQ.loading || statsQ.loading;
 
   const source = tab === "Created" ? created : tab === "Listed" ? owned.filter((e) => e.listed) : owned;
   const vaults = source
     .filter((e) => e.name.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => (sort === "value" ? b.navUsd - a.navUsd : sort === "pl" ? b.navUsd / cost(b) - a.navUsd / cost(a) : Number(b.id) - Number(a.id)));
+    .sort((a, b) => (sort === "value" ? b.navUsd - a.navUsd : sort === "pl" ? b.navUsd / (cost(b) || b.navUsd || 1) - a.navUsd / (cost(a) || a.navUsd || 1) : b.mintedAt - a.mintedAt));
   const tokens = exposure.filter((x) => TOKENS[x.token].symbol.toLowerCase().includes(q.toLowerCase()));
   const showVaults = tab !== "Holdings" || kind !== "Tokens";
   const showTokens = tab === "Holdings" && kind !== "Vaults";
@@ -90,13 +120,14 @@ export function Vaults() {
             <Avatar account={account} size={112} />
           </div>
           <div>
+            {as && <span className="mb-1 inline-block rounded-full bg-tint/12 px-2.5 py-0.5 text-[12px] font-semibold text-tint">Dev view · ?as={as}</span>}
             <h1 className="title-chunky text-[30px]">{account.replace(/\.(near|testnet)$/, "")}</h1>
             <button onClick={copy} className="mt-0.5 flex items-center gap-1.5 font-mono text-[13px] text-muted hover:text-text">
               {account}
               <Sym name={copied ? "check" : "copy"} size={13} weight="bold" />
             </button>
             <p className="mt-2 text-[14px] text-muted">
-              <b className="text-text">12</b> Following · <b className="text-text">48</b> Followers · Joined Oct 2026
+              <b className="text-text">{owned.length}</b> Owned · <b className="text-text">{created.length}</b> Created
             </p>
           </div>
           <div className="flex gap-2">
@@ -115,7 +146,7 @@ export function Vaults() {
             </div>
             <div className="mt-1 font-mono text-[32px] font-semibold tracking-tight">{hidden ? "$••••••" : <Money value={total} count />}</div>
             <div className="text-[13px]">
-              <Change value={(owned.reduce((s, e) => s + (e.navUsd * e.change24h) / 100, 0) / total) * 100} /> <span className="text-muted">today</span>
+              <Change value={total ? owned.reduce((s, e) => s + e.navUsd * e.change24h, 0) / total : 0} /> <span className="text-muted">today</span>
             </div>
           </div>
 
@@ -143,7 +174,16 @@ export function Vaults() {
             ))}
           </nav>
 
-          {(tab === "Holdings" || tab === "Created" || tab === "Listed") && (
+          {error && <ErrorState error={error} />}
+          {!error && loading && (
+            <div className="flex flex-col gap-2">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} className="h-[68px]" />
+              ))}
+            </div>
+          )}
+
+          {!error && !loading && (tab === "Holdings" || tab === "Created" || tab === "Listed") && (
             <>
               <div className="flex flex-wrap items-center gap-2">
                 {tab === "Holdings" &&
@@ -183,7 +223,17 @@ export function Vaults() {
               </div>
 
               {!vaults.length && !(showTokens && tokens.length) ? (
-                <Empty title={tab === "Listed" ? "Nothing listed" : "No matches"} body={tab === "Listed" ? "List a vault from its page to sell the whole basket." : "Try another search."} />
+                q ? (
+                  <Empty title="No matches" body="Try another search." />
+                ) : tab === "Listed" ? (
+                  <Empty title="Nothing listed" body="List a vault from its page to sell the whole basket." />
+                ) : (
+                  <EmptyState title={tab === "Created" ? "Nothing created yet" : "No vaults yet"} body={tab === "Created" ? "Baskets you mint show up here." : "Create a basket or buy one on the market."}>
+                    <Link href={tab === "Created" ? "/create" : "/market"} className="btn-ink mt-2 h-10 px-5 text-[14px] leading-10">
+                      {tab === "Created" ? "Create ETF" : "Browse market"}
+                    </Link>
+                  </EmptyState>
+                )
               ) : grid ? (
                 <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                   <AnimatePresence mode="popLayout">
@@ -212,7 +262,8 @@ export function Vaults() {
                     <tbody>
                       {showVaults &&
                         vaults.map((e) => {
-                          const pl = e.navUsd - cost(e);
+                          const c = cost(e);
+                          const pl = c === null ? null : e.navUsd - c;
                           return (
                             <tr key={e.id} className="group border-t border-line-soft transition hover:bg-fill/50">
                               <td className="px-2 py-3">
@@ -220,7 +271,7 @@ export function Vaults() {
                                   <Artwork etf={e} size={44} />
                                   <span className="min-w-0">
                                     <span className="block truncate font-semibold">{e.name}</span>
-                                    <span className="block font-mono text-[12px] text-muted">{e.id}.torch.near</span>
+                                    <span className="block font-mono text-[12px] text-muted">#{e.id}</span>
                                   </span>
                                 </Link>
                               </td>
@@ -233,18 +284,29 @@ export function Vaults() {
                               <td className="px-2 py-3 text-right font-semibold">
                                 <Money value={e.navUsd} />
                               </td>
-                              <td className="px-2 py-3 text-right text-muted">
-                                <Money value={cost(e)} />
-                              </td>
-                              <td className={`px-2 py-3 text-right font-medium ${pl >= 0 ? "text-up" : "text-down"}`}>
-                                {pl >= 0 ? "+" : "−"}
-                                <Money value={Math.abs(pl)} />
+                              <td className="px-2 py-3 text-right text-muted">{c === null ? "minted" : <Money value={c} />}</td>
+                              <td className={`px-2 py-3 text-right font-medium ${pl === null ? "text-muted" : pl >= 0 ? "text-up" : "text-down"}`}>
+                                {pl === null ? (
+                                  "—"
+                                ) : (
+                                  <>
+                                    {pl >= 0 ? "+" : "−"}
+                                    <Money value={Math.abs(pl)} />
+                                  </>
+                                )}
                               </td>
                               <td className="px-2 py-3 text-right">{e.listed ? <NearAmount amount={e.priceNear} className="justify-end font-semibold" /> : <span className="text-muted">—</span>}</td>
                               <td className="px-2 py-3 text-right">
-                                <button onClick={() => open({ kind: "deposit", etfId: e.id })} className="btn-line h-8 px-3 text-[13px] opacity-0 transition group-hover:opacity-100 focus:opacity-100">
-                                  Deposit
-                                </button>
+                                {e.owner === account && (
+                                  <span className="inline-flex gap-1.5">
+                                    <button onClick={() => open({ kind: "deposit", etfId: e.id, tokenId: e.id })} className="btn-line h-8 px-3 text-[13px] opacity-0 transition group-hover:opacity-100 focus:opacity-100">
+                                      Deposit
+                                    </button>
+                                    <button onClick={() => open({ kind: e.listed ? "delist" : "list", etfId: e.id, tokenId: e.id })} className={`${e.listed ? "btn-line" : "btn-tint"} h-8 px-3 text-[13px]`}>
+                                      {e.listed ? "Delist" : "List"}
+                                    </button>
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -287,7 +349,8 @@ export function Vaults() {
             </>
           )}
 
-          {tab === "Offers" && (
+          {!error && !loading && tab === "Offers" && !offers.length && <Empty title="No offers" body="Offers on your vaults show up here." />}
+          {!error && !loading && tab === "Offers" && !!offers.length && (
             <div className="-mx-2 overflow-x-auto">
               <table className="w-full min-w-[640px] text-[14px]">
                 <thead>
@@ -311,7 +374,7 @@ export function Vaults() {
                       <td className="px-2 py-3">
                         <NearAmount amount={o.priceNear} className="font-semibold" />
                         <span className="ml-2 text-[12px] text-muted">
-                          <Money value={o.priceNear * NEAR_USD} />
+                          <Money value={o.priceNear * nearUsd} />
                         </span>
                       </td>
                       <td className="px-2 py-3">
@@ -321,7 +384,7 @@ export function Vaults() {
                       </td>
                       <td className="px-2 py-3 text-muted">{o.expiresHours < 24 ? `${o.expiresHours}h` : `${Math.round(o.expiresHours / 24)}d`}</td>
                       <td className="px-2 py-3 text-right">
-                        <button onClick={() => open({ kind: "accept", etfId: o.etf.id, offer: { from: o.from, priceNear: o.priceNear } })} className="btn-tint h-8 px-3 text-[13px]">
+                        <button onClick={() => open({ kind: "accept", etfId: o.etf.id, tokenId: o.etf.id, offer: { from: o.from, priceNear: o.priceNear } })} className="btn-tint h-8 px-3 text-[13px]">
                           Accept
                         </button>
                       </td>
@@ -332,13 +395,16 @@ export function Vaults() {
             </div>
           )}
 
-          {tab === "Activity" && (
-            <div className="card py-1">
-              {activity.map((a, i) => (
-                <ActivityRow key={i} h={a} etf={a.etf} />
-              ))}
-            </div>
-          )}
+          {!error && !loading && tab === "Activity" &&
+            (activity.length ? (
+              <div className="card py-1">
+                {activity.map((a) => (
+                  <ActivityRow key={a.key} h={a} etf={a.etf} />
+                ))}
+              </div>
+            ) : (
+              <Empty title="All quiet" body="Mints, deposits, withdrawals and sales on your vaults show up here." />
+            ))}
         </main>
       </div>
     </>
@@ -406,9 +472,7 @@ function VaultCard({ etf }: { etf: Etf }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-[17px] font-semibold">{etf.name}</div>
-            <div className="font-mono text-[12px] text-muted">
-              {etf.id}.torch.near
-            </div>
+            <div className="font-mono text-[12px] text-muted">#{etf.id}</div>
           </div>
           <TokenStack allocation={etf.allocation} size={22} />
         </div>

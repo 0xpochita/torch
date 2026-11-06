@@ -1,4 +1,5 @@
-// Mock data until the collection + vault contracts are live.
+// Token logos/colors/fallback prices, plus mock vaults still used by the create, gacha and tx-sheet flows.
+// Pages that read chain data use lib/api.ts.
 // Token logos: CoinGecko (HOT from HOT Labs, it is not listed there).
 
 export type Token = { symbol: string; name: string; color: string; price: number; logo: string };
@@ -107,50 +108,8 @@ export const getEtf = (id: string) => ETFS.find((e) => e.id === id);
 /** Vaults the mock wallet holds (owner) plus ones it created. */
 export const MY_VAULTS = { owned: ["0", "2", "5"], created: ["0"] } as const;
 
-/** Every vault event across the marketplace, newest first. */
-export const ALL_ACTIVITY = ETFS.flatMap((e) => e.history.map((h) => ({ ...h, etf: e }))).sort((a, b) => b.at.localeCompare(a.at));
-
 export const fmtUsd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: n < 1 ? 6 : 0 });
-
-/* ---------- Creator leaderboard (mock) ---------- */
-
-export type CreatorStat = {
-  account: string;
-  vaults: number;
-  valueUsd: number;
-  return30d: number;
-  holders: number;
-  followers: number;
-  /** positions moved since last period; positive = climbed */
-  move: number;
-  etf?: Etf;
-};
-
-// Real creators come from the ETFs above; a few extra accounts make the table feel lived-in.
-const EXTRA: Omit<CreatorStat, "etf">[] = [
-  { account: "nearwhale.near", vaults: 4, valueUsd: 3_920, return30d: 6.4, holders: 11, followers: 412, move: 2 },
-  { account: "intents.near", vaults: 2, valueUsd: 2_740, return30d: 9.1, holders: 7, followers: 298, move: 5 },
-  { account: "kat.near", vaults: 3, valueUsd: 1_480, return30d: -2.3, holders: 5, followers: 156, move: -1 },
-  { account: "degen.near", vaults: 5, valueUsd: 960, return30d: 21.7, holders: 14, followers: 804, move: 3 },
-  { account: "rhea-maxi.near", vaults: 1, valueUsd: 640, return30d: 3.2, holders: 2, followers: 64, move: -2 },
-  { account: "staker.near", vaults: 2, valueUsd: 2_100, return30d: 1.9, holders: 6, followers: 120, move: 0 },
-];
-
-export const CREATOR_STATS: CreatorStat[] = [
-  ...Object.values(
-    ETFS.reduce<Record<string, CreatorStat>>((acc, e, i) => {
-      const c = (acc[e.creator] ??= { account: e.creator, vaults: 0, valueUsd: 0, return30d: 0, holders: 0, followers: 120 + e.likes * 2, move: (i % 3) - 1, etf: e });
-      const first = e.nav30d[0];
-      c.vaults += 1;
-      c.valueUsd += e.navUsd;
-      c.return30d = ((e.navUsd - first) / first) * 100;
-      c.holders += 1 + (e.likes % 5);
-      return acc;
-    }, {}),
-  ),
-  ...EXTRA,
-];
 
 /* ---------- Marketplace listings (mock) ---------- */
 
@@ -190,24 +149,6 @@ export const LISTINGS: Listing[] = ETFS.flatMap((e, i) =>
     };
   }),
 );
-
-/* ---------- Offers (mock) ---------- */
-
-export type Offer = { id: string; from: string; priceNear: number; expiresHours: number; placedHoursAgo: number };
-
-const BIDDERS = ["nearwhale.near", "degen.near", "kat.near", "intents.near", "staker.near", "rhea-maxi.near", "alice.near", "carol.near"];
-
-// ponytail: deterministic offers per vault; replace with the collection's open offers from the indexer
-export function offersFor(etf: Etf): Offer[] {
-  const n = Number(etf.id);
-  return Array.from({ length: 4 + (n % 3) }, (_, i) => ({
-    id: `${etf.id}-${i}`,
-    from: BIDDERS[(n * 3 + i) % BIDDERS.length],
-    priceNear: Math.round(etf.priceNear * (0.97 - i * 0.045 - ((n + i) % 3) * 0.01)),
-    expiresHours: [6, 20, 47, 70, 140, 160][(n + i) % 6],
-    placedHoursAgo: 1 + ((n * 5 + i * 7) % 40),
-  })).sort((a, b) => b.priceNear - a.priceNear);
-}
 
 /* ---------- Gacha (mock) ---------- */
 

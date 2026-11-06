@@ -1,0 +1,17 @@
+{
+  "name": "torch-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx --env-file-if-exists=.env seed-testnet.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "near-api-js": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

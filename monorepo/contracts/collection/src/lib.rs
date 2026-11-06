@@ -26,8 +26,8 @@ const MINT_STORAGE: NearToken = NearToken::from_millinear(20);
 /// Keeps a token's storage within what `MINT_STORAGE` pays for.
 /// A max-size token minted to a 64-character owner stores 1,824 bytes (sandbox).
 const MAX_METADATA_BYTES: usize = 1200;
-/// Keeps the `nft_resolve_transfer` revert path (fixed 5 Tgas) far from running out of gas.
-const MAX_APPROVALS: usize = 16;
+/// Keeps the `nft_resolve_transfer` revert path (fixed 5 Tgas) within what audit-tests `i9` proves safe.
+const MAX_APPROVALS: usize = 30;
 /// Creator royalty in basis points (2.5%).
 const ROYALTY_BPS: u128 = 250;
 // Static gas, sandbox burn in brackets. The vault batch's create_account execution fee (7.2 Tgas)

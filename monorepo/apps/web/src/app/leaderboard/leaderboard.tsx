@@ -7,15 +7,16 @@ import { useEffect, useState } from "react";
 import { Change } from "@/components/etf-card";
 import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
+import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { Avatar, Money, Segmented } from "@/components/ui";
-import { CREATOR_STATS, ETFS, type CreatorStat } from "@/lib/mock";
+import { useApi, type LeaderboardPeriod, type LeaderboardRow, type LeaderboardSort, type VaultSummary } from "@/lib/api";
 import { useAccount } from "@/providers/near-provider";
 
 const SORTS = ["Value", "Return", "Holders"] as const;
 const PERIODS = ["24h", "7D", "30D", "Season"] as const;
 type Sort = (typeof SORTS)[number];
-// ponytail: mock period scaling; replace with indexed per-period NAV once the indexer exists
-const SCALE: Record<(typeof PERIODS)[number], number> = { "24h": 0.08, "7D": 0.35, "30D": 1, Season: 2.4 };
+const SORT_KEY: Record<Sort, LeaderboardSort> = { Value: "value", Return: "return", Holders: "holders" };
+const PERIOD_KEY: Record<(typeof PERIODS)[number], LeaderboardPeriod> = { "24h": "24h", "7D": "7d", "30D": "30d", Season: "all" };
 // Season 1 closes at the hackathon deadline.
 const SEASON_END = Date.UTC(2026, 10, 14);
 
@@ -27,7 +28,7 @@ const TIERS = [
 ];
 const tier = (usd: number) => TIERS.find((t) => usd >= t.min)!;
 
-type Row = CreatorStat & { ret: number };
+type Row = { account: string; rank: number; vaults: number; valueUsd: number; holders: number; ret: number; etf?: VaultSummary };
 
 export function Leaderboard() {
   const [sort, setSort] = useState<Sort>("Value");
@@ -35,10 +36,22 @@ export function Leaderboard() {
   const [mine, setMine] = useState(false);
   const account = useAccount();
 
-  const rows: Row[] = CREATOR_STATS.map((c) => ({ ...c, ret: c.return30d * SCALE[period] })).sort((a, b) =>
-    sort === "Value" ? b.valueUsd - a.valueUsd : sort === "Return" ? b.ret - a.ret : b.holders - a.holders,
-  );
-  const max = { vaults: Math.max(...rows.map((r) => r.vaults)), ret: Math.max(...rows.map((r) => Math.abs(r.ret))), holders: Math.max(...rows.map((r) => r.holders)) };
+  const boardQ = useApi<LeaderboardRow[]>(`/leaderboard?period=${PERIOD_KEY[period]}&sort=${SORT_KEY[sort]}`);
+  const vaultsQ = useApi<VaultSummary[]>("/vaults?sort=nav");
+  const error = boardQ.error ?? vaultsQ.error;
+  // Each creator links to their biggest vault (list is sorted by NAV).
+  const rows: Row[] = (boardQ.data ?? []).map((r) => ({
+    account: r.accountId,
+    rank: r.rank,
+    vaults: r.vaults,
+    valueUsd: r.valueUsd,
+    holders: r.holders,
+    // price-only return over the period from the API snapshots; 0 before the first snapshot
+    ret: r.return ?? 0,
+    etf: vaultsQ.data?.find((v) => v.creator === r.accountId),
+  }));
+  const max = { vaults: Math.max(1, ...rows.map((r) => r.vaults)), ret: Math.max(0, ...rows.map((r) => Math.abs(r.ret))), holders: Math.max(1, ...rows.map((r) => r.holders)) };
+  const me = rows.find((r) => r.account === account);
 
   return (
     <>
@@ -87,6 +100,25 @@ export function Leaderboard() {
         </div>
       </div>
 
+      {error ? (
+        <ErrorState error={error} className="card mt-4" />
+      ) : !boardQ.data ? (
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-[190px] !rounded-[28px]" />
+            ))}
+          </div>
+          <Skeleton className="h-[240px] !rounded-[28px]" />
+        </div>
+      ) : !rows.length ? (
+        <EmptyState title="No creators yet" body="The season starts with the first minted vault." className="card mt-4">
+          <Link href="/create" className="btn-ink mt-2 h-10 px-5 text-[14px] leading-10">
+            Create an ETF
+          </Link>
+        </EmptyState>
+      ) : (
+      <>
       {/* top three */}
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {rows.slice(0, 3).map((c, i) => (
@@ -104,8 +136,8 @@ export function Leaderboard() {
             </div>
             <TierBadge usd={c.valueUsd} />
             <div className="grid grid-cols-3 gap-3 text-[12px] text-muted">
-              <Metric label="Value" value={<Money value={c.valueUsd} />} bar={c.valueUsd / rows[0].valueUsd} color="var(--tint)" />
-              <Metric label={`Return ${period}`} value={<Change value={c.ret} />} bar={Math.abs(c.ret) / max.ret} color="var(--up)" />
+              <Metric label="Value" value={<Money value={c.valueUsd} />} bar={c.valueUsd / (Math.max(...rows.map((r) => r.valueUsd)) || 1)} color="var(--tint)" />
+              <Metric label={`Return ${period}`} value={<Change value={c.ret} />} bar={max.ret ? Math.abs(c.ret) / max.ret : 0} color="var(--up)" />
               <Metric label="Holders" value={c.holders} bar={c.holders / max.holders} color="var(--lilac-ink)" />
             </div>
           </motion.article>
@@ -128,14 +160,14 @@ export function Leaderboard() {
               </tr>
             </thead>
             <tbody>
-              {rows.slice(3).map((c, i) => {
+              {rows.slice(3).map((c) => {
                 const top = c.etf;
                 return (
                   <motion.tr key={c.account} layout transition={{ type: "spring", stiffness: 420, damping: 36 }} className="border-t border-line-soft transition-colors hover:bg-fill/50">
-                    <td className="px-5 py-3 tabular-nums text-muted">{i + 4}</td>
+                    <td className="px-5 py-3 tabular-nums text-muted">{c.rank}</td>
                     <td className="px-3 py-3">
                       {top ? (
-                        <Link href={`/etf/${top.id}`} className="flex items-center gap-2.5 hover:underline">
+                        <Link href={`/etf/${top.tokenId}`} className="flex items-center gap-2.5 hover:underline">
                           <Avatar account={c.account} size={26} />
                           {c.account}
                         </Link>
@@ -177,12 +209,20 @@ export function Leaderboard() {
           {mine && (
             <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
               <div className="flex items-center gap-3 border-t-2 border-tint/60 bg-tint/10 px-5 py-3 text-[14px]">
-                <span className="w-8 text-muted">—</span>
+                <span className="w-8 tabular-nums text-muted">{me ? me.rank : "—"}</span>
                 {account ? (
                   <>
                     <Avatar account={account} size={26} />
                     <span className="font-semibold">{account}</span>
-                    <span className="text-muted">Not ranked yet. Mint a basket people hold to enter the season.</span>
+                    <span className="text-muted">
+                      {me ? (
+                        <>
+                          {me.vaults} {me.vaults === 1 ? "vault" : "vaults"} · <Money value={me.valueUsd} /> · {me.holders} holders
+                        </>
+                      ) : (
+                        "Not ranked yet. Mint a basket people hold to enter the season."
+                      )}
+                    </span>
                   </>
                 ) : (
                   <span className="text-muted">Connect a wallet to see your stats.</span>
@@ -196,8 +236,10 @@ export function Leaderboard() {
         </AnimatePresence>
       </div>
       <p className="px-1 pt-3 text-[12px] text-muted">
-        {rows.length} creators · {ETFS.length} live vaults · tiers by total basket value
+        {rows.length} creators · {rows.reduce((s, r) => s + r.vaults, 0)} live vaults · tiers by total basket value
       </p>
+      </>
+      )}
     </>
   );
 }

@@ -5,16 +5,19 @@ import Link from "next/link";
 import { BasketArt } from "@/components/basket-art";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
 import { useState } from "react";
+import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { Artwork, BuyCapsule, Change } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
 import { HeroBackdrop } from "@/components/hero-backdrop";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { ActionCircle, Avatar, Money, NearAmount, StatTile, Title, TokenStack } from "@/components/ui";
-import { CATEGORIES, ETFS, type Category, type Etf } from "@/lib/mock";
+import { toEvents, toNear, toVault, useApi, type LeaderboardRow, type Stats, type Vault, type VaultSummary } from "@/lib/api";
+import { CATEGORIES, type Category, type Etf } from "@/lib/mock";
 import { useAccount } from "@/providers/near-provider";
 
 const TABS = ["All", ...CATEGORIES] as const;
 const LISTS = [
+  // ponytail: no likes indexed; "popular" = biggest basket, "rising" = best 24h change
   { key: "popular", label: "Most popular", icon: "heart" },
   { key: "rising", label: "Rising stars", icon: "pulse" },
 ] as const;
@@ -28,36 +31,37 @@ export const CATEGORY_ICON: Record<Category, IconName> = {
   "Liquid Staking": "down",
 };
 
-// Each category chip shows the artwork of its most liked basket.
-// ponytail: mock daily volume ending "today" (Thu); replace with indexed sales
-const VOLUME = [
-  { day: "Fri", usd: 6_210 },
-  { day: "Sat", usd: 4_880 },
-  { day: "Sun", usd: 7_340 },
-  { day: "Mon", usd: 9_120 },
-  { day: "Tue", usd: 8_050 },
-  { day: "Wed", usd: 10_960 },
-  { day: "Thu", usd: 12_480 },
-];
+const DAY = 86_400_000;
 
-const CATEGORY_ART = Object.fromEntries(
-  CATEGORIES.map((c) => [c, ETFS.filter((e) => e.category === c).sort((a, b) => b.likes - a.likes)[0] ?? ETFS[0]]),
-) as Record<Category, Etf>;
-
-// Creators ranked by the total value of the vaults they made.
-const CREATORS = Object.values(
-  ETFS.reduce<Record<string, { name: string; nav: number; etf: Etf }>>((acc, e) => {
-    const c = (acc[e.creator] ??= { name: e.creator, nav: 0, etf: e });
-    c.nav += e.navUsd;
-    return acc;
-  }, {}),
-).sort((a, b) => b.nav - a.nav);
+// Each category chip shows the artwork of its biggest basket.
+const categoryArt = (vaults: Vault[]) =>
+  Object.fromEntries(CATEGORIES.map((c) => [c, vaults.filter((e) => e.category === c).sort((a, b) => b.navUsd - a.navUsd)[0]])) as Record<Category, Vault | undefined>;
 
 export function Explore() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
   const [list, setList] = useState<(typeof LISTS)[number]["key"]>("popular");
 
-  const items = ETFS.filter((e) => tab === "All" || e.category === (tab as Category)).sort((a, b) => (list === "popular" ? b.likes - a.likes : b.change24h - a.change24h));
+  const vaultsQ = useApi<VaultSummary[]>("/vaults");
+  const statsQ = useApi<Stats>("/stats");
+  const boardQ = useApi<LeaderboardRow[]>("/leaderboard?sort=value");
+  const salesQ = useApi<Parameters<typeof toEvents>[0]>("/activity?type=sale,offer_accept&limit=500");
+
+  const etfs = vaultsQ.data?.map((v) => toVault(v)) ?? [];
+  const catArt = categoryArt(etfs);
+  const stats = statsQ.data;
+  const nearUsd = stats?.nearUsd ?? 0;
+  const items = etfs.filter((e) => tab === "All" || e.category === (tab as Category)).sort((a, b) => (list === "popular" ? b.navUsd - a.navUsd : b.change24h - a.change24h));
+
+  // Sales volume per day, the last 7 days ending today.
+  const sales = toEvents(salesQ.data ?? []);
+  const volume = !salesQ.data ? [] : Array.from({ length: 7 }, (_, i) => {
+    const end = new Date(salesQ.at).setHours(24, 0, 0, 0) - (6 - i) * DAY;
+    const usd = sales.filter((e) => e.ms >= end - DAY && e.ms < end).reduce((s, e) => s + (e.near ?? 0) * nearUsd, 0);
+    return { day: new Date(end - DAY).toLocaleDateString("en-US", { weekday: "short" }), usd };
+  });
+  const volMax = Math.max(...volume.map((x) => x.usd)) || 1;
+
+  const creators = (boardQ.data ?? []).map((r) => ({ name: r.accountId, nav: r.valueUsd, etf: etfs.find((e) => e.creator === r.accountId) }));
 
   return (
     <>
@@ -67,14 +71,14 @@ export function Explore() {
             key={t}
             active={tab === t}
             onClick={() => setTab(t)}
-            count={t === "All" ? ETFS.length : ETFS.filter((e) => e.category === t).length}
+            count={t === "All" ? etfs.length : etfs.filter((e) => e.category === t).length}
             icon={
               t === "All" ? (
                 <span className="relative size-6">
                   <Image src="/brand/torch-mark.png" alt="" fill sizes="48px" className="object-contain" />
                 </span>
               ) : (
-                <TokenStack allocation={CATEGORY_ART[t].allocation.slice(0, 3)} size={20} />
+                <TokenStack allocation={catArt[t]?.allocation.slice(0, 3) ?? []} size={20} />
               )
             }
           >
@@ -84,40 +88,53 @@ export function Explore() {
       </Topbar>
 
       <div className="grid gap-5 pb-6 pt-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-        <Hero />
+        <Hero vaults={etfs} loading={vaultsQ.loading} />
 
         <section className="card flex flex-col gap-4 p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-[20px] font-bold">Market today</h2>
-            <span className="rounded-full bg-fill px-2.5 py-1 text-[12px] font-medium text-muted">mock</span>
+            {stats?.lastHeight != null && <span className="rounded-full bg-fill px-2.5 py-1 text-[12px] font-medium text-muted">block {stats.lastHeight}</span>}
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <StatTile icon="vault" label="Value locked" value={<Money value={ETFS.reduce((s, e) => s + e.navUsd, 0)} />} />
-            <StatTile icon="pulse" label="24h volume" value={<Money value={12_480.5} />} />
-            <StatTile icon="layers" label="Vaults" value={`${ETFS.length} live`} />
-            <StatTile icon="person" label="Holders" value={new Set(ETFS.map((e) => e.owner)).size} />
-            <div className="col-span-2">
-              <StatTile icon="tag" label="Listed for sale" value={`${ETFS.filter((e) => e.listed).length} of ${ETFS.length}`}>
-                <span className="flex h-2 overflow-hidden rounded-full bg-line">
-                  <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.listed).length / ETFS.length) * 100}%` }} />
-                </span>
-              </StatTile>
+          {statsQ.error ? (
+            <ErrorState error={statsQ.error} className="rounded-[20px] bg-fill" />
+          ) : !stats ? (
+            <div className="grid grid-cols-2 gap-2.5">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-[84px]" />
+              ))}
+              <Skeleton className="col-span-2 h-[92px]" />
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              <StatTile icon="vault" label="Value locked" value={<Money value={stats.tvlUsd} />} />
+              <StatTile icon="pulse" label="24h volume" value={<NearAmount amount={toNear(stats.volume24h)} />} />
+              <StatTile icon="layers" label="Vaults" value={`${stats.vaults} live`} />
+              <StatTile icon="person" label="Holders" value={stats.holders} />
+              <div className="col-span-2">
+                <StatTile icon="tag" label="Listed for sale" value={`${stats.listings} of ${stats.vaults}`}>
+                  <span className="flex h-2 overflow-hidden rounded-full bg-line">
+                    <span className="bg-pink-ink" style={{ width: `${(stats.listings / (stats.vaults || 1)) * 100}%` }} />
+                  </span>
+                </StatTile>
+              </div>
+            </div>
+          )}
           {/* fills whatever height the hero leaves: 7-day volume */}
           <div className="flex min-h-[120px] flex-1 flex-col gap-3 rounded-[20px] bg-fill p-3.5">
             <span className="flex items-center justify-between text-[13px] font-semibold">
               Volume · 7 days
               <span className="font-normal text-muted">
-                <Money value={VOLUME.reduce((s, v) => s + v.usd, 0)} />
+                <Money value={volume.reduce((s, v) => s + v.usd, 0)} />
               </span>
             </span>
             <div className="flex flex-1 items-end gap-2">
-              {VOLUME.map((v, i) => (
+              {salesQ.error && <span className="m-auto text-[12px] text-muted">Couldn&apos;t load sales</span>}
+              {salesQ.loading && <Skeleton className="h-full w-full !rounded-[8px] !bg-line" />}
+              {volume.map((v, i) => (
                 <div key={v.day} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                   <span
-                    className={`w-full rounded-[8px] ${i === VOLUME.length - 1 ? "bg-tint" : "bg-line"}`}
-                    style={{ height: `${(v.usd / Math.max(...VOLUME.map((x) => x.usd))) * 100}%` }}
+                    className={`w-full rounded-[8px] ${i === volume.length - 1 ? "bg-tint" : "bg-line"}`}
+                    style={{ height: `${Math.max(4, (v.usd / volMax) * 100)}%` }}
                     title={`$${v.usd.toLocaleString("en-US")}`}
                   />
                   <span className="text-[11px] text-muted">{v.day}</span>
@@ -140,7 +157,15 @@ export function Explore() {
             ))}
           </div>
 
-          {items.length ? (
+          {vaultsQ.error ? (
+            <ErrorState error={vaultsQ.error} className="rounded-[20px] bg-fill" />
+          ) : vaultsQ.loading ? (
+            <div className="flex flex-col gap-2">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-[76px]" />
+              ))}
+            </div>
+          ) : items.length ? (
             <ol className="flex flex-col gap-2">
               <AnimatePresence initial={false} mode="popLayout">
               {items.map((e, i) => (
@@ -183,7 +208,7 @@ export function Explore() {
             <div className="grid place-items-center gap-2 rounded-[20px] bg-fill p-10 text-center">
               <span className="text-[17px] font-bold">Nothing here yet</span>
               <Link href="/create" className="text-[15px] font-semibold text-tint">
-                Create the first {tab} ETF
+                Create the first {tab === "All" ? "" : tab} ETF
               </Link>
             </div>
           )}
@@ -196,10 +221,21 @@ export function Explore() {
               Leaderboard <Sym name="chevron" size={14} stroke={2.4} />
             </span>
           </Link>
+          {boardQ.error ? (
+            <ErrorState error={boardQ.error} className="rounded-[20px] bg-fill" />
+          ) : boardQ.loading ? (
+            <div className="flex gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="size-[68px] !rounded-full" />
+              ))}
+            </div>
+          ) : !creators.length ? (
+            <EmptyState title="No creators yet" body="Mint the first vault to top the board." className="rounded-[20px] bg-fill !p-6" />
+          ) : (
           <ol className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1">
-            {CREATORS.map((c, i) => (
+            {creators.map((c, i) => (
               <li key={c.name}>
-                <Link href={`/etf/${c.etf.id}`} className="flex w-[84px] flex-col items-center gap-1.5 text-center">
+                <Link href={c.etf ? `/etf/${c.etf.id}` : "/leaderboard"} className="flex w-[84px] flex-col items-center gap-1.5 text-center">
                   <span className="relative">
                     <span className="block rounded-full ring-4 ring-fill">
                       <Avatar account={c.name} size={68} />
@@ -212,6 +248,7 @@ export function Explore() {
               </li>
             ))}
           </ol>
+          )}
         </section>
 
         <section className="card flex flex-col gap-4 p-5">
@@ -221,8 +258,11 @@ export function Explore() {
           </div>
           <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3">
             {CATEGORIES.map((c) => {
-              const art = CATEGORY_ART[c];
-              const change = ETFS.filter((e) => e.category === c).reduce((sum, e, _, all) => sum + e.change24h / all.length, 0);
+              const art = catArt[c];
+              const inCat = etfs.filter((e) => e.category === c);
+              // value-weighted 24h change of the category's baskets
+              const nav = inCat.reduce((s, e) => s + e.navUsd, 0);
+              const change = nav ? inCat.reduce((s, e) => s + e.change24h * e.navUsd, 0) / nav : 0;
               return (
                 <motion.button
                   key={c}
@@ -230,11 +270,11 @@ export function Explore() {
                   whileHover={{ y: -3 }}
                   whileTap={{ scale: 0.97 }}
                   className={`grain relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
-                  style={{ background: art.bg }}
+                  style={{ background: art?.bg ?? "var(--fill)" }}
                 >
                   {/* basket logos sit on the right of the tile */}
                   <span className="absolute inset-y-0 -right-2 w-[64%]">
-                    <BasketArt allocation={art.allocation} className="!bg-none" />
+                    {art && <BasketArt allocation={art.allocation} className="!bg-none" />}
                   </span>
                   <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
                   <span className="relative">
@@ -242,7 +282,9 @@ export function Explore() {
                       {change >= 0 ? "+" : "−"}
                       {Math.abs(change).toFixed(2)}%
                     </span>
-                    <span className="text-[12px] font-medium text-[#121212]/55">24h change</span>
+                    <span className="text-[12px] font-medium text-[#121212]/55">
+                      24h · {inCat.length} {inCat.length === 1 ? "vault" : "vaults"}
+                    </span>
                   </span>
                 </motion.button>
               );
@@ -259,7 +301,7 @@ export function Explore() {
             </Link>
           </div>
           <div className="relative hidden h-[180px] w-[360px] shrink-0 md:block">
-            {ETFS.slice(1, 4).map((e, i) => (
+            {etfs.slice(0, 3).map((e, i) => (
               <span key={e.id} className="absolute top-2 overflow-hidden rounded-[26px] shadow-[0_10px_30px_-10px_#00000040]" style={{ left: i * 100, rotate: `${(i - 1) * 9}deg`, width: 160, height: 160, background: e.bg, zIndex: i === 1 ? 2 : 1 }}>
                 <BasketArt allocation={e.allocation} />
               </span>
@@ -272,8 +314,12 @@ export function Explore() {
 }
 
 /** "Collection."-style hero: chunky title, wallet chip, fanned NFT cards and quick actions. */
-function Hero() {
-  const fan = [ETFS[2], ETFS[0], ETFS[4], ETFS[3], ETFS[5]];
+function Hero({ vaults, loading }: { vaults: Vault[]; loading: boolean }) {
+  // Biggest basket in the middle, the rest alternating out to the sides.
+  const fan = [...vaults]
+    .sort((a, b) => b.navUsd - a.navUsd)
+    .slice(0, 5)
+    .reduce<Vault[]>((r, e, i) => (i % 2 ? [e, ...r] : [...r, e]), []);
   const [hover, setHover] = useState<number | null>(null);
   const account = useAccount();
   return (
@@ -290,8 +336,16 @@ function Hero() {
 
       <div className="relative h-[262px] w-full max-w-[620px] [perspective:1000px]" onMouseLeave={() => setHover(null)}>
         {fan.map((e, i) => (
-          <FanCard key={e.id} etf={e} offset={i - 2} hover={hover} index={i} onHover={setHover} />
+          <FanCard key={e.id} etf={e} offset={i - Math.floor(fan.length / 2)} hover={hover} index={i} onHover={setHover} />
         ))}
+        {loading && <Skeleton className="absolute left-1/2 top-3 h-[210px] w-[180px] -translate-x-1/2 !rounded-[26px]" />}
+        {!loading && !fan.length && (
+          <EmptyState title="No vaults yet" body="Testnet is fresh. Create the first basket." className="absolute inset-0">
+            <Link href="/create" className="btn-ink mt-1 h-10 px-5 text-[14px] leading-10">
+              Create ETF
+            </Link>
+          </EmptyState>
+        )}
       </div>
 
       <div className="flex gap-7">

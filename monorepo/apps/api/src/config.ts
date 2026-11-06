@@ -19,6 +19,7 @@ export const config: Config = {
   gachaId: env.NEAR_GACHA_ID ?? `gacha.${root}`,
   ftIds: env.NEAR_FT_IDS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [...MOCK_FTS.map((t) => `${t}.${root}`), "wrap.testnet"],
   rpcUrl: env.NEAR_RPC_URL ?? "https://rpc.testnet.near.org",
+  /** Empty string = RPC only (sandbox, or neardata down). */
   neardataUrl: env.NEARDATA_URL ?? "https://testnet.neardata.xyz",
   startHeight: env.START_HEIGHT ? Number(env.START_HEIGHT) : null,
 };
