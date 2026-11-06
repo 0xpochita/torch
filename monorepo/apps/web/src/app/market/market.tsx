@@ -45,23 +45,23 @@ export function Market() {
   const [book, setBook] = useState<"popular" | "best">("popular");
 
   const nearUsd = statsQ.data?.nearUsd ?? 0;
-  const LISTINGS: Listing[] = (listingsQ.data ?? []).map((m) => {
+  const listings: Listing[] = (listingsQ.data ?? []).map((m) => {
     const l = toListing(m);
     return { ...l, vs: l.navUsd ? ((l.priceNear * nearUsd) / l.navUsd - 1) * 100 : 0 };
   });
-  const MAX_PRICE = Math.max(0, ...LISTINGS.map((l) => l.priceNear));
+  const MAX_PRICE = Math.max(0, ...listings.map((l) => l.priceNear));
   const maxPrice = cap ?? MAX_PRICE;
-  const TEMPLATE = Object.fromEntries(CATEGORIES.map((c) => [c, LISTINGS.find((l) => l.etf.category === c)?.etf])) as Record<Category, Listing["etf"] | undefined>;
+  const TEMPLATE = Object.fromEntries(CATEGORIES.map((c) => [c, listings.find((l) => l.etf.category === c)?.etf])) as Record<Category, Listing["etf"] | undefined>;
   // ponytail: no likes indexed yet; "popular" = biggest basket on sale
-  const POPULAR = [...LISTINGS].sort((a, b) => b.navUsd - a.navUsd)[0];
-  const BEST = [...LISTINGS].filter((l) => l.id !== POPULAR?.id).sort((a, b) => vsValue(a) - vsValue(b))[0];
+  const POPULAR = [...listings].sort((a, b) => b.navUsd - a.navUsd)[0];
+  const BEST = [...listings].filter((l) => l.id !== POPULAR?.id).sort((a, b) => vsValue(a) - vsValue(b))[0];
   const bookListing = (book === "best" && BEST) || POPULAR;
-  const HIST = Array.from({ length: BUCKETS }, (_, b) => LISTINGS.filter((l) => Math.min(BUCKETS - 1, Math.floor((l.priceNear / (MAX_PRICE || 1)) * BUCKETS)) === b).length);
+  const HIST = Array.from({ length: BUCKETS }, (_, b) => listings.filter((l) => Math.min(BUCKETS - 1, Math.floor((l.priceNear / (MAX_PRICE || 1)) * BUCKETS)) === b).length);
 
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const reset = () => (setCats([]), setCap(null), setUnderValue(false), setStatus("All"));
 
-  const items = LISTINGS.filter(
+  const items = listings.filter(
     (l) =>
       (status === "All" || (status === "new" ? l.listedDaysAgo <= 3 : l.status === status)) &&
       (!cats.length || cats.includes(l.etf.category)) &&
@@ -69,8 +69,8 @@ export function Market() {
       (!underValue || vsValue(l) < 0),
   ).sort((a, b) => (sort === "low" ? a.priceNear - b.priceNear : sort === "high" ? b.priceNear - a.priceNear : sort === "value" ? vsValue(a) - vsValue(b) : b.listedAt - a.listedAt));
 
-  const floor = LISTINGS.length ? Math.min(...LISTINGS.map((l) => l.priceNear)) : 0;
-  const under = LISTINGS.filter((l) => vsValue(l) < 0).length;
+  const floor = listings.length ? Math.min(...listings.map((l) => l.priceNear)) : 0;
+  const under = listings.filter((l) => vsValue(l) < 0).length;
   const error = listingsQ.error ?? statsQ.error;
   const loading = listingsQ.loading || statsQ.loading;
 
@@ -82,7 +82,7 @@ export function Market() {
             key={s}
             active={status === s}
             onClick={() => setStatus(s)}
-            count={s === "All" ? LISTINGS.length : LISTINGS.filter((l) => (s === "new" ? l.listedDaysAgo <= 3 : l.status === s)).length}
+            count={s === "All" ? listings.length : listings.filter((l) => (s === "new" ? l.listedDaysAgo <= 3 : l.status === s)).length}
             icon={<Sym name={STATUS_ICON[s]} size={15} weight="bold" />}
           >
             {STATUS_LABEL[s]}
@@ -105,7 +105,7 @@ export function Market() {
             ))}
           </div>
         </div>
-      ) : !LISTINGS.length ? (
+      ) : !listings.length ? (
         <EmptyState title="Nothing for sale yet" body="No vault is listed on testnet yet. List one from My Vaults to open the market." className="card mt-5">
           <Link href="/vaults" className="btn-ink mt-2 h-10 px-5 text-[14px] leading-10">
             My Vaults
@@ -114,10 +114,10 @@ export function Market() {
       ) : (
       <>
       <div className="grid grid-cols-2 gap-2.5 pt-5 lg:grid-cols-4">
-        <StatTile icon="store" label="Listings" value={<CountUpNumber value={LISTINGS.length} />} />
+        <StatTile icon="store" label="Listings" value={<CountUpNumber value={listings.length} />} />
         <StatTile icon="tag" label="Floor" value={<NearAmount amount={floor} />} />
-        <StatTile icon="pulse" label="Below vault value" value={`${under} of ${LISTINGS.length}`} />
-        <StatTile icon="person" label="Sellers" value={new Set(LISTINGS.map((l) => l.seller)).size} />
+        <StatTile icon="pulse" label="Below vault value" value={`${under} of ${listings.length}`} />
+        <StatTile icon="person" label="Sellers" value={new Set(listings.map((l) => l.seller)).size} />
       </div>
 
       <div className="grid gap-6 pt-6 lg:grid-cols-[270px_minmax(0,1fr)]">
@@ -140,7 +140,7 @@ export function Market() {
                     <span className={`grid size-5 place-items-center rounded-[6px] border-2 transition ${on ? "border-text bg-text text-surface" : "border-line"}`}>{on && <Sym name="check" size={12} weight="bold" />}</span>
                     <TokenStack allocation={TEMPLATE[c]?.allocation.slice(0, 2) ?? []} size={18} />
                     <span className="flex-1 truncate font-medium">{c}</span>
-                    <span className="text-[12px] text-muted">{LISTINGS.filter((l) => l.etf.category === c).length}</span>
+                    <span className="text-[12px] text-muted">{listings.filter((l) => l.etf.category === c).length}</span>
                   </button>
                 );
               })}

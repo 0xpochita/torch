@@ -7,10 +7,12 @@ import { Artwork, EVENT } from "@/components/etf-card";
 import { Icon3D, Sym, type Icon3DName } from "@/components/icons";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { Avatar, NearAmount, PASTEL, Segmented, TokenIcon, Title } from "@/components/ui";
-import { ALL_ACTIVITY, NEAR_USD, type HistoryEvent } from "@/lib/mock";
+import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
+import { eventUsd, toEvents, toVault, useApi, type ActivityItem, type Stats, type Vault, type VaultEvent, type VaultSummary } from "@/lib/api";
+import type { HistoryEvent } from "@/lib/mock";
 
 type Kind = HistoryEvent["type"];
-type Row = (typeof ALL_ACTIVITY)[number] & { key: string; time: string; usd: number };
+type Row = VaultEvent & { etf: Vault; time: string; usd: number };
 
 const FILTERS = ["All", "deposit", "withdraw", "transfer", "mint"] as const;
 const LABEL: Record<(typeof FILTERS)[number], string> = { All: "All", deposit: "Deposits", withdraw: "Withdrawals", transfer: "Sales", mint: "Mints" };
@@ -26,17 +28,10 @@ const COLS = [
 ] as const satisfies readonly { key: string; label: string; icon: Icon3DName }[];
 type SortKey = (typeof COLS)[number]["key"];
 
-const TODAY = "2026-11-05";
-const SINCE = { Today: TODAY, "7D": "2026-10-30", "30D": "2026-10-06", All: "" } as const;
-
-// ponytail: logs only carry a day; deterministic clock times until the indexer returns block timestamps
-const ROWS: Row[] = ALL_ACTIVITY.map((a, i) => {
-  const usdc = Number(a.detail.match(/(\d+) USDC/)?.[1] ?? 0);
-  const usd = a.type === "transfer" ? a.etf.priceNear * NEAR_USD : a.type === "mint" ? a.etf.navUsd * 0.8 : usdc;
-  const h = (i * 7 + 9) % 24;
-  return { ...a, key: `${a.etf.id}-${i}`, usd, time: `${((h + 11) % 12) + 1}.${String((i * 13) % 60).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}` };
-});
-const day = (iso: string) => (iso === TODAY ? "Today" : iso === "2026-11-04" ? "Yesterday" : new Date(iso + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }));
+const DAY = 86_400_000;
+const SINCE_DAYS = { Today: 1, "7D": 7, "30D": 30, All: Infinity } as const;
+const time = (ms: number) => new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n < 1 ? 6 : 2 });
 
 export function Activity() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
@@ -44,12 +39,27 @@ export function Activity() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "at", dir: -1 });
   const [picked, setPicked] = useState<string[]>([]);
+  const [now] = useState(() => Date.now());
 
-  const inPeriod = ROWS.filter((r) => r.at >= SINCE[period]);
+  const activityQ = useApi<ActivityItem[]>("/activity?limit=500");
+  const vaultsQ = useApi<VaultSummary[]>("/vaults");
+  const statsQ = useApi<Stats>("/stats");
+  const error = activityQ.error ?? vaultsQ.error ?? statsQ.error;
+  const loading = activityQ.loading || vaultsQ.loading || statsQ.loading;
+  const byId = new Map((vaultsQ.data ?? []).map((v) => [v.tokenId, toVault(v)]));
+  const ROWS: Row[] = toEvents(activityQ.data ?? []).flatMap((e) => {
+    const etf = byId.get(e.tokenId);
+    return etf ? [{ ...e, etf, time: time(e.ms), usd: eventUsd(e, statsQ.data?.nearUsd ?? 0) }] : [];
+  });
+  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+  const day = (ms: number) =>
+    ms >= startOfToday ? "Today" : ms >= startOfToday - DAY ? "Yesterday" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const inPeriod = ROWS.filter((r) => r.ms >= (period === "Today" ? startOfToday : now - SINCE_DAYS[period] * DAY));
   const rows = inPeriod
     .filter((r) => (filter === "All" || r.type === filter) && `${r.account} ${r.etf.name}`.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => {
-      const v = (r: Row) => (sort.key === "vault" ? r.etf.name : sort.key === "usd" ? r.usd : sort.key === "type" ? r.type : sort.key === "account" ? r.account : r.at + r.time);
+      const v = (r: Row) => (sort.key === "vault" ? r.etf.name : sort.key === "usd" ? r.usd : sort.key === "type" ? r.type : sort.key === "account" ? r.account : r.ms);
       return (v(a) > v(b) ? 1 : v(a) < v(b) ? -1 : 0) * sort.dir;
     });
   const all = rows.length > 0 && rows.every((r) => picked.includes(r.key));
@@ -122,6 +132,17 @@ export function Activity() {
 
         {/* table */}
         <div className="flex-1 overflow-x-auto">
+          {error ? (
+            <ErrorState error={error} />
+          ) : loading ? (
+            <div className="flex flex-col gap-2 p-6">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-[52px]" />
+              ))}
+            </div>
+          ) : !ROWS.length ? (
+            <EmptyState title="Nothing yet" body="No vault events indexed on testnet yet. Mint a vault to start the feed." />
+          ) : (
           <table className="w-full min-w-[860px] text-[14px]">
             <thead>
               <tr className="text-left text-[13px] text-muted">
@@ -157,7 +178,7 @@ export function Activity() {
                         <span>
                           <span className="block font-semibold">{r.account}</span>
                           <span className="flex items-center gap-1 text-[12px] text-muted">
-                            <Sym name="clock" size={12} /> {day(r.at)} at {r.time}
+                            <Sym name="clock" size={12} /> {day(r.ms)} at {r.time}
                           </span>
                         </span>
                       </span>
@@ -167,7 +188,7 @@ export function Activity() {
                         <Artwork etf={r.etf} size={30} className="rounded-full" />
                         <span>
                           <span className="block font-medium">{r.etf.name}</span>
-                          <span className="block font-mono text-[11px] text-muted">{r.etf.id}.torch.near</span>
+                          <span className="block font-mono text-[11px] text-muted">#{r.etf.id}</span>
                         </span>
                       </Link>
                     </td>
@@ -178,13 +199,13 @@ export function Activity() {
                     </td>
                     <td className="px-3 py-3 text-right font-semibold tabular-nums">
                       {r.type === "transfer" ? (
-                        <NearAmount amount={r.etf.priceNear} className="justify-end" />
+                        <NearAmount amount={r.near ?? 0} className="justify-end" />
                       ) : r.type === "mint" ? (
-                        <span className="text-muted">${r.usd.toFixed(0)}</span>
+                        <span className="text-muted">—</span>
                       ) : (
-                        <span className={`inline-flex items-center gap-1.5 ${r.type === "withdraw" ? "text-down" : "text-up"}`}>
+                        <span className={`inline-flex items-center gap-1.5 ${r.type === "withdraw" ? "text-down" : "text-up"}`} title={`$${r.usd.toFixed(2)}`}>
                           {r.type === "withdraw" ? "−" : "+"}
-                          {r.usd} <TokenIcon token="USDC" size={16} />
+                          {fmt(r.units ?? 0)} {r.token && <TokenIcon token={r.token} size={16} />}
                         </span>
                       )}
                     </td>
@@ -194,7 +215,8 @@ export function Activity() {
               })}
             </tbody>
           </table>
-          {!rows.length && (
+          )}
+          {!error && !loading && !!ROWS.length && !rows.length && (
             <div className="grid place-items-center gap-2 py-20 text-center">
               <span className="title-chunky text-[28px]">All quiet</span>
               <span className="text-[15px] text-muted">No vault events match.</span>
