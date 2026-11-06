@@ -28,18 +28,21 @@ export function Faucet() {
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
   const [wrap, setWrap] = useState("1");
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0); // 0 until mounted: the clock is not read during prerender
 
   const balances = near.useFtBalances(accountId, FT_IDS, nonce);
   const nextAt = near.useEach<number>(accountId ? MOCK_IDS : null, "faucet_next_at", { account_id: accountId }, nonce);
 
   // cooldowns tick down without re-reading the chain
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick);
+    const id = setInterval(tick, 30_000);
+    return () => (clearTimeout(first), clearInterval(id));
   }, []);
 
-  const ready = MOCK_FTS.filter((f) => nextAt && (nextAt[f.id] ?? 0) <= now);
+  const cooldowns = now ? nextAt : null;
+  const ready = MOCK_FTS.filter((f) => cooldowns && (cooldowns[f.id] ?? 0) <= now);
 
   const run = async (label: string, txs: near.Tx[]) => {
     if (!wallet || !txs.length) return;
@@ -83,7 +86,7 @@ export function Faucet() {
             <ul className="grid gap-1 sm:grid-cols-2">
               {MOCK_FTS.map((f) => {
                 const t = TOKENS[f.key];
-                const at = nextAt?.[f.id] ?? 0;
+                const at = cooldowns?.[f.id] ?? 0;
                 const cooling = at > now;
                 return (
                   <li key={f.id} className="flex items-center gap-3 rounded-[16px] px-2 py-2 hover:bg-fill">
@@ -94,11 +97,11 @@ export function Faucet() {
                     </span>
                     <span className="text-right text-[13px] tabular-nums">
                       <span className="block font-semibold">{balances ? near.formatUnits(balances[f.id] ?? "0", f.decimals) : "…"}</span>
-                      <span className={`block text-[11px] ${cooling ? "text-muted" : "text-up-text"}`}>{!nextAt ? "…" : cooling ? `in ${wait(at, now)}` : "ready"}</span>
+                      <span className={`block text-[11px] ${cooling ? "text-muted" : "text-up-text"}`}>{!cooldowns ? "…" : cooling ? `in ${wait(at, now)}` : "ready"}</span>
                     </span>
                     <button
                       onClick={() => run(f.id, [near.faucetTx(f.id)])}
-                      disabled={!!busy || !nextAt || cooling}
+                      disabled={!!busy || !cooldowns || cooling}
                       aria-label={`Claim 0.1 ${t.symbol}`}
                       className="grid size-9 shrink-0 place-items-center rounded-full bg-fill transition hover:bg-line disabled:opacity-40"
                     >
