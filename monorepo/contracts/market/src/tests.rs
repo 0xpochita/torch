@@ -46,7 +46,10 @@ fn list_creates_listing_and_event() {
     let mut m = setup();
     list(&mut m, "0", "alice.near", NEAR);
     let l = m.get_listing("0".into()).unwrap();
-    assert_eq!((l.seller_id.as_str(), l.price.0, l.approval_id), ("alice.near", NEAR, 7));
+    assert_eq!(
+        (l.seller_id.as_str(), l.price.0, l.approval_id),
+        ("alice.near", NEAR, 7)
+    );
     assert!(get_logs()[0].contains(r#""event":"list""#));
     assert_eq!(m.get_listings(None, None).len(), 1);
 }
@@ -56,7 +59,12 @@ fn list_creates_listing_and_event() {
 fn on_approve_rejects_other_callers() {
     let mut m = setup();
     ctx("evil.near", 0, 1);
-    let _ = m.nft_on_approve("0".into(), acc("alice.near"), 1, r#"{"list":{"price":"1"}}"#.into());
+    let _ = m.nft_on_approve(
+        "0".into(),
+        acc("alice.near"),
+        1,
+        r#"{"list":{"price":"1"}}"#.into(),
+    );
 }
 
 #[test]
@@ -110,7 +118,9 @@ fn successful_sale_emits_fee() {
     callback_ctx(PromiseResult::Successful(payout.to_vec()));
     assert!(m.on_buy(acc("bob.near"), listing));
     let log = &get_logs()[0];
-    assert!(log.contains(r#""event":"sale""#) && log.contains(r#""fee":"20000000000000000000000""#));
+    assert!(
+        log.contains(r#""event":"sale""#) && log.contains(r#""fee":"20000000000000000000000""#)
+    );
 }
 
 #[test]
@@ -179,7 +189,8 @@ fn failed_accept_restores_offer() {
 fn bad_payout_pays_seller_everything() {
     let m = setup();
     // Payout claims more than the balance: ignored, seller gets the full 98%.
-    let p: Payout = serde_json::from_str(&format!(r#"{{"payout":{{"x.near":"{NEAR}"}}}}"#)).unwrap();
+    let p: Payout =
+        serde_json::from_str(&format!(r#"{{"payout":{{"x.near":"{NEAR}"}}}}"#)).unwrap();
     assert_eq!(m.settle(&acc("alice.near"), NEAR, Some(p)), NEAR / 50);
     assert_eq!(split(NEAR), (NEAR / 50, NEAR - NEAR / 50));
 }

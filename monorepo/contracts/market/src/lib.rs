@@ -136,12 +136,18 @@ impl Market {
                 );
                 let (_, balance) = split(offer.amount.0);
                 PromiseOrValue::Promise(
-                    transfer_payout(&self.collection_id, &buyer_id, &token_id, approval_id, balance)
-                        .then(
-                            Self::ext(env::current_account_id())
-                                .with_static_gas(GAS_FOR_RESOLVE)
-                                .on_accept_offer(owner_id, offer),
-                        ),
+                    transfer_payout(
+                        &self.collection_id,
+                        &buyer_id,
+                        &token_id,
+                        approval_id,
+                        balance,
+                    )
+                    .then(
+                        Self::ext(env::current_account_id())
+                            .with_static_gas(GAS_FOR_RESOLVE)
+                            .on_accept_offer(owner_id, offer),
+                    ),
                 )
             }
         }
@@ -155,7 +161,10 @@ impl Market {
             .listings
             .remove(&token_id)
             .unwrap_or_else(|| env::panic_str("token is not listed"));
-        require!(buyer_id != listing.seller_id, "seller cannot buy own listing");
+        require!(
+            buyer_id != listing.seller_id,
+            "seller cannot buy own listing"
+        );
         require!(
             env::attached_deposit().as_yoctonear() == listing.price.0,
             "attached deposit must equal the listing price"
@@ -186,7 +195,10 @@ impl Market {
         );
         let seller_id = listing.seller_id.clone();
         self.listings.remove(&token_id);
-        emit("delist", json!({ "token_id": token_id, "seller_id": seller_id }));
+        emit(
+            "delist",
+            json!({ "token_id": token_id, "seller_id": seller_id }),
+        );
     }
 
     /// Escrows the attached NEAR as an offer. A live offer from the same buyer is replaced
@@ -251,7 +263,9 @@ impl Market {
         let price = listing.price.0;
         let Some(payout) = payout_result() else {
             // Token moved, approval revoked or token busy: the listing is stale, refund the buyer.
-            Promise::new(buyer_id).transfer(NearToken::from_yoctonear(price)).detach();
+            Promise::new(buyer_id)
+                .transfer(NearToken::from_yoctonear(price))
+                .detach();
             if !self.listings.contains_key(&listing.token_id) {
                 emit(
                     "delist",
@@ -356,8 +370,7 @@ impl Market {
         let mut rest = balance;
         let valid = payout.filter(|p| {
             p.payout.len() <= MAX_LEN_PAYOUT as usize
-                && p
-                    .payout
+                && p.payout
                     .values()
                     .try_fold(0u128, |sum, v| sum.checked_add(v.0))
                     .is_some_and(|sum| sum <= balance)

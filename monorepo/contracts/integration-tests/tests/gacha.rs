@@ -1,0 +1,150 @@
+//! Gacha end to end with the real collection, vault and three mock-ft tokens.
+use integration_tests::near_workspaces::result::ExecutionFinalResult;
+use integration_tests::near_workspaces::types::{Gas, NearToken};
+use integration_tests::serde_json::{json, Value};
+use integration_tests::*;
+
+const FUNDED: u128 = 10_000_000;
+
+/// The owner registers the gacha on every token and funds the treasury with msg "fund".
+async fn fund(e: &Env) {
+    for ft in e.fts() {
+        e.register(ft, e.gacha.id()).await;
+        e.register(ft, e.owner.id()).await;
+        e.ft_mint(ft, e.owner.id(), FUNDED).await;
+        ok(&e
+            .owner
+            .call(ft.id(), "ft_transfer_call")
+            .args_json(
+                json!({ "receiver_id": e.gacha.id(), "amount": FUNDED.to_string(), "msg": "fund" }),
+            )
+            .deposit(NearToken::from_yoctonear(1))
+            .gas(Gas::from_tgas(100))
+            .transact()
+            .await
+            .unwrap());
+    }
+}
+
+async fn pull(e: &Env, count: u8, gas: Gas) -> ExecutionFinalResult {
+    let price = if count == 10 {
+        PULL_PRICE.saturating_mul(9)
+    } else {
+        PULL_PRICE
+    };
+    e.bob
+        .call(e.gacha.id(), "pull")
+        .args_json(json!({ "count": count }))
+        .deposit(price)
+        .gas(gas)
+        .transact()
+        .await
+        .unwrap()
+}
+
+/// Every pulled token belongs to bob, carries its rarity with `creator == gacha`, and its vault
+/// holds exactly that rarity's basket.
+async fn check_pulls(e: &Env, pulls: &[Value]) {
+    for p in pulls {
+        let id = p["token_id"].as_str().unwrap();
+        assert_eq!(p["player_id"], e.bob.id().as_str());
+        assert_eq!(e.owner_of(id).await, e.bob.id().as_str());
+        let extra: Value =
+            serde_json::from_str(e.token(id).await["metadata"]["extra"].as_str().unwrap()).unwrap();
+        assert_eq!(extra["rarity"], p["rarity"]);
+        assert_eq!(extra["creator"], e.gacha.id().as_str());
+        let (a, b) = basket_amounts(p["rarity"].as_str().unwrap());
+        let vault = e.vault_of(id);
+        assert_eq!(e.ft_balance(&e.usdc, &vault).await, a, "{p}");
+        assert_eq!(e.ft_balance(&e.btc, &vault).await, b, "{p}");
+        assert_eq!(e.ft_balance(&e.eth, &vault).await, a, "{p}");
+    }
+}
+
+#[tokio::test]
+async fn one_pull_and_ten_pull() {
+    let e = Env::new().await;
+    fund(&e).await;
+
+    let one = pull(&e, 1, Gas::from_tgas(300)).await;
+    ok(&one);
+    let mut pulls = events(&one, "gacha_pull");
+    assert_eq!(pulls.len(), 1);
+    assert_eq!(pulls[0]["token_id"], "0");
+    assert_eq!(pulls[0]["price"], PULL_PRICE.as_yoctonear().to_string());
+    check_pulls(&e, &pulls).await;
+
+    // Too little gas for the 900 Tgas the promises reserve: the whole pull reverts and the
+    // deposit comes back, nothing is minted and pity does not move.
+    e.settle().await;
+    let bob0 = e.near_balance(e.bob.id()).await;
+    let short = pull(&e, 10, Gas::from_tgas(900)).await;
+    assert!(
+        short.is_failure() && events(&short, "gacha_pull").is_empty(),
+        "{short:#?}"
+    );
+    e.settle().await;
+    assert!(bob0 - e.near_balance(e.bob.id()).await < NEAR / 100);
+    let supply: String = e
+        .nft
+        .view("nft_total_supply")
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(supply, "1");
+
+    let ten = pull(&e, 10, MAX_TX_GAS).await;
+    ok(&ten);
+    let tens = events(&ten, "gacha_pull");
+    assert_eq!(tens.len(), 10);
+    check_pulls(&e, &tens).await;
+    // The pull receipt reserves 10 x (40 mint + 5 + 3 x 15 funding) = 900 Tgas of static gas
+    // for its promises, on top of what it burns itself; all of it must fit in the attached gas.
+    let pull_receipt = ten.receipt_outcomes()[0].gas_burnt;
+    println!(
+        "gas: 1-pull burnt {} Ggas; 10-pull burnt {} Ggas in total, pull receipt {} Ggas, needs {} Ggas prepaid (attached {} Ggas)",
+        one.total_gas_burnt.as_ggas(),
+        ten.total_gas_burnt.as_ggas(),
+        pull_receipt.as_ggas(),
+        pull_receipt.as_ggas() + 900_000,
+        MAX_TX_GAS.as_ggas(),
+    );
+    assert!(pull_receipt.as_tgas() + 900 < MAX_TX_GAS.as_tgas());
+
+    pulls.extend(tens);
+    let spent = |f: fn((u128, u128)) -> u128| -> u128 {
+        pulls
+            .iter()
+            .map(|p| f(basket_amounts(p["rarity"].as_str().unwrap())))
+            .sum()
+    };
+    assert_eq!(
+        e.ft_balance(&e.usdc, e.gacha.id()).await,
+        FUNDED - spent(|a| a.0)
+    );
+    assert_eq!(
+        e.ft_balance(&e.btc, e.gacha.id()).await,
+        FUNDED - spent(|a| a.1)
+    );
+    let pity: u32 = e
+        .gacha
+        .view("get_pity")
+        .args_json(json!({ "account_id": e.bob.id() }))
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(
+        pity as u64,
+        pulls.last().unwrap()["pity_after"].as_u64().unwrap()
+    );
+    let supply: String = e
+        .nft
+        .view("nft_total_supply")
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(supply, "11");
+}
