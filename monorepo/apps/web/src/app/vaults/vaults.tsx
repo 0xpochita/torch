@@ -28,6 +28,7 @@ import {
   type Allocation,
   type Etf,
   type TokenKey,
+  offersFor,
 } from "@/lib/mock";
 
 const VIEWS = ["Owned", "Created", "Listed"] as const;
@@ -123,11 +124,13 @@ export function Vaults() {
               </div>
               <div className="flex items-center gap-3 rounded-[20px] bg-fill p-3">
                 <span className="grid size-10 place-items-center rounded-full bg-surface">
-                  <Sym name="clock" size={18} weight="bold" />
+                  <Sym name="swap" size={18} weight="bold" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] text-muted">Next keeper rebalance</span>
-                  <span className="block text-[15px] font-semibold">Mon, Nov 9 · {owned.filter((e) => e.rebalance === "Weekly").length} weekly vaults</span>
+                  <span className="block text-[13px] text-muted">Open offers on your vaults</span>
+                  <span className="block text-[15px] font-semibold">
+                    {owned.reduce((n, e) => n + offersFor(e).length, 0)} offers · best <NearAmount amount={Math.max(...owned.map((e) => offersFor(e)[0].priceNear))} className="inline-flex" />
+                  </span>
                 </span>
                 <span className="text-right">
                   <span className="block text-[13px] text-muted">Asking</span>
@@ -346,7 +349,7 @@ function VaultCard({ etf }: { etf: Etf }) {
         </div>
         <AllocationBar etf={etf} className="h-2" />
         <div className="flex items-center justify-between text-[12px] text-muted">
-          <span>{etf.rebalance} rebalance</span>
+          <span>{etf.category}</span>
           <span>{etf.allocation.length} tokens</span>
         </div>
       </div>

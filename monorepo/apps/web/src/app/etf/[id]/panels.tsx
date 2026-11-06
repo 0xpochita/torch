@@ -110,7 +110,7 @@ export function DetailTabs({ etf }: { etf: Etf }) {
             </tbody>
           </table>
           <div className="flex items-center justify-between border-t border-line px-4 py-3 text-xs text-muted">
-            <span>Drift above 1.5% is corrected at the next {etf.rebalance.toLowerCase()} rebalance.</span>
+            <span>Live balances read from the vault account.</span>
             <span className="font-medium text-text">
               Total <Money value={holdings.reduce((s, h) => s + h.value, 0)} />
             </span>

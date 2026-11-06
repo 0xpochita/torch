@@ -75,10 +75,9 @@ export function BasketGraph({ etf }: { etf: Etf }) {
           <Row k="Status" v={etf.listed ? "Listed · withdraw locked" : "Active"} />
         </Node>
 
-        <Node title="Strategy" x={SETTINGS_X} y={vaultY} w={SETTINGS_W}>
-          <Row k="Rebalance" v={etf.rebalance} />
+        <Node title="Swaps" x={SETTINGS_X} y={vaultY} w={SETTINGS_W}>
           <Row k="Max slippage" v={`${(etf.slippageBps / 100).toFixed(2)}%`} />
-          <Row k="Keeper" v="keeper.torch.near" mono />
+          <Row k="Category" v={etf.category} />
           <Row k="Route" v="RHEA · NEAR Intents" />
         </Node>
       </div>

@@ -91,7 +91,6 @@ export function EtfRow({ etf, trailing, subtitle }: { etf: Etf; trailing?: React
 export const EVENT: Record<HistoryEvent["type"], { label: string; icon: IconName; color: string }> = {
   mint: { label: "Minted", icon: "sparkle", color: "#af52de" },
   deposit: { label: "Deposit", icon: "down", color: "#34c759" },
-  rebalance: { label: "Rebalance", icon: "swap", color: "#007aff" },
   withdraw: { label: "Withdraw", icon: "up", color: "#ff9500" },
   transfer: { label: "Sale", icon: "tag", color: "#ff2d55" },
 };

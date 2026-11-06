@@ -6,10 +6,10 @@ import { useState } from "react";
 import { BasketArt } from "@/components/basket-art";
 import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
-import { Donut, Money, RadioRow, Switch, Title, TokenIcon } from "@/components/ui";
+import { Donut, Money, Title, TokenIcon } from "@/components/ui";
 import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
 
-const STEPS = ["Theme", "Basket", "Weights", "Strategy", "Review"] as const;
+const STEPS = ["Theme", "Basket", "Weights", "Deposit", "Review"] as const;
 const SUGGESTIONS = [
   { label: "Blue chip", etf: ETFS[0] },
   { label: "Stable yield", etf: ETFS[1] },
@@ -35,9 +35,7 @@ export function Studio() {
   const [name, setName] = useState("My NEAR Index");
   const [allocation, setAllocation] = useState<Allocation[]>(ETFS[0].allocation);
   const [bg, setBg] = useState(BACKGROUNDS[0]);
-  const [rebalance, setRebalance] = useState("Weekly");
   const [slippage, setSlippage] = useState(50);
-  const [keeper, setKeeper] = useState(true);
   const [deposit, setDeposit] = useState(250);
 
   const total = allocation.reduce((s, a) => s + a.weight, 0);
@@ -52,7 +50,6 @@ export function Studio() {
     setAllocation(etf.allocation);
     setBg(etf.bg);
     setName(etf.name);
-    setRebalance(etf.rebalance);
     setSlippage(etf.slippageBps);
   };
 
@@ -172,9 +169,6 @@ export function Studio() {
                     {NEXT_ID}.torch.near · {allocation.length} tokens
                   </div>
                 </div>
-                <span className="hidden items-center gap-1.5 rounded-full bg-fill px-3 py-1.5 text-[12px] font-semibold sm:flex">
-                  <Sym name="clock" size={13} stroke={2.4} /> {rebalance}
-                </span>
                 <div className="text-right">
                   <div className="text-[11px] font-medium text-muted">Starting value</div>
                   <Money value={deposit} className="title-chunky text-[24px]" />
@@ -231,7 +225,7 @@ export function Studio() {
               Step {step + 1} of {STEPS.length}
             </div>
             <h2 className="text-lg font-semibold">
-              {["Pick a theme", "Choose tokens", "Set weights", "Strategy & deposit", "Review & mint"][step]}
+              {["Pick a theme", "Choose tokens", "Set weights", "Fund the vault", "Review & mint"][step]}
             </h2>
           </div>
 
@@ -351,18 +345,7 @@ export function Studio() {
             )}
 
             {step === 3 && (
-              <div className="flex flex-col gap-5 text-sm">
-                <div role="radiogroup" aria-label="Rebalance schedule" className="flex flex-col gap-2">
-                  <span className="font-medium">Rebalance schedule</span>
-                  {[
-                    ["Daily", "Tightest tracking", "most swaps"],
-                    ["Weekly", "Balanced", "recommended"],
-                    ["Monthly", "Lowest cost", "fewest swaps"],
-                  ].map(([r, t, d]) => (
-                    <RadioRow key={r} selected={rebalance === r} onSelect={() => setRebalance(r)} title={`${r} · ${t}`} detail={d} />
-                  ))}
-                </div>
-                <label className="flex flex-col gap-2">
+              <div className="flex flex-col gap-5 text-sm">                <label className="flex flex-col gap-2">
                   <span className="flex justify-between font-medium">
                     Max slippage per swap <span className="tabular-nums text-muted">{(slippage / 100).toFixed(2)}%</span>
                   </span>
@@ -390,13 +373,6 @@ export function Studio() {
                     ))}
                   </div>
                 </label>
-                <div className="flex items-center justify-between gap-3 rounded-[14px] bg-fill px-3.5 py-3">
-                  <span>
-                    <span className="font-medium">Auto-rebalance keeper</span>
-                    <span className="block text-xs text-muted">Swaps only between basket tokens. It can never withdraw.</span>
-                  </span>
-                  <Switch checked={keeper} onChange={setKeeper} label="Auto-rebalance keeper" />
-                </div>
               </div>
             )}
 
@@ -409,12 +385,10 @@ export function Studio() {
                     <dd className="truncate font-medium">{name}</dd>
                     <dt className="text-muted">Vault</dt>
                     <dd className="truncate font-mono">{NEXT_ID}.torch.near</dd>
-                    <dt className="text-muted">Strategy</dt>
+                    <dt className="text-muted">Swaps</dt>
                     <dd>
-                      {rebalance} · ≤{(slippage / 100).toFixed(2)}% slip
+                      ≤{(slippage / 100).toFixed(2)}% slippage
                     </dd>
-                    <dt className="text-muted">Keeper</dt>
-                    <dd>{keeper ? "On" : "Off"}</dd>
                   </dl>
                 </div>
                 <dl className="flex flex-col gap-2">
@@ -453,9 +427,9 @@ export function Studio() {
               <dl className="grid min-w-0 flex-1 grid-cols-[auto_1fr] gap-x-3 text-[12px]">
                 <dt className="text-muted">Tokens</dt>
                 <dd className="truncate font-medium">{allocation.map((a) => TOKENS[a.token].symbol).join(", ") || "—"}</dd>
-                <dt className="text-muted">Strategy</dt>
+                <dt className="text-muted">Swaps</dt>
                 <dd className="truncate font-medium">
-                  {rebalance} · ≤{(slippage / 100).toFixed(2)}%
+                  ≤{(slippage / 100).toFixed(2)}% slippage
                 </dd>
                 <dt className="text-muted">Deposit</dt>
                 <dd className="font-medium">

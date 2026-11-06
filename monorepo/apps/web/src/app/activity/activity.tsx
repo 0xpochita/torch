@@ -10,10 +10,10 @@ import { Avatar, NearAmount, PASTEL, TokenIcon } from "@/components/ui";
 import { ALL_ACTIVITY, type HistoryEvent } from "@/lib/mock";
 
 type Kind = HistoryEvent["type"];
-const FILTERS = ["All", "rebalance", "deposit", "withdraw", "transfer", "mint"] as const;
-const LABEL: Record<(typeof FILTERS)[number], string> = { All: "All", rebalance: "Rebalances", deposit: "Deposits", withdraw: "Withdrawals", transfer: "Sales", mint: "Mints" };
-const VERB: Record<Kind, string> = { mint: "minted", deposit: "deposited into", rebalance: "rebalanced", withdraw: "withdrew from", transfer: "sold" };
-const TONE = { mint: "lilac", deposit: "mint", rebalance: "sky", withdraw: "peach", transfer: "pink" } as const;
+const FILTERS = ["All", "deposit", "withdraw", "transfer", "mint"] as const;
+const LABEL: Record<(typeof FILTERS)[number], string> = { All: "All", deposit: "Deposits", withdraw: "Withdrawals", transfer: "Sales", mint: "Mints" };
+const VERB: Record<Kind, string> = { mint: "minted", deposit: "deposited into", withdraw: "withdrew from", transfer: "sold" };
+const TONE = { mint: "lilac", deposit: "mint", withdraw: "peach", transfer: "pink" } as const;
 
 const TODAY = "2026-11-05";
 const YESTERDAY = "2026-11-04";

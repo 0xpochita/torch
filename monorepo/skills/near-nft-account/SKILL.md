@@ -5,7 +5,7 @@ description: >
   sub-account (`<token_id>.<collection>`) holding NEP-141 tokens, so selling the NFT sells the
   inventory. Covers the collection + vault contracts (near-sdk 5.30, near-contract-standards),
   global-contract deployment, how control passes on transfer, the seller threat model
-  (in-flight withdrawals, listings, nft_transfer_call, keepers), NEP-199 payouts, events for
+  (in-flight withdrawals, listings, nft_transfer_call), NEP-199 payouts, events for
   per-NFT history, and the tests that prove it. Use for Torch's NFT ETF contracts or any
   "NFT owns money / inventory" design.
 ---
@@ -62,7 +62,7 @@ can receive tokens from any wallet, exchange or contract.
 | List at full NAV, drain the vault, let the sale fill | I6. Withdrawing requires revoking approvals first, which cancels the listing. |
 | `nft_transfer_call` to an accomplice that drains the vault in `nft_on_transfer`, then returns `true` to bounce the NFT back | I7 |
 | Re-use an old marketplace approval after the sale | NEP-178: `internal_transfer` clears approvals on every transfer. |
-| Old owner's per-owner settings (keeper, auto-withdraw address) survive the sale | Do not store per-owner config. If you add it, key it by `(token_id, owner_id)` or clear it in every transfer path. |
+| Old owner's per-owner settings (auto-withdraw address) survive the sale | Do not store per-owner config. If you add it, key it by `(token_id, owner_id)` or clear it in every transfer path. |
 | Admin upgrades the vault code to sweep funds | Use the global contract **by hash** (immutable). By account id, the publisher can replace all vaults. |
 | Vault keeps a refund from a failed `ft_transfer_call` somewhere else | Refunds return to the sender, which is the vault itself. |
 
@@ -84,16 +84,6 @@ collection keeps `MINT_STORAGE` for the token's own storage.
 After mint, fund the basket by sending tokens straight to the vault (`ft_transfer_call` to
 `vault_of(id)`, or swap with the vault as receiver). The vault accepts any NEP-141 in
 `ft_on_transfer`. Remember `storage_deposit` for the vault on each token contract first.
-
-## Rebalance (Glider-style keeper)
-
-Add as a collection method, never on the vault directly:
-
-- caller must be the configured `keeper` (or the owner)
-- only swaps between tokens in the basket, through a whitelisted DEX (`v2.ref-finance.near`) or NEAR Intents
-- `min_amount_out` is required; the receiver of every swap is the vault itself
-- lock the token for the duration, exactly like `withdraw`
-- keeper can never call `withdraw`; it has no path to send tokens outside the vault
 
 ## Per-NFT history
 

@@ -208,9 +208,9 @@ export function Explore() {
             <StatTile icon="layers" label="Vaults" value={`${ETFS.length} live`} />
             <StatTile icon="person" label="Holders" value={new Set(ETFS.map((e) => e.owner)).size} />
             <div className="col-span-2">
-              <StatTile icon="swap" label="Rebalanced this week" value={`${ETFS.filter((e) => e.rebalance !== "Monthly").length} of ${ETFS.length}`}>
+              <StatTile icon="tag" label="Listed for sale" value={`${ETFS.filter((e) => e.listed).length} of ${ETFS.length}`}>
                 <span className="flex h-2 overflow-hidden rounded-full bg-line">
-                  <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.rebalance !== "Monthly").length / ETFS.length) * 100}%` }} />
+                  <span className="bg-pink-ink" style={{ width: `${(ETFS.filter((e) => e.listed).length / ETFS.length) * 100}%` }} />
                 </span>
               </StatTile>
             </div>

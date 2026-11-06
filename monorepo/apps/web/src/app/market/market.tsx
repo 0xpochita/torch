@@ -24,7 +24,6 @@ const STATUS_ICON = { All: "store", buy: "tag", offer: "swap", new: "sparkle" } 
 const SORTS = { low: "Price: low to high", high: "Price: high to low", value: "Best vs value", liked: "Most liked", recent: "Recently listed" } as const;
 type Sort = keyof typeof SORTS;
 const LAYOUTS = ["Grid", "List"] as const;
-const REBALANCE = ["Daily", "Weekly", "Monthly"] as const;
 
 /** Price relative to what the basket inside is worth: negative = buying below value. */
 const vsValue = (l: Listing) => ((l.priceNear * NEAR_USD) / l.navUsd - 1) * 100;
@@ -38,7 +37,6 @@ const HIST = Array.from({ length: BUCKETS }, (_, b) => LISTINGS.filter((l) => Ma
 export function Market() {
   const [status, setStatus] = useState<(typeof STATUS)[number]>("All");
   const [cats, setCats] = useState<Category[]>([]);
-  const [rebalance, setRebalance] = useState<string[]>([]);
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const [underValue, setUnderValue] = useState(false);
   const [sort, setSort] = useState<Sort>("low");
@@ -47,13 +45,12 @@ export function Market() {
   const bookListing = book === "popular" ? POPULAR : BEST;
 
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const reset = () => (setCats([]), setRebalance([]), setMaxPrice(MAX_PRICE), setUnderValue(false), setStatus("All"));
+  const reset = () => (setCats([]), setMaxPrice(MAX_PRICE), setUnderValue(false), setStatus("All"));
 
   const items = LISTINGS.filter(
     (l) =>
       (status === "All" || (status === "new" ? l.listedDaysAgo <= 3 : l.status === status)) &&
       (!cats.length || cats.includes(l.etf.category)) &&
-      (!rebalance.length || rebalance.includes(l.etf.rebalance)) &&
       l.priceNear <= maxPrice &&
       (!underValue || vsValue(l) < 0),
   ).sort((a, b) =>
@@ -140,20 +137,6 @@ export function Market() {
                 <span className="flex items-center gap-1 text-muted">
                   up to <NearAmount amount={maxPrice} className="text-text" />
                 </span>
-              </div>
-            </FilterGroup>
-
-            <FilterGroup title="Rebalance">
-              <div className="flex flex-wrap gap-1.5">
-                {REBALANCE.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRebalance((x) => toggle(x, r))}
-                    className={`h-8 rounded-full px-3 text-[13px] font-semibold transition ${rebalance.includes(r) ? "bg-text text-surface" : "bg-fill text-text hover:bg-line"}`}
-                  >
-                    {r}
-                  </button>
-                ))}
               </div>
             </FilterGroup>
 
