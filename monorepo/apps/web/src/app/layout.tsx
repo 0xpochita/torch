@@ -4,6 +4,7 @@ import { Sidebar, TabBar } from "@/components/navbar";
 import { MotionProvider } from "@/components/motion-provider";
 import { THEME_SCRIPT } from "@/components/theme-toggle";
 import { TxProvider } from "@/components/tx-sheet";
+import { NearProvider } from "@/providers/near-provider";
 import "./globals.css";
 
 // SF Pro (system) for UI with Golos as fallback, Bricolage Grotesque for chunky display titles.
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="min-h-full">
+        <NearProvider>
         <MotionProvider>
         <TxProvider>
         <div className="flex min-h-screen">
@@ -45,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <TabBar />
         </TxProvider>
         </MotionProvider>
+        </NearProvider>
       </body>
     </html>
   );
