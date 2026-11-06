@@ -113,3 +113,57 @@ async fn withdraw_races_transfer() {
         assert_eq!(e.ft_balance(&e.usdc, &vault).await, 500_000);
     }
 }
+
+/// The 0.02 NEAR the collection keeps per mint covers a max-size token minted to a new owner.
+#[tokio::test]
+async fn max_size_mint_fits_mint_storage() {
+    use integration_tests::near_workspaces::types::Gas;
+
+    let e = Env::new().await;
+    let usage = || async {
+        e.worker
+            .view_account(e.nft.id())
+            .await
+            .unwrap()
+            .storage_usage
+    };
+    // A 64-character owner id: the longest per-owner enumeration keys.
+    let owner = |c: char| {
+        format!(
+            "{}.{}",
+            c.to_string().repeat(63 - e.root.id().len()),
+            e.root.id()
+        )
+    };
+    let mint = |title_len: usize, receiver: String| {
+        e.alice
+            .call(e.nft.id(), "mint")
+            .args_json(json!({
+                "metadata": { "title": "x".repeat(title_len), "extra": "{}" },
+                "receiver_id": receiver,
+            }))
+            .deposit(MINT_DEPOSIT)
+            .gas(Gas::from_tgas(100))
+            .transact()
+    };
+    // Largest title the size check accepts.
+    let mut len = 1_200;
+    while mint(len, owner('p')).await.unwrap().is_failure() {
+        len -= 10;
+    }
+    let before = usage().await;
+    let r = mint(len, owner('o')).await.unwrap();
+    ok(&r);
+    // The callback runs on 10 Tgas static; it must never run out (an orphan vault, no refund).
+    let callback = r
+        .receipt_outcomes()
+        .iter()
+        .find(|o| o.logs.iter().any(|l| l.contains("vault_created")))
+        .unwrap()
+        .gas_burnt;
+    println!("on_vault_created burnt {} Ggas", callback.as_ggas());
+    assert!(callback.as_tgas() < 5);
+    let used = usage().await - before;
+    println!("max-size mint to a new owner stores {used} bytes (title {len})");
+    assert!(used <= 2_000, "{used} bytes > 0.02 NEAR of storage");
+}

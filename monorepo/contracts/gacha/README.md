@@ -6,7 +6,7 @@
   rolls a tier by `weight_bps`, picks a basket in the tier, mints through
   `collection.mint(metadata, receiver_id = player)` with 0.11 NEAR from the gacha's own balance,
   then `storage_deposit` + `ft_transfer_call` each basket item from the treasury into
-  `<token_id>.<collection>`. Emits `gacha_pull` once the mint resolved.
+  `<token_id>.<collection>`. Emits `gacha_pull` once the funding resolved.
 - Pity: per-account counter of pulls since the last Legendary; the pull that reaches `pity`
   is Legendary, then the counter resets.
 - A result the treasury or the NEAR balance cannot cover is refunded (its share of the price)
@@ -14,11 +14,15 @@
 - Treasury: the owner sends tokens with `ft_transfer_call(receiver_id = gacha, msg = "fund")`.
   The gacha must be registered (`storage_deposit`) on each token first. Keep the gacha's NEAR
   balance topped up: every result spends 0.11 NEAR + 0.00125 NEAR per basket item.
-- Gas: attach 1000 Tgas (testnet's max prepaid gas per transaction) to a 10-pull and
-  300 Tgas to a 1-pull. A pull reserves 40 Tgas for the mint and 5 + 15 Tgas per basket item for
-  funding, so a 10-pull of 3-item baskets needs ~912 Tgas (sandbox: the pull receipt burns ~12,
-  the whole tree ~418). Keep baskets at 3 items or fewer. With less gas the whole call reverts
-  and the deposit is refunded; nothing is minted. Numbers: `contracts/README.md` ("Gas").
+- Funding: each item is `storage_deposit` + `ft_transfer_call` into the vault. `on_funded` runs
+  once all items resolve: whatever did not reach the vault goes back into `treasury`
+  (event `gacha_fund_failed {player_id, token_id, ft_id, amount}`), then `gacha_pull` is emitted.
+  A `mint` result that is neither a token id nor `null` keeps the price and puts the basket back.
+- Treasury tokens: `ft_on_transfer` only accepts tokens that appear in some basket.
+- Gas: attach 1000 Tgas (testnet's max prepaid gas per transaction) to a 10-pull and 300 Tgas
+  to a 1-pull. The minimums are 950 and 97 Tgas; with less the whole call reverts and the
+  deposit is refunded. Static gas alone covers every step, so a player attaching the minimum
+  cannot starve the funding. Keep baskets at 3 items or fewer. Details: `contracts/README.md` ("Gas").
 
 ## Randomness
 

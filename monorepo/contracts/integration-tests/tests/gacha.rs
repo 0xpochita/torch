@@ -74,11 +74,29 @@ async fn one_pull_and_ten_pull() {
     assert_eq!(pulls[0]["price"], PULL_PRICE.as_yoctonear().to_string());
     check_pulls(&e, &pulls).await;
 
-    // Too little gas for the 900 Tgas the promises reserve: the whole pull reverts and the
+    // A player attaching the bare minimum cannot starve any step: below it the whole pull
+    // reverts, at it every item still reaches the vault.
+    let mut tgas = 90;
+    let lean = loop {
+        let r = pull(&e, 1, Gas::from_tgas(tgas)).await;
+        if r.is_success() {
+            break r;
+        }
+        assert!(events(&r, "gacha_pull").is_empty(), "{r:#?}");
+        tgas += 1;
+    };
+    println!("1-pull minimum: {tgas} Tgas");
+    ok(&lean);
+    assert!(events(&lean, "gacha_fund_failed").is_empty());
+    let lean = events(&lean, "gacha_pull");
+    check_pulls(&e, &lean).await;
+    pulls.extend(lean);
+
+    // Too little gas for the 920 Tgas of static gas: the whole pull reverts and the
     // deposit comes back, nothing is minted and pity does not move.
     e.settle().await;
     let bob0 = e.near_balance(e.bob.id()).await;
-    let short = pull(&e, 10, Gas::from_tgas(900)).await;
+    let short = pull(&e, 10, Gas::from_tgas(910)).await;
     assert!(
         short.is_failure() && events(&short, "gacha_pull").is_empty(),
         "{short:#?}"
@@ -92,25 +110,20 @@ async fn one_pull_and_ten_pull() {
         .unwrap()
         .json()
         .unwrap();
-    assert_eq!(supply, "1");
+    assert_eq!(supply, "2");
 
-    let ten = pull(&e, 10, MAX_TX_GAS).await;
+    // The minimum is ~950 Tgas; 960 keeps a 40 Tgas guard under testnet's 1 PGas limit.
+    let ten = pull(&e, 10, Gas::from_tgas(960)).await;
     ok(&ten);
+    assert!(events(&ten, "gacha_fund_failed").is_empty());
     let tens = events(&ten, "gacha_pull");
     assert_eq!(tens.len(), 10);
     check_pulls(&e, &tens).await;
-    // The pull receipt reserves 10 x (40 mint + 5 + 3 x 15 funding) = 900 Tgas of static gas
-    // for its promises, on top of what it burns itself; all of it must fit in the attached gas.
-    let pull_receipt = ten.receipt_outcomes()[0].gas_burnt;
     println!(
-        "gas: 1-pull burnt {} Ggas; 10-pull burnt {} Ggas in total, pull receipt {} Ggas, needs {} Ggas prepaid (attached {} Ggas)",
-        one.total_gas_burnt.as_ggas(),
-        ten.total_gas_burnt.as_ggas(),
-        pull_receipt.as_ggas(),
-        pull_receipt.as_ggas() + 900_000,
-        MAX_TX_GAS.as_ggas(),
+        "gas: 1-pull burnt {} Tgas, 10-pull burnt {} Tgas in total",
+        one.total_gas_burnt.as_tgas(),
+        ten.total_gas_burnt.as_tgas(),
     );
-    assert!(pull_receipt.as_tgas() + 900 < MAX_TX_GAS.as_tgas());
 
     pulls.extend(tens);
     let spent = |f: fn((u128, u128)) -> u128| -> u128 {
@@ -146,5 +159,5 @@ async fn one_pull_and_ten_pull() {
         .unwrap()
         .json()
         .unwrap();
-    assert_eq!(supply, "11");
+    assert_eq!(supply, "12");
 }

@@ -5,6 +5,7 @@ use near_sdk::serde_json::{self, json};
 use near_sdk::store::{IterableMap, LookupMap};
 use near_sdk::{
     env, near, require, AccountId, BorshStorageKey, Gas, NearToken, PanicOnDefault, Promise,
+    PromiseError,
 };
 
 /// What the collection requires per mint; paid from the gacha's own NEAR balance.
@@ -13,10 +14,19 @@ pub const MINT_DEPOSIT: NearToken = NearToken::from_millinear(110);
 const FT_STORAGE_DEPOSIT: NearToken = NearToken::from_micronear(1250);
 /// Never spend below this on top of the contract's own storage stake.
 const NEAR_RESERVE: NearToken = NearToken::from_millinear(100);
-/// The collection attaches 25 Tgas to its own vault-create + callback chain.
-const GAS_MINT: Gas = Gas::from_tgas(40);
-const GAS_ON_MINTED: Gas = Gas::from_tgas(5);
-// Per basket item: 15 Tgas static (~6.5 burnt in sandbox), so a 10-pull of 3-item baskets fits 1 PGas.
+// Static gas per pull. Each callback's static covers its own burn, the execution fees of the
+// receipts it creates and their static gas, so a player attaching the bare minimum cannot starve
+// any step. A 10-pull reserves 10 x (30 + 12 + 5 + 3 x 15) = 920 Tgas and needs ~950 Tgas
+// attached in total; testnet allows 1 PGas per transaction.
+/// `mint` burns ~3.2, prepays ~9.3 of execution fees (7.2 for create_account) and reserves
+/// 5 + 10 for the vault batch and its callback.
+const GAS_MINT: Gas = Gas::from_tgas(30);
+/// Burns ~3.8 and prepays ~6 of execution fees for the funding batches and `on_funded`.
+const GAS_ON_MINTED: Gas = Gas::from_tgas(12);
+/// Burns ~1.6.
+const GAS_ON_FUNDED: Gas = Gas::from_tgas(5);
+/// Per basket item: storage_deposit + ft_transfer_call (3.8), which reserves 5 for
+/// ft_resolve_transfer (1.3) and passes the rest to the vault's ft_on_transfer (1.3).
 const GAS_STORAGE_DEPOSIT: Gas = Gas::from_tgas(3);
 const GAS_FT_TRANSFER_CALL: Gas = Gas::from_tgas(12);
 const LEGENDARY: &str = "Legendary";
@@ -148,7 +158,7 @@ impl Gacha {
             pity = if rarity == LEGENDARY { 0 } else { pity + 1 };
 
             let metadata = self.token_metadata(&rarity, &basket);
-            let callback_gas = GAS_ON_MINTED.saturating_add(
+            let callback_gas = GAS_ON_MINTED.saturating_add(GAS_ON_FUNDED).saturating_add(
                 GAS_STORAGE_DEPOSIT
                     .saturating_add(GAS_FT_TRANSFER_CALL)
                     .saturating_mul(basket.items.len() as u64),
@@ -183,8 +193,7 @@ impl Gacha {
     }
 
     /// Funds the new vault from the treasury, or puts the basket back and refunds the pull.
-    // ponytail: a failed mint does not roll back pity, and a failed funding batch leaves its
-    // tokens in the gacha's FT balance outside `treasury`; add an admin resync if that ever happens.
+    // ponytail: a failed mint does not roll back pity.
     #[private]
     pub fn on_minted(
         &mut self,
@@ -194,26 +203,38 @@ impl Gacha {
         price: U128,
         pity_after: u32,
     ) {
-        let token_id = env::promise_result_checked(0, 64)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<String>(&bytes).ok());
-        let Some(token_id) = token_id else {
-            for item in &items {
-                let balance = self.treasury.get(&item.token).copied().unwrap_or(0);
-                self.treasury
-                    .insert(item.token.clone(), balance + item.amount.0);
+        // `mint` resolves to the token id, or `null` when the vault could not be created.
+        let token_id = match env::promise_result_checked(0, 64) {
+            Ok(bytes) => serde_json::from_slice::<Option<String>>(&bytes).map_err(|_| ()),
+            Err(PromiseError::Failed) => Ok(None),
+            Err(_) => Err(()),
+        };
+        let token_id = match token_id {
+            Ok(Some(token_id)) => token_id,
+            Ok(None) => {
+                for item in &items {
+                    self.credit(&item.token, item.amount.0);
+                }
+                Promise::new(player_id)
+                    .transfer(NearToken::from_yoctonear(price.0))
+                    .detach();
+                return;
             }
-            Promise::new(player_id)
-                .transfer(NearToken::from_yoctonear(price.0))
-                .detach();
-            return;
+            Err(()) => {
+                // A token may exist that we cannot fund: keep the price, put the basket back.
+                for item in &items {
+                    self.credit(&item.token, item.amount.0);
+                }
+                env::log_str("gacha: unreadable mint result, vault not funded");
+                return;
+            }
         };
 
         let vault: AccountId = format!("{token_id}.{}", self.collection_id)
             .parse()
             .unwrap_or_else(|_| env::panic_str("bad token id from collection"));
-        for item in items {
-            Promise::new(item.token)
+        let funding = items.iter().map(|item| {
+            Promise::new(item.token.clone())
                 .function_call(
                     "storage_deposit",
                     json!({ "account_id": vault, "registration_only": true })
@@ -230,24 +251,46 @@ impl Gacha {
                     NearToken::from_yoctonear(1),
                     GAS_FT_TRANSFER_CALL,
                 )
-                .detach();
-        }
+        });
+        let Some(funding) = funding.reduce(Promise::and) else {
+            return emit_pull(&player_id, &token_id, &rarity, pity_after, price);
+        };
+        funding
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_ON_FUNDED)
+                    .on_funded(player_id, token_id, rarity, items, price, pity_after),
+            )
+            .detach();
+    }
 
-        env::log_str(&format!(
-            "EVENT_JSON:{}",
-            json!({
-                "standard": "torch",
-                "version": "1.0.0",
-                "event": "gacha_pull",
-                "data": [{
-                    "player_id": player_id,
-                    "token_id": token_id,
-                    "rarity": rarity,
-                    "pity_after": pity_after,
-                    "price": price,
-                }],
-            })
-        ));
+    /// Puts back whatever did not reach the vault, then emits `gacha_pull`.
+    #[private]
+    pub fn on_funded(
+        &mut self,
+        player_id: AccountId,
+        token_id: String,
+        rarity: String,
+        items: Vec<Item>,
+        price: U128,
+        pity_after: u32,
+    ) {
+        for (i, item) in items.iter().enumerate() {
+            // `ft_transfer_call` resolves to the amount the vault kept; anything else stayed with us.
+            let used = env::promise_result_checked(i as u64, 64)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<U128>(&bytes).ok())
+                .map_or(0, |used| used.0.min(item.amount.0));
+            let lost = item.amount.0 - used;
+            if lost > 0 {
+                self.credit(&item.token, lost);
+                emit(
+                    "gacha_fund_failed",
+                    json!({ "player_id": player_id, "token_id": token_id, "ft_id": item.token, "amount": U128(lost) }),
+                );
+            }
+        }
+        emit_pull(&player_id, &token_id, &rarity, pity_after, price);
     }
 
     /// NEP-141 receiver. Only the owner may fund the treasury, with msg "fund"; anything else is returned.
@@ -257,9 +300,17 @@ impl Gacha {
             sender_id == self.owner_id,
             "only the owner funds the treasury"
         );
+        // `sender_id` is only as honest as the calling contract, so accept basket tokens only.
         let token = env::predecessor_account_id();
-        let balance = self.treasury.get(&token).copied().unwrap_or(0);
-        self.treasury.insert(token, balance + amount.0);
+        require!(
+            self.tiers
+                .iter()
+                .flat_map(|t| &t.baskets)
+                .flat_map(|b| &b.items)
+                .any(|i| i.token == token),
+            "token is not in any basket"
+        );
+        self.credit(&token, amount.0);
         U128(0)
     }
 
@@ -286,6 +337,11 @@ impl Gacha {
 }
 
 impl Gacha {
+    fn credit(&mut self, token: &AccountId, amount: u128) {
+        let balance = self.treasury.get(token).copied().unwrap_or(0);
+        self.treasury.insert(token.clone(), balance + amount);
+    }
+
     /// (tier index, basket index) from 32 random bytes.
     fn roll(&self, rand: &[u8; 32], force_legendary: bool) -> (usize, usize) {
         let tier = if force_legendary {
@@ -364,6 +420,26 @@ impl Gacha {
             "extra": extra.to_string(),
         })
     }
+}
+
+fn emit(event: &str, data: serde_json::Value) {
+    env::log_str(&format!(
+        "EVENT_JSON:{}",
+        json!({ "standard": "torch", "version": "1.0.0", "event": event, "data": [data] })
+    ));
+}
+
+fn emit_pull(player_id: &AccountId, token_id: &str, rarity: &str, pity_after: u32, price: U128) {
+    emit(
+        "gacha_pull",
+        json!({
+            "player_id": player_id,
+            "token_id": token_id,
+            "rarity": rarity,
+            "pity_after": pity_after,
+            "price": price,
+        }),
+    );
 }
 
 #[cfg(test)]

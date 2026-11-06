@@ -15,8 +15,6 @@ pub const NEAR: u128 = 10u128.pow(24);
 pub const MINT_DEPOSIT: NearToken = NearToken::from_millinear(110);
 pub const FT_STORAGE: NearToken = NearToken::from_micronear(1250);
 pub const PULL_PRICE: NearToken = NearToken::from_millinear(100);
-/// What a 10-pull attaches: testnet's `max_total_prepaid_gas` (1 PGas since protocol 83).
-pub const MAX_TX_GAS: Gas = Gas::from_tgas(1000);
 
 /// `cargo near build` once per test binary; returns the wasm bytes.
 pub fn wasm(krate: &str) -> Vec<u8> {

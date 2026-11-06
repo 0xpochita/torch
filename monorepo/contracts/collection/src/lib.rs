@@ -24,12 +24,19 @@ pub const MINT_DEPOSIT: NearToken = NearToken::from_millinear(110);
 /// NEAR kept by the collection to pay for the token's storage (2 kB); the rest funds the vault.
 const MINT_STORAGE: NearToken = NearToken::from_millinear(20);
 /// Keeps a token's storage within what `MINT_STORAGE` pays for.
+/// A max-size token minted to a 64-character owner stores 1,824 bytes (sandbox).
 const MAX_METADATA_BYTES: usize = 1200;
+/// Keeps the `nft_resolve_transfer` revert path (fixed 5 Tgas) far from running out of gas.
+const MAX_APPROVALS: usize = 16;
 /// Creator royalty in basis points (2.5%).
 const ROYALTY_BPS: u128 = 250;
-const GAS_VAULT_INIT: Gas = Gas::from_tgas(10);
+// Static gas, sandbox burn in brackets. The vault batch's create_account execution fee (7.2 Tgas)
+// is prepaid by `mint` itself, so `new` only needs its own burn (~1.2).
+const GAS_VAULT_INIT: Gas = Gas::from_tgas(5);
 const GAS_VAULT_OP: Gas = Gas::from_tgas(40);
-const GAS_CALLBACK: Gas = Gas::from_tgas(15);
+/// `on_vault_created` (3.0 with max-size metadata to a new 64-character owner) must never run
+/// out: that would orphan the vault. Also used by `on_vault_op`.
+const GAS_CALLBACK: Gas = Gas::from_tgas(10);
 
 #[allow(dead_code)] // only the generated `ext_vault` is used
 #[ext_contract(ext_vault)]
@@ -390,6 +397,13 @@ impl NonFungibleTokenApproval for Collection {
         msg: Option<String>,
     ) -> Option<Promise> {
         self.assert_unlocked(&token_id);
+        let approvals = self
+            .tokens
+            .approvals_by_id
+            .as_ref()
+            .and_then(|by_id| by_id.get(&token_id))
+            .map_or(0, |a| a.len());
+        require!(approvals < MAX_APPROVALS, "too many approvals");
         self.tokens.nft_approve(token_id, account_id, msg)
     }
 
@@ -643,6 +657,16 @@ mod tests {
         assert_eq!(near_sdk::serde_json::to_string(&id).unwrap(), "null");
         assert!(c.nft_token("1".into()).is_none());
         assert!(near_sdk::test_utils::get_logs().is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "too many approvals")]
+    fn approvals_are_capped() {
+        let mut c = setup();
+        for i in 0..=MAX_APPROVALS {
+            ctx(accounts(1), 10u128.pow(22));
+            let _ = c.nft_approve("0".into(), format!("m{i}.testnet").parse().unwrap(), None);
+        }
     }
 
     #[test]
