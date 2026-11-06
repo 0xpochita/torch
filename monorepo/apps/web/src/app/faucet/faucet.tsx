@@ -6,7 +6,7 @@ import { ConnectPrompt, Topbar } from "@/components/navbar";
 import { TxLink } from "@/components/tx-sheet";
 import { TokenIcon } from "@/components/ui";
 import { FTS, MOCK_FTS, WNEAR } from "@/lib/contracts";
-import { TOKENS } from "@/lib/mock";
+import { TOKENS } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 

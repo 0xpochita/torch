@@ -17,7 +17,7 @@ import SquishSwitch from "@/components/react-bits/SquishSwitch";
 import { Avatar, CountUpNumber, Money, NearAmount, Segmented, StatTile, TokenStack } from "@/components/ui";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { toListing, useApi, type MarketItem, type MarketListing, type Stats } from "@/lib/api";
-import { CATEGORIES, type Category } from "@/lib/mock";
+import { CATEGORIES, type Category } from "@/lib/tokens";
 
 type Listing = MarketItem & { vs: number };
 

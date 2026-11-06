@@ -2,7 +2,7 @@
 // so the existing components keep rendering the same props.
 import { useEffect, useState } from "react";
 import type { ActivityItem, MarketListing, NavPoint, VaultSummary } from "../../../api/src/types";
-import { TOKENS, type Allocation, type Category, type Etf, type HistoryEvent, type Listing, type TokenKey } from "@/lib/mock";
+import { TOKENS, type Allocation, type Category, type Etf, type HistoryEvent, type Listing, type TokenKey } from "@/lib/tokens";
 
 export type * from "../../../api/src/types";
 

@@ -1,6 +1,6 @@
 import { TokenIcon } from "@/components/ui";
 import { vaultOf } from "@/lib/contracts";
-import { TOKENS, fmtUsd, type Etf } from "@/lib/mock";
+import { TOKENS, fmtUsd, type Etf } from "@/lib/tokens";
 
 const NODE_H = 64;
 const GAP = 16;

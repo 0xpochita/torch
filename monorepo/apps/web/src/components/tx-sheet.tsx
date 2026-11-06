@@ -10,20 +10,20 @@ import HoldButton from "@/components/react-bits/HoldButton";
 import { ActionCircle, Avatar, Money, NearAmount, Segmented, TokenIcon } from "@/components/ui";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { useNear } from "@/providers/near-provider";
-import { NEAR_USD, TOKENS, type Etf, type TokenKey } from "@/lib/mock";
+import { TOKENS, type Etf, type TokenKey } from "@/lib/tokens";
 import { FTS, MARKET, ftByKey, vaultOf } from "@/lib/contracts";
-import { toNear, toVault, tokenKey, useApi, type VaultDetail, type VaultSummary } from "@/lib/api";
+import { toNear, toVault, tokenKey, useApi, type Stats, type VaultDetail, type VaultSummary } from "@/lib/api";
 import * as near from "@/lib/near-tx";
 
 /* One sheet for every vault transaction: review → wallet signature → done (or the wallet/contract error). */
 
 export type TxKind = "buy" | "offer" | "accept" | "deposit" | "withdraw" | "transfer" | "list" | "delist";
 /**
- * `tokenId` is the on-chain NFT id (`etfId` is the same thing under the pages' older name). Without one,
+ * `tokenId` is the on-chain NFT id. Without one,
  * the sheet lets the signed-in owner pick one of their vaults. Everything shown is loaded from the API
  * (`/vaults/:id`) by that id; the buy price and listing state are re-read on-chain before signing.
  */
-export type Tx = { kind: TxKind; tokenId?: string; etfId?: string; offer?: { from: string; priceNear: number } };
+export type Tx = { kind: TxKind; tokenId?: string; offer?: { from: string; priceNear: number } };
 
 // Market contract: 2% fee out of the price, then 2.5% creator royalty out of the remaining 98% (wave 1 deltas).
 const MARKET_FEE = 0.02;
@@ -50,7 +50,7 @@ export function TxProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={setTx}>
       {children}
-      <AnimatePresence>{tx && <Sheet key={tx.kind + (tx.tokenId ?? tx.etfId ?? "")} tx={tx} onClose={() => setTx(null)} />}</AnimatePresence>
+      <AnimatePresence>{tx && <Sheet key={tx.kind + (tx.tokenId ?? "")} tx={tx} onClose={() => setTx(null)} />}</AnimatePresence>
     </Ctx.Provider>
   );
 }
@@ -107,7 +107,7 @@ function Frame({ title, locked = false, onClose, children }: { title: string; lo
 function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
   const m = META[tx.kind];
   const { accountId } = useNear();
-  const given = tx.tokenId ?? tx.etfId ?? null;
+  const given = tx.tokenId ?? null;
   const [picked, setPicked] = useState<string | null>(null);
   const mine = useApi<VaultSummary[]>(!given && accountId ? `/vaults?owner=${encodeURIComponent(accountId)}` : null);
   const tokenId = given ?? picked ?? mine.data?.[0]?.tokenId ?? null;
@@ -150,6 +150,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
   const seller = detail.listing?.sellerId ?? detail.ownerId;
   const m = META[tx.kind];
   const { accountId: account, wallet, canBatch, ready, signIn } = useNear();
+  const nearUsd = useApi<Stats>("/stats").data?.nearUsd ?? 0; // 0 hides USD estimates until it loads
   // Accept from a page that did not pick an offer: the best live one.
   const bestOffer = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1))[0];
   const offerIn = tx.offer ?? (bestOffer ? { from: bestOffer.buyerId, priceNear: toNear(bestOffer.amount) } : undefined);
@@ -295,7 +296,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
 
               {tx.kind === "buy" && (
                 <>
-                  <BigAmount near={price} />
+                  <BigAmount near={price} usd={nearUsd} />
                   <Rows
                     rows={[
                       ["Price", <NearAmount key="p" amount={fmt(price)} />],
@@ -334,7 +335,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                       />
                     </span>
                     <span className="text-[13px] text-muted">
-                      ≈ <Money value={offer * NEAR_USD} />
+                      ≈ <Money value={offer * nearUsd} />
                       {tx.kind === "offer" && onChain && (
                         <>
                           {" "}
@@ -351,7 +352,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                             −{p}%
                           </Chip>
                         ))}
-                        <Chip on={offer === r2(value / NEAR_USD)} onClick={() => setOffer(r2(value / NEAR_USD))}>
+                        <Chip on={!!nearUsd && offer === r2(value / nearUsd)} onClick={() => nearUsd && setOffer(r2(value / nearUsd))}>
                           Basket value
                         </Chip>
                       </div>
@@ -386,7 +387,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
 
               {tx.kind === "delist" && (
                 <>
-                  {onChain && <BigAmount near={price} />}
+                  {onChain && <BigAmount near={price} usd={nearUsd} />}
                   <Note tone={onChain || live.loading ? "muted" : "warn"}>
                     {live.loading
                       ? "Checking the listing on-chain…"
@@ -592,12 +593,12 @@ export function TxLink({ hash, className = "text-muted" }: { hash: string; class
   );
 }
 
-function BigAmount({ near: amount }: { near: number }) {
+function BigAmount({ near: amount, usd }: { near: number; usd: number }) {
   return (
     <div className="flex flex-col items-center gap-1 py-2">
       <NearAmount amount={fmt(amount)} className="title-chunky text-[44px]" />
       <span className="text-[13px] text-muted">
-        ≈ <Money value={amount * NEAR_USD} />
+        ≈ <Money value={amount * usd} />
       </span>
     </div>
   );

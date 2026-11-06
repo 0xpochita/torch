@@ -6,7 +6,7 @@ import { useId, type ReactNode } from "react";
 import Link from "next/link";
 import { Sym, type IconName } from "@/components/icons";
 import CountUp from "@/components/react-bits/CountUp";
-import { TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/mock";
+import { TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/tokens";
 
 /** Token logo (CoinGecko artwork), round. */
 export function TokenIcon({ token, size = 24 }: { token: TokenKey; size?: number }) {

@@ -16,7 +16,7 @@ import { sfxPop, sfxReveal, sfxShake, startMusic, stopMusic } from "@/lib/gacha-
 import { COLLECTION, GACHA, ftById } from "@/lib/contracts";
 import { ErrorState, Skeleton } from "@/components/load-state";
 import { toVault, useApi, type GachaPull } from "@/lib/api";
-import { RARITY, TOKENS, type Allocation, type Rarity } from "@/lib/mock";
+import { RARITY, TOKENS, type Allocation, type Rarity } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
@@ -89,7 +89,7 @@ export function Gacha() {
   // Recent pulls feed the side list and the HUD's 24h counter (the API keeps the last 100 at most).
   const recent = useApi<GachaPull[]>(`/gacha/recent?limit=100&n=${nonce}`);
   const today = recent.data?.filter((p) => p.at >= recent.at - 86_400_000).length;
-  const rate = (t: Rarity) => (config ? (tierOf(t)?.weight_bps ?? 0) / 10_000 : RARITY[t].rate);
+  const rate = (t: Rarity) => (tierOf(t)?.weight_bps ?? 0) / 10_000; // 0 until get_config loads
   const [result, setResult] = useState<Pull[] | null>(null);
   const [collected, setCollected] = useState<Pull[]>([]);
   const [sound, setSound] = useState(true);
@@ -294,7 +294,7 @@ export function Gacha() {
                   const legendary = t === "Legendary";
                   const baskets = tierOf(t)?.baskets ?? [];
                   const values = baskets.map((b) => usdOf(b.items));
-                  const [lo, hi] = values.length ? [Math.min(...values), Math.max(...values)] : r.vault;
+                  const [lo, hi] = [Math.min(...values), Math.max(...values)];
                   return (
                     <li
                       key={t}
@@ -309,14 +309,20 @@ export function Gacha() {
                           <span className="text-[15px] font-semibold" style={{ color: r.color }}>
                             {t}
                           </span>
-                          <span className="font-mono text-[14px] font-semibold tabular-nums">{(rate(t) * 100).toFixed(rate(t) < 0.1 ? 1 : 0)}%</span>
+                          <span className="font-mono text-[14px] font-semibold tabular-nums">{config ? `${(rate(t) * 100).toFixed(rate(t) < 0.1 ? 1 : 0)}%` : "…"}</span>
                         </span>
                         <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-fill">
                           <span className="block h-full rounded-full" style={{ width: `${(rate(t) / Math.max(...TIERS.map(rate), 0.0001)) * 100}%`, background: r.color }} />
                         </span>
                         <span className="mt-1.5 flex items-center justify-between gap-2 text-[12px] text-muted">
                           <span>
-                            <Money value={lo} />–<Money value={hi} /> inside
+                            {values.length ? (
+                              <>
+                                <Money value={lo} />–<Money value={hi} /> inside
+                              </>
+                            ) : (
+                              "…"
+                            )}
                           </span>
                           <span className="flex items-center gap-1.5">
                             <span className="flex -space-x-1.5">

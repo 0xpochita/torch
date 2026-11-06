@@ -9,7 +9,7 @@ import { NavChart } from "@/components/nav-chart";
 import { EmptyState, Skeleton } from "@/components/load-state";
 import { Avatar, Money, Segmented, TokenIcon, shade } from "@/components/ui";
 import { localDate, tokenKey, toUnits, type Balance, type Holder, type NavPoint, type VaultEvent } from "@/lib/api";
-import { TOKENS, type Etf } from "@/lib/mock";
+import { TOKENS, type Etf } from "@/lib/tokens";
 
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
 const PERIODS = ["7D", "14D", "30D"] as const;

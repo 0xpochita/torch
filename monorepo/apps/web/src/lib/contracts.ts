@@ -1,6 +1,6 @@
 // On-chain ids for the testnet deploy (contracts/INTERFACES.md). Everything is overridable with
 // NEXT_PUBLIC_* env vars; the defaults are the agreed testnet accounts.
-import { TOKENS as TOKEN_KEYS, type TokenKey } from "@/lib/mock";
+import { TOKENS as TOKEN_KEYS, type TokenKey } from "@/lib/tokens";
 
 export const NETWORK = (process.env.NEXT_PUBLIC_NEAR_NETWORK ?? "testnet") as "mainnet" | "testnet";
 export const RPC = process.env.NEXT_PUBLIC_NEAR_RPC || (NETWORK === "mainnet" ? "https://free.rpc.fastnear.com" : "https://test.rpc.fastnear.com");

@@ -11,18 +11,35 @@ import { Topbar } from "@/components/navbar";
 import { Donut, Money, Title, TokenIcon } from "@/components/ui";
 import { TxLink } from "@/components/tx-sheet";
 import { COLLECTION, FTS, ftByKey, vaultOf } from "@/lib/contracts";
-import { ETFS, TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/mock";
+import { toVault, useApi, type VaultSummary } from "@/lib/api";
+import { TOKENS, type Allocation, type Category, type TokenKey } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
 const STEPS = ["Theme", "Basket", "Weights", "Deposit", "Review"] as const;
-const SUGGESTIONS = [
-  { label: "Blue chip", etf: ETFS[0] },
-  { label: "Stable yield", etf: ETFS[1] },
-  { label: "DeFi engine", etf: ETFS[2] },
-  { label: "Meme degen", etf: ETFS[3] },
-  { label: "Chain abstraction", etf: ETFS[4] },
+type Template = { id: string; name: string; bg: string; category: Category; slippageBps: number; allocation: Allocation[] };
+
+// Fallback presets until the API has vaults to learn from (fresh testnet, API down).
+const STATIC_TEMPLATES: Template[] = [
+  { id: "s0", name: "NEAR Blue Chip", bg: "#9fd3ff", category: "Blue Chip", slippageBps: 50, allocation: [{ token: "NEAR", weight: 40 }, { token: "BTC", weight: 30 }, { token: "ETH", weight: 20 }, { token: "USDC", weight: 10 }] },
+  { id: "s1", name: "Stable Harbor", bg: "#b8f0d8", category: "Stable", slippageBps: 10, allocation: [{ token: "USDC", weight: 50 }, { token: "USDT", weight: 30 }, { token: "STNEAR", weight: 20 }] },
+  { id: "s2", name: "DeFi Engine", bg: "#ffd8a8", category: "DeFi", slippageBps: 100, allocation: [{ token: "RHEA", weight: 35 }, { token: "LINEAR", weight: 25 }, { token: "AURORA", weight: 20 }, { token: "NEAR", weight: 20 }] },
+  { id: "s3", name: "Meme Lab", bg: "#e5c8ff", category: "Meme", slippageBps: 300, allocation: [{ token: "DRAGON", weight: 40 }, { token: "SHITZU", weight: 35 }, { token: "SWEAT", weight: 25 }] },
+  { id: "s4", name: "Omni Hot", bg: "#ffc2a8", category: "Chain Abstraction", slippageBps: 80, allocation: [{ token: "HOT", weight: 35 }, { token: "NEAR", weight: 25 }, { token: "ZEC", weight: 20 }, { token: "BTC", weight: 20 }] },
+  { id: "s5", name: "Staked Garden", bg: "#c5f5b0", category: "Liquid Staking", slippageBps: 30, allocation: [{ token: "LINEAR", weight: 40 }, { token: "STNEAR", weight: 40 }, { token: "NPRO", weight: 20 }] },
 ];
+const basketKey = (a: Allocation[]) => a.map((x) => x.token).sort().join();
+
+/** Top vaults by NAV with a distinct basket of 2+ tokens become templates; static presets fill the rest. */
+function toTemplates(vaults: VaultSummary[] | undefined): Template[] {
+  const seen = new Set<string>();
+  const live = (vaults ?? [])
+    .map((v) => toVault(v))
+    .filter((v) => v.allocation.length >= 2 && !seen.has(basketKey(v.allocation)) && seen.add(basketKey(v.allocation)))
+    .slice(0, 6)
+    .map((v): Template => ({ id: `v${v.id}`, name: v.name, bg: v.bg, category: v.category, slippageBps: v.slippageBps, allocation: v.allocation }));
+  return [...live, ...STATIC_TEMPLATES.filter((t) => !seen.has(basketKey(t.allocation)))].slice(0, 6);
+}
 const BACKGROUNDS = ["#9fd3ff", "#b8f0d8", "#ffd8a8", "#e5c8ff", "#ffc2a8", "#c5f5b0", "#d7d7e0"];
 const MAX_TOKENS = 6;
 const NEXT_VAULT = `#.${COLLECTION}`; // the id is assigned on-chain at mint
@@ -53,11 +70,11 @@ export function Studio() {
   const [busy, setBusy] = useState<"mint" | "fund" | null>(null);
   const [fundStep, setFundStep] = useState<string | null>(null); // wallets without batch signing: one prompt per token
   const [error, setError] = useState<string | null>(null);
-  const [category, setCategory] = useState<Category>(ETFS[0].category);
+  const [category, setCategory] = useState<Category>(STATIC_TEMPLATES[0].category);
   const [prompt, setPrompt] = useState("");
   const [query, setQuery] = useState("");
   const [name, setName] = useState("My NEAR Index");
-  const [allocation, setAllocation] = useState<Allocation[]>(ETFS[0].allocation);
+  const [allocation, setAllocation] = useState<Allocation[]>(STATIC_TEMPLATES[0].allocation);
   const [bg, setBg] = useState(BACKGROUNDS[0]);
   const [slippage, setSlippage] = useState(50);
   const [deposit, setDeposit] = useState(0);
@@ -65,8 +82,10 @@ export function Studio() {
 
   const total = allocation.reduce((s, a) => s + a.weight, 0);
   // Same token set as a template → show its generated 3D art; custom baskets get the live coin preview.
-  const key = (a: Allocation[]) => a.map((x) => x.token).sort().join();
-  const art = ETFS.find((e) => key(e.allocation) === key(allocation));
+
+  const templates = toTemplates(useApi<VaultSummary[]>("/vaults?sort=nav").data);
+  const suggestions = templates.slice(0, 5).map((t) => ({ label: t.name, t }));
+  const art = templates.find((e) => basketKey(e.allocation) === basketKey(allocation));
   const live = allocation.filter((a) => a.weight > 0);
 
   // Most you can fund at these weights from your wallet: the scarcest token caps the basket.
@@ -82,7 +101,7 @@ export function Studio() {
     null,
   ][step];
 
-  const applyTemplate = (etf: (typeof ETFS)[number]) => {
+  const applyTemplate = (etf: Template) => {
     setAllocation(etf.allocation);
     setBg(etf.bg);
     setName(etf.name);
@@ -138,10 +157,10 @@ export function Studio() {
   const generate = () => {
     const q = prompt.toLowerCase();
     const hit =
-      SUGGESTIONS.find((s) => q.includes(s.label.split(" ")[0].toLowerCase())) ??
-      SUGGESTIONS.find((s) => s.etf.allocation.some((a) => q.includes(TOKENS[a.token].symbol.toLowerCase()))) ??
-      SUGGESTIONS[0];
-    applyTemplate(hit.etf);
+      suggestions.find((s) => q.split(/\s+/).some((w) => w.length > 2 && (s.label.toLowerCase().includes(w) || s.t.category.toLowerCase().includes(w)))) ??
+      suggestions.find((s) => s.t.allocation.some((a) => q.includes(TOKENS[a.token].symbol.toLowerCase()))) ??
+      suggestions[0];
+    applyTemplate(hit.t);
     setStep(1);
   };
 
@@ -209,8 +228,8 @@ export function Studio() {
             </div>
             <div className="flex flex-wrap items-center gap-1.5 px-1 text-[13px]">
               <span className="font-semibold">Suggestions:</span>
-              {SUGGESTIONS.map((s) => (
-                <button key={s.label} onClick={() => applyTemplate(s.etf)} className="rounded-full bg-surface px-3 py-1 font-medium shadow-[0_1px_2px_var(--shadow)] hover:bg-fill">
+              {suggestions.map((s) => (
+                <button key={s.t.id} onClick={() => applyTemplate(s.t)} className="rounded-full bg-surface px-3 py-1 font-medium shadow-[0_1px_2px_var(--shadow)] hover:bg-fill">
                   {s.label}
                 </button>
               ))}
@@ -283,7 +302,7 @@ export function Studio() {
 
           <div className="card flex items-center gap-4 p-3">
             <div className="no-scrollbar -m-1 flex min-w-0 flex-1 gap-2.5 overflow-x-auto p-1">
-              {ETFS.map((e) => (
+              {templates.map((e) => (
                 <button key={e.id} onClick={() => applyTemplate(e)} title={e.name} className={`relative size-16 shrink-0 overflow-hidden rounded-[16px] ring-2 ring-offset-2 ring-offset-surface transition ${art?.id === e.id ? "ring-tint" : "ring-transparent hover:ring-line"}`} style={{ background: e.bg }}>
                   <BasketArt allocation={e.allocation} />
                 </button>

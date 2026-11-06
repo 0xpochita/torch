@@ -9,7 +9,7 @@ import { ToolbarChip, Topbar } from "@/components/navbar";
 import { Avatar, NearAmount, PASTEL, Segmented, TokenIcon, Title } from "@/components/ui";
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { eventUsd, toEvents, toVault, useApi, type ActivityItem, type Stats, type Vault, type VaultEvent, type VaultSummary } from "@/lib/api";
-import type { HistoryEvent } from "@/lib/mock";
+import type { HistoryEvent } from "@/lib/tokens";
 
 type Kind = HistoryEvent["type"];
 type Row = VaultEvent & { etf: Vault; time: string; usd: number };

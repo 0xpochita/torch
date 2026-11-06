@@ -7,7 +7,7 @@ import { useTx } from "@/components/tx-sheet";
 import { NearAmount } from "@/components/ui";
 import { ErrorState, Skeleton } from "@/components/load-state";
 import { toNear, useApi, type Orderbook } from "@/lib/api";
-import type { Etf } from "@/lib/mock";
+import type { Etf } from "@/lib/tokens";
 import { useAccount } from "@/providers/near-provider";
 
 // One NFT per vault, so the ask side is the single listing (if any) and the bids are the open offers,
