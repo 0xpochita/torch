@@ -1,6 +1,7 @@
 // Seed the testnet deploy so the app is not empty: 6 template vaults (apps/web lib/mock.ts ETFS)
-// from up to 3 creators, funded via faucet + ft_transfer_call, 4 listed on the market, 2 offers,
-// and one gacha 10-pull (so /gacha/recent has rows).
+// from up to 3 creators, funded via faucet + ft_transfer_call, 4 listed on the market, 2 offers
+// (pinned to the vault balances, INTERFACES "Wave 2 market changes"), a prune_listing run on a
+// stale listing, and one gacha 10-pull (so /gacha/recent has rows).
 // Idempotent and resumable: vaults are found by (title, seed creator), and every step checks chain
 // state first, so a re-run only does what is still missing.
 //
@@ -30,6 +31,9 @@ const provider = new JsonRpcProvider({ url: env.NEAR_RPC_URL ?? "https://test.rp
 const STORAGE = nearToYocto("0.00125");
 const ONE_YOCTO = 1n;
 const GAS = teraToGas("100");
+const GAS_PRUNE = teraToGas("50");
+/** Market `offer_storage_cost()` today (2000 bytes); read from the market in a real run. */
+const OFFER_STORAGE_FALLBACK = nearToYocto("0.02");
 // INTERFACES Wave 1 deltas: a 10-pull of 3-item baskets needs the full 1 PGas per tx.
 const GAS_PULL = teraToGas("1000");
 const WEEK_MS = 7 * 86_400_000;
@@ -177,15 +181,29 @@ async function fund(e: Etf, creator: Account, tokenId: string) {
   }
 }
 
-async function list(e: Etf, creator: Account, tokenId: string) {
+async function list(e: Etf, creator: Account, tokenId: string, price = listPrice(e)) {
   if (known(tokenId) && (await view(MARKET, "get_listing", { token_id: tokenId })) !== null) {
     console.log(`  skip list: ${e.name} (${tokenId}) already listed`);
     return;
   }
-  const msg = JSON.stringify({ list: { price: String(listPrice(e)) } });
+  const msg = JSON.stringify({ list: { price: String(price) } });
   await send(creator, NFT, [
     { method: "nft_approve", args: { token_id: tokenId, account_id: MARKET, msg }, deposit: nearToYocto("0.01") },
   ]);
+}
+
+/** The buyer pins every basket token at the vault's current balance (`ft_balance_of`), so the
+ * seller cannot drain the vault and then accept. A plan without chain reads pins what `fund` sends. */
+async function minBalances(e: Etf, tokenId: string) {
+  return Promise.all(
+    e.allocation.slice(0, 4).map(async ({ token, weight }) => {
+      const { id } = ft(token);
+      const amount = known(tokenId)
+        ? await view<string>(id, "ft_balance_of", { account_id: vaultOf(tokenId) })
+        : String(itemAmount(token, weight));
+      return { ft_id: id, amount };
+    }),
+  );
 }
 
 async function offer(e: Etf, buyer: Account, tokenId: string) {
@@ -196,9 +214,43 @@ async function offer(e: Etf, buyer: Account, tokenId: string) {
       return;
     }
   }
+  const storage = READ ? BigInt(await view<string>(MARKET, "offer_storage_cost")) : OFFER_STORAGE_FALLBACK;
+  const amount = offerPrice(e);
   await send(buyer, MARKET, [
-    { method: "offer", args: { token_id: tokenId, expires_at: Date.now() + WEEK_MS }, deposit: offerPrice(e) },
+    {
+      method: "offer",
+      args: {
+        token_id: tokenId,
+        amount: String(amount),
+        expires_at: Date.now() + WEEK_MS,
+        min_balances: await minBalances(e, tokenId),
+      },
+      deposit: amount + storage,
+    },
   ]);
+}
+
+/** Exercises `prune_listing`: list, revoke the approval on the collection (the listing is now
+ * stale), then let anyone prune it. Leaves the vault unlisted. Each sub-step reads state first,
+ * so an interrupted run resumes. It keeps no lasting state, so --check does not count it. */
+async function pruneDemo(e: Etf, owner: Account, pruner: Account, tokenId: string) {
+  if (CHECK) {
+    console.log(`  demo only: lists, revokes and prunes ${e.name} on every real seed run`);
+    return;
+  }
+  const listing = known(tokenId) && (await view(MARKET, "get_listing", { token_id: tokenId })) !== null;
+  // Priced out of reach so nobody buys it during the few blocks it is live.
+  if (!listing) await list(e, owner, tokenId, nearToYocto("1000"));
+  const approved =
+    !known(tokenId) || (await view<boolean>(NFT, "nft_is_approved", { token_id: tokenId, approved_account_id: MARKET }));
+  if (approved) {
+    await send(owner, NFT, [
+      { method: "nft_revoke", args: { token_id: tokenId, account_id: MARKET }, deposit: ONE_YOCTO },
+    ]);
+  }
+  await send(pruner, MARKET, [{ method: "prune_listing", args: { token_id: tokenId }, deposit: 0n, gas: GAS_PRUNE }]);
+  if (known(tokenId) && (await view(MARKET, "get_listing", { token_id: tokenId })) !== null)
+    throw new Error(`prune_listing left the stale listing of ${e.name} (${tokenId}) in place`);
 }
 
 /** One 10-pull, skipped once the player owns any vault the gacha minted. */
@@ -242,6 +294,15 @@ for (const { e, creator, tokenId } of minted.filter((m) => !m.e.listed).slice(0,
     continue;
   }
   await offer(e, buyer, tokenId);
+}
+
+console.log("\n== market: prune_listing on a stale listing (list, revoke on the collection, prune)");
+{
+  const target = minted.find((m) => !m.e.listed);
+  if (target) {
+    const pruner = creators.find((c) => c !== target.creator) ?? target.creator;
+    await pruneDemo(target.e, target.creator, pruner, target.tokenId);
+  }
 }
 
 console.log(`\n== gacha: one 10-pull by ${creators[0].accountId}`);

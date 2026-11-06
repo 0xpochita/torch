@@ -3,10 +3,10 @@
 | File | What |
 | --- | --- |
 | `deploy-testnet.sh` | near-cli-rs deploy of every contract under `torchvault.testnet`; idempotent, `DRY_RUN=1` prints the plan |
-| `seed-testnet.ts` | near-api-js demo data: 6 template vaults, 4 listings, 2 offers, one gacha 10-pull; idempotent, `--check`, `DRY_RUN=1` |
+| `seed-testnet.ts` | near-api-js demo data: 6 template vaults, 4 listings, 2 offers pinned to the vault balances (`min_balances`, amount + `offer_storage_cost()`), a `prune_listing` run on a stale listing, one gacha 10-pull; idempotent, `--check`, `DRY_RUN=1` |
 | `gacha-tiers.mjs` | gacha tiers (60/28/10/2) and basket amounts, used by the deploy |
 | `near-util.mjs` | read-only RPC + base58 helpers for the deploy's state checks |
-| `budget.md` | NEAR needed per step (≈ 46.5 NEAR for the deploy, < 2.5 per seed creator) |
+| `budget.md` | NEAR needed per step (≈ 47 NEAR for the deploy, < 2.5 per seed creator) |
 
 Tools: near-cli-rs ≥ 0.31 (`near`), `cargo near`, node ≥ 22, pnpm. Install the seed's deps once:
 `cd monorepo/scripts && pnpm install --ignore-workspace`.
