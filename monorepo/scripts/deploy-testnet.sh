@@ -7,7 +7,7 @@
 #
 # Signing: every account here holds the root's key. NEAR_PRIVATE_KEY (ed25519:...) or, if unset,
 # ~/.near-credentials/<network>/<root>.json. Sub-accounts are created with the root's public key.
-# Needs: near (near-cli-rs), cargo near, node >= 18.
+# Needs: near (near-cli-rs >= 0.31; verified with `--help`), cargo near, node >= 18.
 set -euo pipefail
 
 ROOT=${NEAR_ROOT_ID:-torchvault.testnet}
@@ -61,7 +61,8 @@ else
   PRIV=${NEAR_PRIVATE_KEY:-$(node -p "require('$HOME/.near-credentials/$NETWORK/$ROOT.json').private_key")}
   PUB=$(util pubkey "$PRIV")
 fi
-SIGN=(sign-with-plaintext-private-key --signer-public-key "$PUB" --signer-private-key "$PRIV" send)
+# near-cli-rs 0.31 takes the key positionally (the --signer-* flags in older docs are gone).
+SIGN=(sign-with-plaintext-private-key "$PRIV" send)
 NET=(network-config "$NETWORK")
 
 # Print the command (shell-quoted, private key masked), run it unless DRY_RUN.
@@ -91,12 +92,14 @@ for c in vault collection mock-ft market gacha; do
   if [[ $SKIP_BUILD == 1 ]]; then skip "build $c (SKIP_BUILD=1)"; continue; fi
   run cargo near build non-reproducible-wasm --manifest-path "$CONTRACTS/$c/Cargo.toml"
 done
-if [[ -f $WASM/vault/vault.wasm ]]; then
-  VAULT_HASH=$(util hash "$WASM/vault/vault.wasm")
-else
-  VAULT_HASH='<vault code hash>' # only reachable in a dry run before the first build
-fi
-echo "   vault code hash (base58 sha256): $VAULT_HASH"
+# Global contract code hash = base58 sha256 of the wasm.
+code_hash() {
+  if [[ -f $1 ]]; then util hash "$1"; else echo "<$2 code hash>"; fi # placeholder: dry run before the first build
+}
+VAULT_HASH=$(code_hash "$WASM/vault/vault.wasm" vault)
+FT_HASH=$(code_hash "$WASM/mock_ft/mock_ft.wasm" mock_ft)
+echo "   vault code hash: $VAULT_HASH"
+echo "   mock_ft code hash: $FT_HASH"
 
 step "2. sub-accounts of $ROOT (key: root public key)"
 create() {
@@ -107,37 +110,41 @@ create() {
 create "$NFT" '3.5 NEAR'
 create "$MARKET" '2.5 NEAR'
 create "$GACHA" '2.5 NEAR'
-for t in "${TOKENS[@]}"; do create "$t.$ROOT" '2 NEAR'; done
+# Token code comes from the global mock_ft, so token accounts only stake their own state.
+for t in "${TOKENS[@]}"; do create "$t.$ROOT" '0.3 NEAR'; done
 
-step "3. publish vault as a global contract by hash"
-if check global-exists "$VAULT_HASH" || check has-code "$NFT"; then
-  skip "vault code $VAULT_HASH already published"
-else
-  run near contract deploy-as-global use-file "$WASM/vault/vault.wasm" as-global-hash "$ROOT" \
-    "${NET[@]}" "${SIGN[@]}"
-fi
+step "3. publish vault and mock_ft as global contracts by hash (immutable)"
+publish() { # publish <wasm> <hash> <name>
+  if check global-exists "$2"; then skip "$3 code $2 already published"; return; fi
+  run near contract deploy-as-global use-file "$1" as-global-hash "$ROOT" "${NET[@]}" "${SIGN[@]}"
+}
+publish "$WASM/vault/vault.wasm" "$VAULT_HASH" vault
+publish "$WASM/mock_ft/mock_ft.wasm" "$FT_HASH" mock_ft
 
-# deploy <account> <wasm> <init json>
+# deploy <account> <init json> <code source: use-file <wasm> | use-global-hash <hash>>
 deploy() {
   if check has-code "$1"; then skip "$1 already has code"; return; fi
-  run near contract deploy "$1" use-file "$2" with-init-call new json-args "$3" \
+  run near contract deploy "$1" "${@:3}" with-init-call new json-args "$2" \
     prepaid-gas '100 Tgas' attached-deposit '0 NEAR' "${NET[@]}" "${SIGN[@]}"
 }
 
-step "4. mock NEP-141 tokens"
+step "4. mock NEP-141 tokens (UseGlobalContract by hash + init)"
 for t in "${TOKENS[@]}"; do
   IFS='|' read -r symbol name decimals <<<"$(meta "$t")"
-  deploy "$t.$ROOT" "$WASM/mock_ft/mock_ft.wasm" \
-    "{\"owner_id\":\"$ROOT\",\"metadata\":{\"spec\":\"ft-1.0.0\",\"name\":\"$name\",\"symbol\":\"$symbol\",\"icon\":null,\"reference\":null,\"reference_hash\":null,\"decimals\":$decimals}}"
+  deploy "$t.$ROOT" \
+    "{\"owner_id\":\"$ROOT\",\"metadata\":{\"spec\":\"ft-1.0.0\",\"name\":\"$name\",\"symbol\":\"$symbol\",\"icon\":null,\"reference\":null,\"reference_hash\":null,\"decimals\":$decimals}}" \
+    use-global-hash "$FT_HASH"
 done
 
 step "5. collection, market, gacha"
-deploy "$NFT" "$WASM/collection/collection.wasm" \
-  "{\"owner_id\":\"$ROOT\",\"vault_code_hash\":\"$VAULT_HASH\",\"metadata\":{\"spec\":\"nft-1.0.0\",\"name\":\"Torch Vaults\",\"symbol\":\"TORCH\",\"icon\":null,\"base_uri\":null,\"reference\":null,\"reference_hash\":null}}"
-deploy "$MARKET" "$WASM/market/market.wasm" \
-  "{\"collection_id\":\"$NFT\",\"fee_receiver_id\":\"$ROOT\"}"
-deploy "$GACHA" "$WASM/gacha/gacha.wasm" \
-  "{\"owner_id\":\"$ROOT\",\"collection_id\":\"$NFT\",\"price_per_pull\":\"$PULL_PRICE\",\"pity\":$PITY,\"tiers\":$(util tiers "$ROOT")}"
+deploy "$NFT" \
+  "{\"owner_id\":\"$ROOT\",\"vault_code_hash\":\"$VAULT_HASH\",\"metadata\":{\"spec\":\"nft-1.0.0\",\"name\":\"Torch Vaults\",\"symbol\":\"TORCH\",\"icon\":null,\"base_uri\":null,\"reference\":null,\"reference_hash\":null}}" \
+  use-file "$WASM/collection/collection.wasm"
+deploy "$MARKET" "{\"collection_id\":\"$NFT\",\"fee_receiver_id\":\"$ROOT\"}" \
+  use-file "$WASM/market/market.wasm"
+deploy "$GACHA" \
+  "{\"owner_id\":\"$ROOT\",\"collection_id\":\"$NFT\",\"price_per_pull\":\"$PULL_PRICE\",\"pity\":$PITY,\"tiers\":$(util tiers "$ROOT")}" \
+  use-file "$WASM/gacha/gacha.wasm"
 
 step "6. storage_deposit for gacha, market and root (treasury minter) on every token"
 for t in "${TOKENS[@]}"; do
@@ -222,3 +229,5 @@ fi
 
 step "done"
 echo "   vault code hash: $VAULT_HASH"
+echo "   mock_ft code hash: $FT_HASH"
+echo "   indexer START_HEIGHT: $START_HEIGHT (apps/api/.env keeps the first run's value)"
