@@ -111,15 +111,16 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
   const [picked, setPicked] = useState<string | null>(null);
   const mine = useApi<VaultSummary[]>(!given && accountId ? `/vaults?owner=${encodeURIComponent(accountId)}` : null);
   const tokenId = given ?? picked ?? mine.data?.[0]?.tokenId ?? null;
-  const detail = useApi<VaultDetail>(accountId && tokenId ? `/vaults/${encodeURIComponent(tokenId)}` : null);
+  // Signed out still shows the vault (the review swaps its CTA for "connect"); only the picker needs an account.
+  const detail = useApi<VaultDetail>(tokenId ? `/vaults/${encodeURIComponent(tokenId)}` : null);
 
-  if (accountId && detail.data && detail.data.tokenId === tokenId)
+  if (detail.data && detail.data.tokenId === tokenId)
     return <Review key={tokenId} tx={tx} detail={detail.data} owned={given ? undefined : mine.data} onPick={setPicked} onClose={onClose} />;
 
   const failed = detail.error ?? mine.error;
   return (
     <Frame title={m.title} onClose={onClose}>
-      {!accountId ? (
+      {!accountId && !given ? (
         <ConnectPrompt className="" sub={`Connect a NEAR wallet to ${m.title.toLowerCase()}. Nothing is signed until you confirm.`} />
       ) : failed ? (
         <ErrorState error={failed} className="!p-4" />
@@ -148,7 +149,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
   const value = detail.navUsd;
   const seller = detail.listing?.sellerId ?? detail.ownerId;
   const m = META[tx.kind];
-  const { accountId: account, wallet, canBatch } = useNear();
+  const { accountId: account, wallet, canBatch, ready, signIn } = useNear();
   // Accept from a page that did not pick an offer: the best live one.
   const bestOffer = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1))[0];
   const offerIn = tx.offer ?? (bestOffer ? { from: bestOffer.buyerId, priceNear: toNear(bestOffer.amount) } : undefined);
@@ -345,7 +346,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                   {tx.kind === "offer" ? (
                     <>
                       <div className="flex gap-1.5">
-                        {[5, 10, 15].map((p) => (
+                        {(price ? [5, 10, 15] : []).map((p) => (
                           <Chip key={p} on={offer === r2(price * (1 - p / 100))} onClick={() => setOffer(r2(price * (1 - p / 100)))}>
                             −{p}%
                           </Chip>
@@ -358,8 +359,14 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                         <span className="text-[14px] font-semibold">Expires in</span>
                         <Segmented options={["1 day", "3 days", "7 days"] as const} value={expiry} onChange={setExpiry} />
                       </div>
-                      <Note tone={offer < 0.01 ? "warn" : offer >= price * 0.95 ? "up" : "muted"}>
-                        {offer < 0.01 ? "Offers start at 0.01 NEAR." : offer >= price * 0.95 ? "Within 5% of the asking price — offers like this usually get accepted." : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires.
+                      <Note tone={offer < 0.01 ? "warn" : price && offer >= price * 0.95 ? "up" : "muted"}>
+                        {offer < 0.01
+                          ? "Offers start at 0.01 NEAR."
+                          : !price
+                            ? "Not listed: the owner sees your offer and can accept it any time before it expires."
+                            : offer >= price * 0.95
+                              ? "Within 5% of the asking price — offers like this usually get accepted."
+                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires.
                       </Note>
                     </>
                   ) : (
@@ -500,7 +507,11 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                 <button onClick={onClose} disabled={phase === "pending"} className="btn-line h-12 px-5 text-[15px] disabled:opacity-40">
                   Cancel
                 </button>
-                {phase === "pending" ? (
+                {!account ? (
+                  <button onClick={signIn} disabled={!ready} className="btn-ink h-12 flex-1 text-[15px]">
+                    {ready ? `Connect wallet to ${m.title.toLowerCase()}` : "Loading wallets…"}
+                  </button>
+                ) : phase === "pending" ? (
                   <div className="flex h-12 flex-1 items-center justify-center gap-2.5 rounded-full bg-fill text-[15px] font-semibold">
                     <motion.span className="size-4 rounded-full border-2 border-text border-t-transparent" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} />
                     {step ? `Confirm ${step} in your wallet…` : "Confirm in your wallet…"}
