@@ -117,6 +117,9 @@ test("check surfaces contract panics and false results", () => {
   assert.throws(() => tx.check([outcome(panic)], true), /faucet: wait/);
   assert.doesNotThrow(() => tx.check([outcome({ SuccessValue: "" }, [], [{ outcome: { logs: [], status: panic } }])], true));
   assert.equal(tx.lastResult(outcome({ SuccessValue: btoa('"7"') })), "7");
+  // collection.mint resolves to null when the vault could not be created (X-4): not a rollback, the caller decides
+  assert.equal(tx.lastResult(outcome({ SuccessValue: btoa("null") })), null);
+  assert.doesNotThrow(() => tx.check([outcome({ SuccessValue: btoa("null") })]));
 });
 
 test("events reads torch NEP-297 logs from every receipt", () => {
@@ -161,4 +164,35 @@ test("send: one approval with batch wallets, sequential steps otherwise", async 
   assert.deepEqual(calls, [`one:${MARKET}`, `one:${COLLECTION}`]);
   assert.deepEqual(steps, ["1/2", "2/2"]);
   assert.equal(tx.canBatch(null), false);
+});
+
+test("pinsFor: basket from nft_token extra, live vault balances, known FTs only, max 4", async () => {
+  const calls: string[] = [];
+  const extra = JSON.stringify({
+    basket: [
+      { token: "tusdc.torchvault.testnet", weight: 40 },
+      { token: "tusdc.evil.testnet", weight: 10 }, // look-alike: not in our FT list
+      { token: "tbtc.torchvault.testnet", weight: 30 },
+      { token: "teth.torchvault.testnet", weight: 20 },
+      { token: "tzec.torchvault.testnet", weight: 5 },
+      { token: "thot.torchvault.testnet", weight: 5 },
+    ],
+  });
+  const bal: Record<string, string> = { "tusdc.torchvault.testnet": "300000000", "tbtc.torchvault.testnet": "0", "teth.torchvault.testnet": "7", "tzec.torchvault.testnet": "9" };
+  const read = (async (contractId: string, method: string, args?: Record<string, unknown>) => {
+    calls.push(`${contractId}:${method}`);
+    if (method === "nft_token") return { metadata: { extra } };
+    assert.equal(args?.account_id, vaultOf("0"));
+    return bal[contractId] ?? "0";
+  }) as Parameters<typeof tx.pinsFor>[1];
+  const pins = await tx.pinsFor("0", read);
+  assert.deepEqual(pins, [
+    { ft_id: "tusdc.torchvault.testnet", amount: "300000000" },
+    { ft_id: "teth.torchvault.testnet", amount: "7" },
+    { ft_id: "tzec.torchvault.testnet", amount: "9" },
+  ]);
+  assert.equal(calls[0], `${COLLECTION}:nft_token`);
+  assert.ok(!calls.some((c) => c.startsWith("tusdc.evil")));
+  assert.ok(!calls.some((c) => c.startsWith("thot")), "5th known token is past the 4-pin cap");
+  assert.deepEqual(await tx.pinsFor("9", (async () => null) as Parameters<typeof tx.pinsFor>[1]), []);
 });

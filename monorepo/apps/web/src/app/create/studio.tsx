@@ -139,6 +139,8 @@ export function Studio() {
       const extra = { basket: live.map((a) => ({ token: ftByKey(a.token).id, weight: a.weight })), bg, category, creator: accountId, rarity: null };
       const outs = await near.send(wallet, [near.mintTx({ title: name.trim() || "Untitled ETF", description: `${category} basket vault`, extra: JSON.stringify(extra) })]);
       const ret = near.lastResult(outs[0]);
+      // mint resolves to the token id, or null when the vault account could not be created (deposit refunded)
+      if (ret === null) throw new Error("The vault could not be created; your 0.11 NEAR was refunded. Nothing was funded.");
       const tokenId = typeof ret === "string" ? ret : (near.events(outs, "vault_created", { from: COLLECTION })[0]?.token_id as string | undefined);
       if (!tokenId) throw new Error("Minted, but the token id was not in the result. Check My Vaults.");
       m = { tokenId, hash: outs[0].transaction.hash, funded: 0 };

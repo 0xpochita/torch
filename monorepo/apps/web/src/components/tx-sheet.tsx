@@ -11,7 +11,7 @@ import { ActionCircle, Avatar, Money, NearAmount, Segmented, TokenIcon } from "@
 import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
 import { useNear } from "@/providers/near-provider";
 import { TOKENS, type Etf, type TokenKey } from "@/lib/tokens";
-import { FTS, MARKET, ftByKey, vaultOf } from "@/lib/contracts";
+import { FTS, MARKET, ftById, ftByKey, vaultOf } from "@/lib/contracts";
 import { toNear, toVault, tokenKey, useApi, type Stats, type VaultDetail, type VaultSummary } from "@/lib/api";
 import * as near from "@/lib/near-tx";
 
@@ -156,12 +156,10 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
   const liveOffers = [...detail.offers].sort((a, b) => (BigInt(b.amount) > BigInt(a.amount) ? 1 : -1));
   const picked = tx.offer ? liveOffers.find((o) => o.buyerId === tx.offer!.from) : liveOffers[0];
   const offerIn = picked && { from: picked.buyerId, amount: picked.amount, priceNear: toNear(picked.amount) };
-  // Offers pin up to 4 basket tokens at the vault's current balance (largest value first), so a drained vault cannot be sold.
-  const pins: near.MinBalance[] = detail.balances
-    .filter((b) => BigInt(b.amount) > BigInt(0))
-    .sort((a, b) => b.valueUsd - a.valueUsd)
-    .slice(0, 4)
-    .map((b) => ({ ft_id: b.ftId, amount: b.amount }));
+  // Offers pin every basket token at the vault's live on-chain balance (shown here, re-read at sign time),
+  // so a vault drained before acceptance cannot be sold. Never from API balances (xcheck X-2).
+  const pinsQ = near.usePins(tx.kind === "offer" ? tokenId : null);
+  const pins = pinsQ.data ?? [];
   const storage = near.useView<string>(tx.kind === "offer" ? MARKET : null, "offer_storage_cost").data ?? near.OFFER_STORAGE_FALLBACK;
 
   // The live listing decides the buy price (it must match exactly) and blocks withdraw while listed.
@@ -197,13 +195,13 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
     }
   })();
 
-  const build = (): near.Tx[] => {
+  const build = (signPins: near.MinBalance[]): near.Tx[] => {
     const yocto = (n: number) => near.toUnits(n, 24);
     switch (tx.kind) {
       case "buy":
         return [near.buyTx(tokenId, onChain!.price)];
       case "offer":
-        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)), pins, storage)];
+        return [near.offerTx(tokenId, yocto(offer), expiresIn(parseInt(expiry)), signPins, storage)];
       case "list":
         return [near.listTx(tokenId, yocto(offer))];
       case "delist":
@@ -227,7 +225,9 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
     setPhase("pending");
     try {
       // wallets without batch signing get one prompt per tx; say which one is up
-      const outcomes = await near.send(wallet, build(), { onStep: (i, n) => setStep(`step ${i + 1} of ${n}`) });
+      // pins are re-read from the chain right before the wallet opens
+      const signPins = tx.kind === "offer" ? await near.pinsFor(tokenId) : [];
+      const outcomes = await near.send(wallet, build(signPins), { onStep: (i, n) => setStep(`step ${i + 1} of ${n}`) });
       setHash(outcomes[outcomes.length - 1].transaction.hash);
       setPhase("done");
     } catch (e) {
@@ -242,7 +242,7 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
     (tx.kind === "buy"
       ? !!onChain && onChain.seller_id !== account
       : tx.kind === "offer"
-        ? offer >= 0.01
+        ? offer >= 0.01 && !pinsQ.loading && !pinsQ.error
         : tx.kind === "list"
           ? offer > 0 && !live.loading
           : tx.kind === "delist"
@@ -376,8 +376,32 @@ function Review({ tx, detail, owned, onPick, onClose }: { tx: Tx; detail: VaultD
                             ? "Not listed: the owner sees your offer and can accept it any time before it expires."
                             : offer >= price * 0.95
                               ? "Within 5% of the asking price — offers like this usually get accepted."
-                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires, plus {fmt(near.fromUnits(storage, 24))} NEAR offer storage that comes back with it.{pins.length > 0 && ` It only goes through if the vault still holds today's ${pins.map((p) => TOKENS[tokenKey(p.ft_id) ?? "NEAR"].symbol).join(", ")} balance.`}
+                              : "Well below asking. The seller may wait for a better offer."} Your NEAR is held in escrow by the market until it is accepted, cancelled or expires, plus {fmt(near.fromUnits(storage, 24))} NEAR offer storage that comes back with it.
                       </Note>
+                      <div className="flex flex-col gap-2 rounded-[20px] border border-line-soft p-3 text-[14px]">
+                        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-muted">
+                          <Sym name="lock" size={13} weight="bold" /> Pinned vault balances · read on-chain, re-checked at signing
+                        </span>
+                        {pinsQ.loading ? (
+                          <span className="text-muted">Reading the vault on-chain…</span>
+                        ) : pinsQ.error ? (
+                          <span className="text-down">Could not read the vault on-chain ({pinsQ.error}). The offer stays disabled until it can be pinned.</span>
+                        ) : !pins.length ? (
+                          <span className="text-muted">The vault holds none of its basket tokens yet, so nothing is pinned.</span>
+                        ) : (
+                          pins.map((p) => {
+                            const ft = ftById(p.ft_id)!;
+                            return (
+                              <span key={p.ft_id} className="flex items-center gap-2.5">
+                                <TokenIcon token={ft.key} size={22} />
+                                <span className="flex-1 font-medium">{TOKENS[ft.key].symbol}</span>
+                                <span className="font-semibold tabular-nums">≥ {near.formatUnits(p.amount, ft.decimals)}</span>
+                              </span>
+                            );
+                          })
+                        )}
+                        {pins.length > 0 && <span className="text-[12px] text-muted">The sale only settles if the vault still holds at least these amounts.</span>}
+                      </div>
                     </>
                   ) : (
                     <>

@@ -20,12 +20,14 @@ import { RARITY, TOKENS, type Allocation, type Rarity } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
-type Pull = { id: string; rarity: Rarity; name: string; bg: string; allocation: Allocation[]; valueUsd: number };
+/** `fundFailed`: the vault was minted but some basket items never reached it (`gacha_fund_failed`). */
+type Pull = { id: string; rarity: Rarity; name: string; bg: string; allocation: Allocation[]; valueUsd: number; fundFailed: boolean };
 type Item = { token: string; amount: string };
 type Basket = { name: string; category: string; bg: string; items: Item[] };
 type Config = { price_per_pull: string; pity: number; tiers: { rarity: string; weight_bps: number; baskets: Basket[] }[] };
 
 const TIERS = Object.keys(RARITY) as Rarity[];
+const X10_GAS_HINT = "A 10-pull needs 1 PGas of gas and this wallet refused it. Pull ×1, or switch to a wallet that allows 1 PGas.";
 /** 90 s → "1m", 5 h → "5h", 3 d → "3d". */
 const ago = (ms: number) => (ms < 3_600_000 ? `${Math.max(0, Math.floor(ms / 60_000))}m` : ms < 86_400_000 ? `${Math.floor(ms / 3_600_000)}h` : `${Math.floor(ms / 86_400_000)}d`);
 const isRarity = (r: unknown): r is Rarity => typeof r === "string" && r in RARITY;
@@ -48,8 +50,11 @@ const equalWeights = (tokens: string[]): Allocation[] =>
  * before the detached mints resolve get one re-read of the tx with all receipts.
  */
 async function readPulls(outs: near.Outcome[], account: string, config: Config | undefined): Promise<Pull[]> {
-  let evs = near.events(outs, "gacha_pull", { from: GACHA });
-  if (!evs.length) evs = near.events([await near.txWithReceipts(outs[0].transaction.hash, account)], "gacha_pull", { from: GACHA });
+  let src = outs;
+  if (!near.events(src, "gacha_pull", { from: GACHA }).length) src = [await near.txWithReceipts(outs[0].transaction.hash, account)];
+  const evs = near.events(src, "gacha_pull", { from: GACHA });
+  // gacha_pull follows funding; any item that did not land is reported first as gacha_fund_failed
+  const failed = new Set(near.events(src, "gacha_fund_failed", { from: GACHA }).filter((e) => e.player_id === account).map((e) => String(e.token_id)));
   return Promise.all(
     evs
       .filter((e) => e.player_id === account)
@@ -67,7 +72,7 @@ async function readPulls(outs: near.Outcome[], account: string, config: Config |
           const ft = ftById(b.token);
           return ft ? [{ token: ft.key, weight: b.weight }] : [];
         });
-        return { id, rarity, name, bg: extra.bg ?? basket?.bg ?? "#e5c8ff", allocation: allocation.length ? allocation : equalWeights(basket?.items.map((i) => i.token) ?? []), valueUsd: basket ? usdOf(basket.items) : 0 };
+        return { id, rarity, name, bg: extra.bg ?? basket?.bg ?? "#e5c8ff", allocation: allocation.length ? allocation : equalWeights(basket?.items.map((i) => i.token) ?? []), valueUsd: basket ? usdOf(basket.items) : 0, fundFailed: failed.has(id) };
       }),
   );
 }
@@ -75,6 +80,11 @@ async function readPulls(outs: near.Outcome[], account: string, config: Config |
 export function Gacha() {
   const machine = useRef<GachaHandle>(null);
   const { accountId, wallet, signIn } = useNear();
+  // A 10-pull needs 1 PGas (950 Tgas minimum). Wallets don't advertise their gas cap, so a wallet that
+  // rejected a 10-pull for gas is remembered (per wallet id, this browser) and x10 is disabled for it.
+  const walletId = wallet?.manifest?.id ?? null;
+  const [gasCapped, setGasCapped] = useState<string[]>([]);
+  const x10Blocked = !!walletId && gasCapped.includes(walletId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
@@ -102,6 +112,8 @@ export function Gacha() {
     const t = setTimeout(() => {
       try {
         if (localStorage.getItem("gacha-sound") === "off") setSound(false);
+        const capped: unknown = JSON.parse(localStorage.getItem("gacha-gas-capped") ?? "[]");
+        if (Array.isArray(capped)) setGasCapped(capped.filter((x): x is string => typeof x === "string"));
       } catch {}
     });
     return () => (clearTimeout(t), stopMusic());
@@ -143,7 +155,15 @@ export function Gacha() {
       pending.current = await results;
       setPhase("ready");
     } catch (e) {
-      setError(near.walletError(e));
+      const msg = near.walletError(e);
+      setError(msg);
+      if (n === 10 && walletId && /gas/i.test(msg)) {
+        const next = [...new Set([...gasCapped, walletId])];
+        setGasCapped(next);
+        try {
+          localStorage.setItem("gacha-gas-capped", JSON.stringify(next));
+        } catch {}
+      }
       setPhase("idle");
       setBusy(false);
       if (sound) stopMusic();
@@ -241,16 +261,25 @@ export function Gacha() {
               >
                 <Icon3D name="gift" size={22} /> Pull ×1 · <NearAmount amount={price} />
               </button>
-              <button
-                onClick={() => pull(10)}
-                disabled={busy}
-                className="flex h-14 items-center gap-2 rounded-full bg-[#ff8a00] px-7 text-[16px] font-semibold text-white shadow-[0_10px_30px_-10px_#ff8a00] transition active:scale-95 disabled:opacity-60"
-              >
-                Pull ×10 · <NearAmount amount={Math.round(price * 9 * 1e4) / 1e4} />
-                <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px]">−10%</span>
-              </button>
+              {/* wrapper carries the tooltip: disabled buttons get no hover events */}
+              <span title={x10Blocked ? X10_GAS_HINT : undefined} className="inline-flex">
+                <button
+                  onClick={() => pull(10)}
+                  disabled={busy || x10Blocked}
+                  aria-describedby={x10Blocked ? "x10-gas" : undefined}
+                  className="flex h-14 items-center gap-2 rounded-full bg-[#ff8a00] px-7 text-[16px] font-semibold text-white shadow-[0_10px_30px_-10px_#ff8a00] transition active:scale-95 disabled:opacity-60"
+                >
+                  Pull ×10 · <NearAmount amount={Math.round(price * 9 * 1e4) / 1e4} />
+                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px]">−10%</span>
+                </button>
+              </span>
             </div>
             <span className="flex items-center gap-3 text-[12px] text-white/50">
+              {x10Blocked && !busy && (
+                <span id="x10-gas" className="text-[#ffb766]">
+                  ×10 off: this wallet can&apos;t attach 1 PGas.
+                </span>
+              )}
               {error ? (
                 <span role="alert" className="max-w-[420px] text-[#ff9b8a]">
                   {error}
@@ -433,6 +462,13 @@ function Reveal({ pulls, hash, onClaim, onAgain }: { pulls: Pull[]; hash: string
           </span>
         </motion.div>
 
+        {pulls.some((p) => p.fundFailed) && (
+          <p role="alert" className="max-w-[520px] rounded-[16px] bg-[#ff5a3c]/15 px-4 py-3 text-center text-[13px] text-[#ffb3a3]">
+            <b className="font-semibold text-white">Vault minted, funding failed</b> for {pulls.filter((p) => p.fundFailed).map((p) => `#${p.id}`).join(", ")}. The basket tokens went back to the
+            treasury, so the vault holds less than its tier. Contact support with the transaction link below.
+          </p>
+        )}
+
         {single ? (
           <Card p={pulls[0]} big />
         ) : (
@@ -496,6 +532,11 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
           <div className="grain relative aspect-square overflow-hidden rounded-[16px]" style={{ background: p.bg }}>
             <BasketArt allocation={p.allocation} />
             <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#ff5a0055] to-transparent" />
+            {p.fundFailed && (
+              <span className={`absolute inset-x-2 bottom-2 rounded-full bg-[#c0261b]/90 text-center font-bold uppercase tracking-[0.1em] text-white ${big ? "py-1 text-[11px]" : "py-0.5 text-[7px]"}`}>
+                Funding failed
+              </span>
+            )}
             <span
               className={`absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 font-bold uppercase tracking-[0.12em] backdrop-blur-sm ${big ? "px-2.5 py-1 text-[11px]" : "px-1.5 py-0.5 text-[8px]"}`}
               style={{ color: c }}
