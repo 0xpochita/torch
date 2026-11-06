@@ -11,7 +11,9 @@
 set -euo pipefail
 
 ROOT=${NEAR_ROOT_ID:-torchvault.testnet}
+# near-cli-rs connection name (testnet, or the temporary "sandbox" one from sandbox-e2e.sh).
 NETWORK=${NEAR_NETWORK:-testnet}
+WRAP=${NEAR_WRAP_ID:-wrap.testnet}
 export NEAR_RPC_URL=${NEAR_RPC_URL:-https://rpc.testnet.near.org}
 DRY_RUN=${DRY_RUN:-0}
 SKIP_BUILD=${SKIP_BUILD:-0}
@@ -51,7 +53,22 @@ meta() {
 }
 
 util() { node "$HERE/near-util.mjs" "$@"; }
-step() { printf '\n== %s\n' "$*"; }
+# Each step header also reports what the previous step cost the root (real runs only).
+LAST_BALANCE=''
+FIRST_BALANCE=''
+near_delta() { node -p "(Number(BigInt('$1') - BigInt('$2')) / 1e24).toFixed(4)"; }
+spent() {
+  [[ $DRY_RUN == 1 ]] && return
+  local b
+  b=$(util balance "$ROOT" 2>/dev/null) || return 0
+  if [[ -n $LAST_BALANCE ]]; then printf '   spent by %s: %s NEAR\n' "$ROOT" "$(near_delta "$LAST_BALANCE" "$b")"; fi
+  FIRST_BALANCE=${FIRST_BALANCE:-$b}
+  LAST_BALANCE=$b
+}
+step() {
+  spent
+  printf '\n== %s\n' "$*"
+}
 skip() { printf '   skip: %s\n' "$*"; }
 
 if [[ $DRY_RUN == 1 ]]; then
@@ -73,7 +90,9 @@ run() {
     if [[ $a =~ ^[A-Za-z0-9_./:@=,+-]+$ ]]; then shown+=("$a"); else shown+=("'${a//\'/\'\\\'\'}'"); fi
   done
   printf '+ %s\n' "${shown[*]}"
-  [[ $DRY_RUN == 1 ]] || "$@"
+  [[ $DRY_RUN == 1 ]] && return
+  # --quiet: near-cli-rs otherwise echoes the whole command, plaintext private key included.
+  if [[ $1 == near ]]; then near --quiet "${@:2}"; else "$@"; fi
 }
 # Chain checks: in a dry run nothing is queried and every step counts as "not done yet".
 check() { [[ $DRY_RUN != 1 ]] && util "$@" >/dev/null 2>&1; }
@@ -175,7 +194,7 @@ while read -r ft amount; do
 done < <(util treasury "$ROOT" "$TREASURY_PULLS")
 
 step "8. NEAR for gacha mint deposits ($GACHA_NEAR NEAR on top of its storage)"
-if [[ $DRY_RUN != 1 ]] && check ge "$(util balance "$GACHA")" "$(node -p "BigInt(Math.round(($GACHA_NEAR + 2) * 1e6)) * 10n ** 18n")"; then
+if [[ $DRY_RUN != 1 ]] && check ge "$(util balance "$GACHA")" "$(node -p "String(BigInt(Math.round(($GACHA_NEAR + 2) * 1e6)) * 10n ** 18n)")"; then
   skip "$GACHA already holds >= $GACHA_NEAR NEAR spendable"
 else
   run near tokens "$ROOT" send-near "$GACHA" "$GACHA_NEAR NEAR" "${NET[@]}" "${SIGN[@]}"
@@ -195,12 +214,14 @@ if [[ $DRY_RUN != 1 ]]; then
 fi
 
 step "10. env files"
-FT_IDS=$(printf "%s.$ROOT," "${TOKENS[@]}")wrap.testnet
+FT_IDS=$(printf "%s.$ROOT," "${TOKENS[@]}")$WRAP
+ENV_ROOT=${ENV_ROOT:-$MONO} # sandbox-e2e.sh points this at a temp dir so the real env files stay untouched
 upsert() { # upsert <file> KEY=VALUE...
   local file=$1 kv
   shift
-  for kv in "$@"; do printf '   %s: %s\n' "${file#"$MONO"/}" "$kv"; done
+  for kv in "$@"; do printf '   %s: %s\n' "${file#"$ENV_ROOT"/}" "$kv"; done
   [[ $DRY_RUN == 1 ]] && return
+  mkdir -p "$(dirname "$file")"
   touch "$file"
   for kv in "$@"; do
     grep -v "^${kv%%=*}=" "$file" >"$file.tmp" || true
@@ -208,7 +229,7 @@ upsert() { # upsert <file> KEY=VALUE...
     echo "$kv" >>"$file"
   done
 }
-upsert "$MONO/apps/web/.env.local" \
+upsert "$ENV_ROOT/apps/web/.env.local" \
   "NEXT_PUBLIC_NEAR_NETWORK=$NETWORK" \
   "NEXT_PUBLIC_NEAR_ROOT_ID=$ROOT" \
   "NEXT_PUBLIC_COLLECTION_ID=$NFT" \
@@ -216,7 +237,7 @@ upsert "$MONO/apps/web/.env.local" \
   "NEXT_PUBLIC_GACHA_ID=$GACHA" \
   "NEXT_PUBLIC_FT_IDS=$FT_IDS" \
   "NEXT_PUBLIC_VAULT_CODE_HASH=$VAULT_HASH"
-upsert "$MONO/apps/api/.env" \
+upsert "$ENV_ROOT/apps/api/.env" \
   "NEAR_ROOT_ID=$ROOT" \
   "NEAR_COLLECTION_ID=$NFT" \
   "NEAR_MARKET_ID=$MARKET" \
@@ -224,11 +245,14 @@ upsert "$MONO/apps/api/.env" \
   "NEAR_FT_IDS=$FT_IDS" \
   "NEAR_RPC_URL=$NEAR_RPC_URL"
 # Backfill the indexer from before this deploy, but never move an existing cursor start.
-if [[ $DRY_RUN == 1 ]] || ! grep -q '^START_HEIGHT=' "$MONO/apps/api/.env"; then
-  upsert "$MONO/apps/api/.env" "START_HEIGHT=$START_HEIGHT"
+if [[ $DRY_RUN == 1 ]] || ! grep -q '^START_HEIGHT=' "$ENV_ROOT/apps/api/.env"; then
+  upsert "$ENV_ROOT/apps/api/.env" "START_HEIGHT=$START_HEIGHT"
 fi
 
 step "done"
+if [[ $DRY_RUN != 1 && -n $FIRST_BALANCE ]]; then
+  echo "   total spent by $ROOT: $(near_delta "$FIRST_BALANCE" "$LAST_BALANCE") NEAR"
+fi
 echo "   vault code hash: $VAULT_HASH"
 echo "   mock_ft code hash: $FT_HASH"
 echo "   indexer START_HEIGHT: $START_HEIGHT (apps/api/.env keeps the first run's value)"
