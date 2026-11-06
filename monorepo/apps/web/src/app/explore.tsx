@@ -291,10 +291,10 @@ function Hero() {
       </div>
 
       <div className="flex gap-7">
-        <ActionCircle icon="plus" label="Create" href="/create" />
-        <ActionCircle icon="vault" label="Vaults" href="/vaults" />
-        <ActionCircle icon="pulse" label="Activity" href="/activity" />
-        <ActionCircle icon="gift" label="Gacha" href="/gacha" />
+        <ActionCircle icon="plus" label="Create" href="/create" img="/icons/nav/create.png" />
+        <ActionCircle icon="vault" label="Vaults" href="/vaults" img="/icons/nav/vaults.png" />
+        <ActionCircle icon="pulse" label="Activity" href="/activity" img="/icons/nav/activity.png" />
+        <ActionCircle icon="gift" label="Gacha" href="/gacha" img="/icons/nav/gacha.png" />
       </div>
     </section>
   );

@@ -187,11 +187,11 @@ export function PastelIcon({ icon, tone, size = 40 }: { icon: IconName; tone: Pa
 }
 
 /** Round quick action: Buy / Swap / Send / More. */
-export function ActionCircle({ icon, label, href, onClick }: { icon: IconName; label: string; href?: string; onClick?: () => void }) {
+export function ActionCircle({ icon, label, href, onClick, img }: { icon: IconName; label: string; href?: string; onClick?: () => void; img?: string }) {
   const inner = (
     <>
       <span className="grid size-14 place-items-center rounded-full bg-fill text-text transition group-hover:bg-line group-active:scale-95">
-        <Sym name={icon} size={22} stroke={2} />
+        {img ? <Image src={img} alt="" width={34} height={34} className="transition duration-200 group-hover:-translate-y-0.5 group-hover:scale-110" /> : <Sym name={icon} size={22} stroke={2} />}
       </span>
       <span className="text-[13px] font-medium text-muted">{label}</span>
     </>
