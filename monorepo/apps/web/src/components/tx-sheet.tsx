@@ -11,8 +11,8 @@ import { ETFS, LISTINGS, ME, MY_VAULTS, NEAR_USD, TOKENS, getEtf, type Etf } fro
 
 /* One sheet for every vault transaction: review → wallet signature → done. */
 
-export type TxKind = "buy" | "offer" | "deposit" | "withdraw" | "transfer" | "rebalance";
-export type Tx = { kind: TxKind; etfId?: string; listingId?: string };
+export type TxKind = "buy" | "offer" | "accept" | "deposit" | "withdraw" | "transfer";
+export type Tx = { kind: TxKind; etfId?: string; listingId?: string; offer?: { from: string; priceNear: number } };
 
 // ponytail: mock fees; the real numbers come from the collection contract (marketplace fee) and NEP-199 payout (royalty)
 const MARKET_FEE = 0.02;
@@ -24,7 +24,7 @@ const META: Record<TxKind, { title: string; icon: IconName; cta: string; done: s
   deposit: { title: "Deposit", icon: "down", cta: "Deposit", done: "Deposited" },
   withdraw: { title: "Withdraw", icon: "up", cta: "Withdraw", done: "Withdrawn" },
   transfer: { title: "Transfer vault", icon: "share", cta: "Hold to transfer", done: "Vault sent" },
-  rebalance: { title: "Rebalance now", icon: "swap", cta: "Rebalance", done: "Back on target" },
+  accept: { title: "Accept offer", icon: "check", cta: "Hold to accept", done: "Offer accepted" },
 };
 
 const Ctx = createContext<(tx: Tx) => void>(() => {});
@@ -261,24 +261,23 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                 </>
               )}
 
-              {tx.kind === "rebalance" && (
+              {tx.kind === "accept" && tx.offer && (
                 <>
-                  <div className="flex flex-col gap-2 rounded-[20px] border border-line-soft p-3">
-                    <span className="text-[12px] font-semibold text-muted">Current → target</span>
-                    {etf.allocation.map((a, i) => {
-                      const drift = [2.1, -1.4, 0.9, -1.6, 0.5][i] ?? 0; // ponytail: mock drift; read live balances from the vault
-                      return (
-                        <div key={a.token} className="flex items-center gap-2.5 text-[14px]">
-                          <TokenIcon token={a.token} size={22} />
-                          <span className="flex-1 font-medium">{TOKENS[a.token].symbol}</span>
-                          <span className="text-muted">{(a.weight + drift).toFixed(1)}%</span>
-                          <Sym name="chevron" size={12} weight="bold" className="text-faint" />
-                          <span className="w-12 text-right font-semibold">{a.weight}%</span>
-                        </div>
-                      );
-                    })}
+                  <div className="flex flex-col items-center gap-1 py-2">
+                    <NearAmount amount={tx.offer.priceNear} className="title-chunky text-[44px]" />
+                    <span className="flex items-center gap-1.5 text-[13px] text-muted">
+                      from <Avatar account={tx.offer.from} size={16} /> {tx.offer.from}
+                    </span>
                   </div>
-                  <Rows rows={[["Swaps", `${etf.allocation.length - 1} via Rhea`], ["Max slippage", `${(etf.slippageBps / 100).toFixed(2)}%`], ["Keeper fee", "none, you sign it"]]} />
+                  <Rows
+                    rows={[
+                      ["Offer", <NearAmount key="o" amount={tx.offer.priceNear} />],
+                      [`Marketplace fee · ${MARKET_FEE * 100}%`, <NearAmount key="f" amount={`−${(tx.offer.priceNear * MARKET_FEE).toFixed(1)}`} />],
+                      [`Creator royalty · ${ROYALTY * 100}%`, <NearAmount key="r" amount={`−${(tx.offer.priceNear * ROYALTY).toFixed(1)}`} />],
+                    ]}
+                    total={["You receive", <NearAmount key="t" amount={(tx.offer.priceNear * (1 - MARKET_FEE - ROYALTY)).toFixed(1)} />]}
+                  />
+                  <Note tone="warn">The vault and all {etf.allocation.length} tokens inside move to {tx.offer.from}. Other open offers are cancelled.</Note>
                 </>
               )}
 
@@ -291,7 +290,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                     <motion.span className="size-4 rounded-full border-2 border-text border-t-transparent" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} />
                     Confirm in your wallet…
                   </div>
-                ) : tx.kind === "buy" || tx.kind === "transfer" ? (
+                ) : tx.kind === "buy" || tx.kind === "transfer" || tx.kind === "accept" ? (
                   <HoldButton
                     disabled={!canSubmit}
                     onHold={submit}
@@ -324,7 +323,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
     if (tx.kind === "deposit") return <>${amount} USDC swapped into {etf.allocation.length} tokens.</>;
     if (tx.kind === "withdraw") return <>${amount} USDC sent to {ME}.</>;
     if (tx.kind === "transfer") return <>{name} now belongs to {to}.</>;
-    return <>{etf.allocation.length} tokens back on their target weights.</>;
+    return <>Sold to {tx.offer?.from} for <NearAmount amount={tx.offer?.priceNear ?? 0} />.</>;
   }
 }
 

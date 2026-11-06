@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { BasketGraph } from "@/components/basket-graph";
 import { AllocationBar, Change, EVENT } from "@/components/etf-card";
-import { SymTile } from "@/components/icons";
+import { Sym, SymTile } from "@/components/icons";
+import { useTx } from "@/components/tx-sheet";
 import { NavChart } from "@/components/nav-chart";
-import { Avatar, Money, Segmented, TokenIcon, shade } from "@/components/ui";
-import { TOKENS, type Etf } from "@/lib/mock";
+import { Avatar, Money, NearAmount, Segmented, TokenIcon, shade } from "@/components/ui";
+import { ME, NEAR_USD, TOKENS, offersFor, type Etf } from "@/lib/mock";
 
 const TABS = ["Basket", "Holdings", "History", "Holders"] as const;
 const PERIODS = ["7D", "14D", "30D"] as const;
@@ -184,5 +185,107 @@ export function NavPanel({ etf }: { etf: Etf }) {
         ))}
       </div>
     </div>
+  );
+}
+
+const expires = (h: number) => (h < 24 ? `${h}h` : `${Math.round(h / 24)}d`);
+
+/** Open offers on this vault, best first. The owner can accept any of them. */
+export function OffersPanel({ etf }: { etf: Etf }) {
+  const open = useTx();
+  const offers = offersFor(etf);
+  const top = offers[0];
+  const mine = etf.owner === ME;
+  const accept = (o: (typeof offers)[number]) => open({ kind: "accept", etfId: etf.id, offer: { from: o.from, priceNear: o.priceNear } });
+
+  return (
+    <section className="card flex flex-col gap-4 p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-[20px] font-bold">
+          Offers <span className="rounded-full bg-fill px-2 py-0.5 text-[12px] font-semibold text-muted">{offers.length}</span>
+        </h2>
+        {!mine && (
+          <button onClick={() => open({ kind: "offer", etfId: etf.id })} className="btn-line h-9 px-4 text-[14px]">
+            Make offer
+          </button>
+        )}
+      </div>
+
+      <div className="grain flex flex-wrap items-center gap-4 rounded-[22px] bg-peach p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] font-semibold text-peach-ink">Top offer</div>
+          <div className="flex items-baseline gap-2">
+            <NearAmount amount={top.priceNear} className="title-chunky text-[34px]" />
+            <span className="text-[13px] text-muted">
+              ≈ <Money value={top.priceNear * NEAR_USD} />
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 text-[13px] text-muted">
+            <Avatar account={top.from} size={18} /> {top.from} · expires in {expires(top.expiresHours)}
+          </div>
+        </div>
+        {mine ? (
+          <button onClick={() => accept(top)} className="btn-ink h-11 px-6 text-[15px]">
+            Accept
+          </button>
+        ) : (
+          <button onClick={() => open({ kind: "offer", etfId: etf.id })} className="btn-ink h-11 px-6 text-[15px]">
+            Outbid
+          </button>
+        )}
+      </div>
+
+      <div className="-mx-2 overflow-x-auto">
+        <table className="w-full min-w-[520px] text-[14px]">
+          <thead>
+            <tr className="text-left text-[12px] font-semibold text-muted">
+              <th className="px-2 py-2 font-semibold">Price</th>
+              <th className="px-2 py-2 font-semibold">USD</th>
+              <th className="px-2 py-2 font-semibold">{etf.listed ? "vs ask" : "vs value"}</th>
+              <th className="px-2 py-2 font-semibold">Expires</th>
+              <th className="px-2 py-2 font-semibold">From</th>
+              <th className="px-2 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {offers.map((o, i) => {
+              const ref = etf.listed ? etf.priceNear : etf.navUsd / NEAR_USD;
+              const diff = (o.priceNear / ref - 1) * 100;
+              return (
+                <tr key={o.id} className="border-t border-line-soft">
+                  <td className="px-2 py-2.5 font-semibold">
+                    <span className="flex items-center gap-2">
+                      <NearAmount amount={o.priceNear} />
+                      {i === 0 && <span className="rounded-full bg-tint/15 px-1.5 py-0.5 text-[10px] font-bold text-tint">TOP</span>}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2.5 text-muted">
+                    <Money value={o.priceNear * NEAR_USD} />
+                  </td>
+                  <td className={`px-2 py-2.5 ${diff >= 0 ? "text-up" : "text-muted"}`}>{diff >= 0 ? `${diff.toFixed(0)}% above` : `${Math.abs(diff).toFixed(0)}% below`}</td>
+                  <td className="px-2 py-2.5 text-muted">
+                    <span className="flex items-center gap-1">
+                      <Sym name="clock" size={13} /> {expires(o.expiresHours)}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2.5">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Avatar account={o.from} size={20} /> {o.from}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2.5 text-right">
+                    {mine && (
+                      <button onClick={() => accept(o)} className="btn-tint h-8 px-3 text-[13px]">
+                        Accept
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

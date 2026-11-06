@@ -6,8 +6,8 @@ import { Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { TxAction, TxButton } from "@/components/tx-sheet";
 import { ActionCircle, Money, NearAmount, StatTile, TokenStack } from "@/components/ui";
-import { ETFS, getEtf } from "@/lib/mock";
-import { DetailTabs, NavPanel } from "./panels";
+import { ETFS, getEtf, offersFor } from "@/lib/mock";
+import { DetailTabs, NavPanel, OffersPanel } from "./panels";
 
 export function generateStaticParams() {
   return ETFS.map((e) => ({ id: e.id }));
@@ -67,7 +67,7 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
           <div className="grid gap-3 border-t border-line-soft pt-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
             <div className="flex gap-5 lg:pr-4">
               <TxAction tx={{ kind: etf.listed ? "buy" : "offer", etfId: etf.id }} icon="tag" label={etf.listed ? "Buy" : "Offer"} />
-              <TxAction tx={{ kind: "rebalance", etfId: etf.id }} icon="swap" label="Rebalance" />
+              {etf.listed && <TxAction tx={{ kind: "offer", etfId: etf.id }} icon="swap" label="Offer" />}
               <TxAction tx={{ kind: "transfer", etfId: etf.id }} icon="share" label="Send" />
               <ActionCircle icon="ellipsis" label="More" />
             </div>
@@ -77,13 +77,16 @@ export default async function EtfPage({ params }: PageProps<"/etf/[id]">) {
               <StatTile icon="layers" label="Tokens" value={etf.allocation.length}>
                 <TokenStack allocation={etf.allocation} size={18} />
               </StatTile>
-              <StatTile icon="clock" label="Rebalance" value={etf.rebalance} />
+              <StatTile icon="swap" label="Top offer" value={<NearAmount amount={offersFor(etf)[0].priceNear} />} />
             </div>
           </div>
         </header>
 
         <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <DetailTabs etf={etf} />
+          <div className="flex min-w-0 flex-col gap-6">
+            <DetailTabs etf={etf} />
+            <OffersPanel etf={etf} />
+          </div>
 
           <aside className="flex min-w-0 flex-col gap-4">
             <div className="card relative overflow-hidden p-0">

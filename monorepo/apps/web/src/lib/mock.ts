@@ -194,3 +194,21 @@ export const LISTINGS: Listing[] = ETFS.flatMap((e, i) =>
     };
   }),
 );
+
+/* ---------- Offers (mock) ---------- */
+
+export type Offer = { id: string; from: string; priceNear: number; expiresHours: number; placedHoursAgo: number };
+
+const BIDDERS = ["nearwhale.near", "degen.near", "kat.near", "intents.near", "staker.near", "rhea-maxi.near", "alice.near", "carol.near"];
+
+// ponytail: deterministic offers per vault; replace with the collection's open offers from the indexer
+export function offersFor(etf: Etf): Offer[] {
+  const n = Number(etf.id);
+  return Array.from({ length: 4 + (n % 3) }, (_, i) => ({
+    id: `${etf.id}-${i}`,
+    from: BIDDERS[(n * 3 + i) % BIDDERS.length],
+    priceNear: Math.round(etf.priceNear * (0.97 - i * 0.045 - ((n + i) % 3) * 0.01)),
+    expiresHours: [6, 20, 47, 70, 140, 160][(n + i) % 6],
+    placedHoursAgo: 1 + ((n * 5 + i * 7) % 40),
+  })).sort((a, b) => b.priceNear - a.priceNear);
+}
