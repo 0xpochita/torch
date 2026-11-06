@@ -38,7 +38,8 @@ function toTemplates(vaults: VaultSummary[] | undefined): Template[] {
     .filter((v) => v.allocation.length >= 2 && !seen.has(basketKey(v.allocation)) && seen.add(basketKey(v.allocation)))
     .slice(0, 6)
     .map((v): Template => ({ id: `v${v.id}`, name: v.name, bg: v.bg, category: v.category, allocation: v.allocation }));
-  return [...live, ...STATIC_TEMPLATES.filter((t) => !seen.has(basketKey(t.allocation)))].slice(0, 6);
+  const names = new Set(live.map((t) => t.name));
+  return [...live, ...STATIC_TEMPLATES.filter((t) => !seen.has(basketKey(t.allocation)) && !names.has(t.name))].slice(0, 6);
 }
 const BACKGROUNDS = ["#9fd3ff", "#b8f0d8", "#ffd8a8", "#e5c8ff", "#ffc2a8", "#c5f5b0", "#d7d7e0"];
 const MAX_TOKENS = 6;
