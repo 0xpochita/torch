@@ -118,18 +118,29 @@ export function Vaults() {
                 <ActionCircle icon="share" label="Transfer" />
                 <ActionCircle icon="plus" label="New" href="/create" />
               </div>
+              <div className="flex items-center gap-3 rounded-[20px] bg-fill p-3">
+                <span className="grid size-10 place-items-center rounded-full bg-surface">
+                  <Sym name="clock" size={18} weight="bold" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] text-muted">Next keeper rebalance</span>
+                  <span className="block text-[15px] font-semibold">Mon, Nov 9 · {owned.filter((e) => e.rebalance === "Weekly").length} weekly vaults</span>
+                </span>
+                <span className="text-right">
+                  <span className="block text-[13px] text-muted">Asking</span>
+                  <NearAmount amount={owned.filter((e) => e.listed).reduce((s, e) => s + e.priceNear, 0)} className="text-[15px] font-semibold" />
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-2">
-                <StatTile icon="vault" label="Vaults" value={owned.length} />
-                <StatTile
-                  icon="tag"
-                  label="Listed"
-                  value={owned.filter((e) => e.listed).length}
-                />
-                <StatTile
-                  icon="layers"
-                  label="Tokens"
-                  value={exposure.length}
-                />
+                <StatTile icon="vault" label="Vaults" value={owned.length}>
+                  <span className="text-[12px] text-muted">{owned.filter((e) => e.change24h >= 0).length} up today</span>
+                </StatTile>
+                <StatTile icon="tag" label="Listed" value={owned.filter((e) => e.listed).length}>
+                  <span className="text-[12px] text-muted">{owned.length - owned.filter((e) => e.listed).length} held back</span>
+                </StatTile>
+                <StatTile icon="layers" label="Tokens" value={exposure.length}>
+                  <span className="text-[12px] text-muted">Top: {TOKENS[exposure[0].token].symbol}</span>
+                </StatTile>
               </div>
             </div>
           </div>
