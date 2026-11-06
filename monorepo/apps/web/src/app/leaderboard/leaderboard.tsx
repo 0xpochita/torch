@@ -8,7 +8,8 @@ import { Change } from "@/components/etf-card";
 import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Avatar, Money, Segmented } from "@/components/ui";
-import { CREATOR_STATS, ETFS, ME, type CreatorStat } from "@/lib/mock";
+import { CREATOR_STATS, ETFS, type CreatorStat } from "@/lib/mock";
+import { useAccount } from "@/providers/near-provider";
 
 const SORTS = ["Value", "Return", "Holders"] as const;
 const PERIODS = ["24h", "7D", "30D", "Season"] as const;
@@ -32,6 +33,7 @@ export function Leaderboard() {
   const [sort, setSort] = useState<Sort>("Value");
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("30D");
   const [mine, setMine] = useState(false);
+  const account = useAccount();
 
   const rows: Row[] = CREATOR_STATS.map((c) => ({ ...c, ret: c.return30d * SCALE[period] })).sort((a, b) =>
     sort === "Value" ? b.valueUsd - a.valueUsd : sort === "Return" ? b.ret - a.ret : b.holders - a.holders,
@@ -176,9 +178,15 @@ export function Leaderboard() {
             <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
               <div className="flex items-center gap-3 border-t-2 border-tint/60 bg-tint/10 px-5 py-3 text-[14px]">
                 <span className="w-8 text-muted">—</span>
-                <Avatar account={ME} size={26} />
-                <span className="font-semibold">{ME}</span>
-                <span className="text-muted">Not ranked yet. Mint a basket people hold to enter the season.</span>
+                {account ? (
+                  <>
+                    <Avatar account={account} size={26} />
+                    <span className="font-semibold">{account}</span>
+                    <span className="text-muted">Not ranked yet. Mint a basket people hold to enter the season.</span>
+                  </>
+                ) : (
+                  <span className="text-muted">Connect a wallet to see your stats.</span>
+                )}
                 <Link href="/create" className="ml-auto font-semibold text-tint">
                   Create an ETF
                 </Link>

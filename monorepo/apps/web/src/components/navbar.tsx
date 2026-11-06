@@ -1,14 +1,14 @@
 "use client";
 
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
-import { Sym, type IconName } from "@/components/icons";
+import { useState, type ReactNode } from "react";
+import { Icon3D, Sym, type IconName } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Avatar, Title } from "@/components/ui";
-import { ME } from "@/lib/mock";
+import { Avatar, NearAmount, Title } from "@/components/ui";
+import { useNear } from "@/providers/near-provider";
 
 type NavItem = { href: string; label: string; icon: IconName; img: string; badge?: string };
 
@@ -49,6 +49,7 @@ function useActive() {
 /** Minimal floating rail: icon + label, a black "create" key, appearance and account at the foot. */
 export function Sidebar() {
   const isActive = useActive();
+  const { ready, accountId, signIn } = useNear();
   const items = [NAV[0].items[0], NAV[0].items[1], ...NAV[1].items];
 
   return (
@@ -78,10 +79,16 @@ export function Sidebar() {
 
         <div className="mt-auto flex flex-col items-center gap-3">
           <ThemeToggle compact />
-          <a href="https://github.com/0xpochita/torch" title={`${ME} · mock wallet`} className="relative">
-            <Avatar account={ME} size={40} />
-            <span className="absolute bottom-0 right-0 size-3 rounded-full bg-up ring-2 ring-surface" />
-          </a>
+          {accountId ? (
+            <Link href="/vaults" title={accountId} className="relative">
+              <Avatar account={accountId} size={40} />
+              <span className="absolute bottom-0 right-0 size-3 rounded-full bg-up ring-2 ring-surface" />
+            </Link>
+          ) : (
+            <button onClick={signIn} disabled={!ready} title="Connect wallet" className="grid size-10 place-items-center rounded-full bg-fill text-muted transition hover:text-text disabled:opacity-50">
+              <Sym name="wallet" size={19} weight="bold" />
+            </button>
+          )}
         </div>
       </aside>
     </div>
@@ -154,8 +161,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
           <Sym name="search" size={16} />
           <input placeholder="Search" className="w-full bg-transparent text-[15px] text-text outline-none placeholder:text-muted" />
         </label>
-        {/* ponytail: mock button; wire to NearProvider from skills/hot-wallet-connect */}
-        <button className="btn-ink h-12 shrink-0 px-5 text-[15px]">Connect</button>
+        <WalletButton />
       </header>
       {title && (
         <div className="px-1 pb-1 pt-6">
@@ -170,6 +176,7 @@ export function Topbar({ title, subtitle, children }: { title?: string; subtitle
 /** Fills the toolbar on pages without filter chips: where you are, and who you are. */
 function PagePill() {
   const path = usePathname();
+  const { accountId } = useNear();
   const item = NAV.flatMap((g) => g.items).find((it) => (it.href === "/" ? path === "/" : path.startsWith(it.href)));
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -179,9 +186,100 @@ function PagePill() {
         </span>
         <span className="pl-1.5 text-[14px] font-semibold">{item?.label ?? "Torch"}</span>
       </div>
-      <span className="hidden items-center gap-2 text-[14px] text-muted md:flex">
-        <Avatar account={ME} size={22} /> gm, <span className="font-medium text-text">{ME}</span>
-      </span>
+      {accountId && (
+        <span className="hidden min-w-0 items-center gap-2 text-[14px] text-muted md:flex">
+          <Avatar account={accountId} size={22} /> gm, <span className="truncate font-medium text-text">{accountId}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** "Connect" opens the near-connect wallet picker; signed in it becomes the account chip with a menu. */
+function WalletButton() {
+  const { ready, accountId, balance, signIn, signOut } = useNear();
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  if (!accountId)
+    return (
+      <button onClick={signIn} disabled={!ready} className="btn-ink h-12 shrink-0 px-5 text-[15px] disabled:opacity-60">
+        Connect
+      </button>
+    );
+
+  const copy = () => {
+    navigator.clipboard?.writeText(accountId).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1400);
+  };
+
+  return (
+    <div className="relative shrink-0">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu" className="material flex h-12 items-center gap-2 rounded-full pl-1.5 pr-3">
+        <Avatar account={accountId} size={36} />
+        <span className="hidden max-w-[150px] truncate text-[14px] font-semibold sm:block">{accountId}</span>
+        <span className="hidden rounded-full bg-fill px-2.5 py-1 text-[13px] font-semibold sm:block">
+          <NearAmount amount={balance === null ? "…" : balance.toFixed(2)} />
+        </span>
+        <Sym name="chevronDown" size={13} stroke={2.4} className={`text-muted transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <>
+            <button aria-label="Close menu" onClick={() => setOpen(false)} className="fixed inset-0 z-30 cursor-default" />
+            <motion.div
+              role="menu"
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 500, damping: 34 }}
+              className="absolute right-0 top-14 z-40 w-[260px] origin-top-right rounded-[22px] bg-surface p-2 shadow-[0_0_0_1px_var(--line),0_20px_50px_-12px_#00000040]"
+            >
+              <div className="flex items-center gap-3 p-2">
+                <Avatar account={accountId} size={40} />
+                <div className="min-w-0">
+                  <div className="truncate text-[15px] font-semibold">{accountId}</div>
+                  <div className="text-[13px] text-muted">
+                    <NearAmount amount={balance === null ? "…" : balance.toFixed(4)} />
+                  </div>
+                </div>
+              </div>
+              <div className="my-1 h-px bg-line-soft" />
+              <MenuItem icon={copied ? "check" : "copy"} onClick={copy}>
+                {copied ? "Copied" : "Copy address"}
+              </MenuItem>
+              <MenuItem icon="signOut" onClick={() => (setOpen(false), signOut())} danger>
+                Sign out
+              </MenuItem>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function MenuItem({ icon, onClick, danger, children }: { icon: IconName; onClick: () => void; danger?: boolean; children: ReactNode }) {
+  return (
+    <button role="menuitem" onClick={onClick} className={`flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-[15px] font-medium transition-colors hover:bg-fill ${danger ? "text-down" : ""}`}>
+      <Sym name={icon} size={17} weight="bold" />
+      {children}
+    </button>
+  );
+}
+
+/** Shown on personal pages while signed out. */
+export function ConnectPrompt({ title = "Connect your wallet", sub, className = "card" }: { title?: string; sub: string; className?: string }) {
+  const { ready, signIn } = useNear();
+  return (
+    <div className={`flex flex-col items-center gap-3 px-6 py-12 text-center ${className}`}>
+      <Icon3D name="wallet" size={72} />
+      <h2 className="title-chunky text-[26px]">{title}</h2>
+      <p className="max-w-[340px] text-[15px] text-muted">{sub}</p>
+      <button onClick={signIn} disabled={!ready} className="btn-ink mt-2 h-12 px-6 text-[15px] disabled:opacity-60">
+        {ready ? "Connect wallet" : "Loading wallets…"}
+      </button>
     </div>
   );
 }

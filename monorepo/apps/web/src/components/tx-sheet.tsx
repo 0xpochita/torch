@@ -5,9 +5,11 @@ import Link from "next/link";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Artwork } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
+import { ConnectPrompt } from "@/components/navbar";
 import HoldButton from "@/components/react-bits/HoldButton";
 import { ActionCircle, Avatar, Money, NearAmount, Segmented, TokenIcon } from "@/components/ui";
-import { ETFS, LISTINGS, ME, MY_VAULTS, NEAR_USD, TOKENS, getEtf, type Etf } from "@/lib/mock";
+import { useAccount } from "@/providers/near-provider";
+import { ETFS, LISTINGS, MY_VAULTS, NEAR_USD, TOKENS, getEtf, type Etf } from "@/lib/mock";
 
 /* One sheet for every vault transaction: review → wallet signature → done. */
 
@@ -73,6 +75,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
   const [expiry, setExpiry] = useState<"1 day" | "3 days" | "7 days">("3 days");
   const [amount, setAmount] = useState(tx.kind === "withdraw" ? Math.round(value * 0.25) : 100);
   const [to, setTo] = useState("");
+  const account = useAccount();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && phase !== "pending" && onClose();
@@ -86,7 +89,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
     setTimeout(() => setPhase("done"), 1600);
   };
 
-  const validTo = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|tg)$/.test(to) && to !== ME;
+  const validTo = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|tg|testnet)$/.test(to) && to !== account;
   const canSubmit =
     tx.kind === "offer" ? offer > 0 : tx.kind === "deposit" ? amount > 0 : tx.kind === "withdraw" ? amount > 0 && amount <= value : tx.kind === "transfer" ? validTo : true;
 
@@ -104,7 +107,11 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
         className="relative flex max-h-[92dvh] w-full max-w-[440px] flex-col overflow-y-auto rounded-[30px] bg-surface p-5 shadow-[0_30px_80px_-20px_#00000080]"
       >
         <AnimatePresence mode="wait" initial={false}>
-          {phase === "done" ? (
+          {!account ? (
+            <motion.div key="connect" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <ConnectPrompt className="" sub={`Connect a NEAR wallet to ${m.title.toLowerCase()}. Nothing is signed until you confirm.`} />
+            </motion.div>
+          ) : phase === "done" ? (
             <Done key="done" kind={tx.kind} etf={etf} name={name} onClose={onClose} detail={doneDetail()} />
           ) : (
             <motion.div key="review" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col gap-4">
@@ -255,7 +262,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
                       {validTo ? <Avatar account={to} size={24} /> : <Sym name="person" size={18} className="text-muted" />}
                       <input value={to} onChange={(e) => setTo(e.target.value.trim().toLowerCase())} placeholder="account.near" className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted" autoFocus />
                     </span>
-                    {to && !validTo && <span className="text-[12px] text-down">{to === ME ? "That is your own account." : "Enter a NEAR account like alice.near"}</span>}
+                    {to && !validTo && <span className="text-[12px] text-down">{to === account ? "That is your own account." : "Enter a NEAR account like alice.near"}</span>}
                   </label>
                   <Note tone="warn">The vault and every token inside go with the NFT. You lose all access the moment it lands.</Note>
                 </>
@@ -321,7 +328,7 @@ function Sheet({ tx, onClose }: { tx: Tx; onClose: () => void }) {
     if (tx.kind === "buy") return <>Paid <NearAmount amount={(price * (1 + MARKET_FEE)).toFixed(1)} /> · {name} is in My Vaults.</>;
     if (tx.kind === "offer") return <>Offered <NearAmount amount={offer} /> · expires in {expiry}.</>;
     if (tx.kind === "deposit") return <>${amount} USDC swapped into {etf.allocation.length} tokens.</>;
-    if (tx.kind === "withdraw") return <>${amount} USDC sent to {ME}.</>;
+    if (tx.kind === "withdraw") return <>${amount} USDC sent to {account}.</>;
     if (tx.kind === "transfer") return <>{name} now belongs to {to}.</>;
     return <>Sold to {tx.offer?.from} for <NearAmount amount={tx.offer?.priceNear ?? 0} />.</>;
   }

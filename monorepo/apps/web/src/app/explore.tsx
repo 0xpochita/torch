@@ -10,7 +10,8 @@ import { Sym, type IconName } from "@/components/icons";
 import { HeroBackdrop } from "@/components/hero-backdrop";
 import { ToolbarChip, Topbar } from "@/components/navbar";
 import { ActionCircle, Avatar, Money, NearAmount, StatTile, Title, TokenStack } from "@/components/ui";
-import { CATEGORIES, ETFS, ME, type Category, type Etf } from "@/lib/mock";
+import { CATEGORIES, ETFS, type Category, type Etf } from "@/lib/mock";
+import { useAccount } from "@/providers/near-provider";
 
 const TABS = ["All", ...CATEGORIES] as const;
 const LISTS = [
@@ -274,15 +275,18 @@ export function Explore() {
 function Hero() {
   const fan = [ETFS[2], ETFS[0], ETFS[4], ETFS[3], ETFS[5]];
   const [hover, setHover] = useState<number | null>(null);
+  const account = useAccount();
   return (
     <section className="card relative isolate flex flex-col items-center gap-5 overflow-hidden px-5 pb-6 pt-7 text-center">
       <div className="absolute inset-0 -z-10">
         <HeroBackdrop />
       </div>
       <Title size="text-[56px]">Explore</Title>
-      <span className="-mt-2 flex items-center gap-1 rounded-full bg-fill px-3 py-1 font-mono text-[13px] text-muted">
-        {ME} <Sym name="chevronDown" size={13} stroke={2.4} />
-      </span>
+      {account && (
+        <span className="-mt-2 flex items-center gap-1 rounded-full bg-fill px-3 py-1 font-mono text-[13px] text-muted">
+          {account} <Sym name="chevronDown" size={13} stroke={2.4} />
+        </span>
+      )}
 
       <div className="relative h-[262px] w-full max-w-[620px] [perspective:1000px]" onMouseLeave={() => setHover(null)}>
         {fan.map((e, i) => (

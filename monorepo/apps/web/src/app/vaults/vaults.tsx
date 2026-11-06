@@ -7,12 +7,13 @@ import { useState, type ReactNode } from "react";
 import { BasketArt } from "@/components/basket-art";
 import { ActivityRow, AllocationBar, Artwork, Change, tint } from "@/components/etf-card";
 import { Sym, type IconName } from "@/components/icons";
-import { Topbar } from "@/components/navbar";
+import { ConnectPrompt, Topbar } from "@/components/navbar";
 import GlareHover from "@/components/react-bits/GlareHover";
 import GlideSelect from "@/components/react-bits/GlideSelect";
 import { useTx } from "@/components/tx-sheet";
+import { useAccount } from "@/providers/near-provider";
 import { Avatar, Money, NearAmount, TokenIcon, TokenStack } from "@/components/ui";
-import { ALL_ACTIVITY, ETFS, ME, MY_VAULTS, NEAR_USD, TOKENS, offersFor, type Etf, type TokenKey } from "@/lib/mock";
+import { ALL_ACTIVITY, ETFS, MY_VAULTS, NEAR_USD, TOKENS, offersFor, type Etf, type TokenKey } from "@/lib/mock";
 
 const TABS = ["Holdings", "Created", "Listed", "Offers", "Activity"] as const;
 type Tab = (typeof TABS)[number];
@@ -48,6 +49,7 @@ export function Vaults() {
   const [grid, setGrid] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [copied, setCopied] = useState(false);
+  const account = useAccount();
 
   const source = tab === "Created" ? created : tab === "Listed" ? owned.filter((e) => e.listed) : owned;
   const vaults = source
@@ -57,8 +59,16 @@ export function Vaults() {
   const showVaults = tab !== "Holdings" || kind !== "Tokens";
   const showTokens = tab === "Holdings" && kind !== "Vaults";
 
+  if (!account)
+    return (
+      <>
+        <Topbar />
+        <ConnectPrompt className="card mt-4" sub="Your vaults, the tokens inside them, listings and offers show up here once you connect." />
+      </>
+    );
+
   const copy = () => {
-    navigator.clipboard?.writeText(ME).catch(() => {});
+    navigator.clipboard?.writeText(account).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
   };
@@ -77,12 +87,12 @@ export function Vaults() {
         {/* profile column */}
         <aside className="relative flex flex-col gap-5 lg:sticky lg:top-20 lg:self-start">
           <div className="-mt-16 w-fit rounded-full ring-[6px] ring-bg">
-            <Avatar account={ME} size={112} />
+            <Avatar account={account} size={112} />
           </div>
           <div>
-            <h1 className="title-chunky text-[30px]">{ME.replace(".near", "")}</h1>
+            <h1 className="title-chunky text-[30px]">{account.replace(/\.(near|testnet)$/, "")}</h1>
             <button onClick={copy} className="mt-0.5 flex items-center gap-1.5 font-mono text-[13px] text-muted hover:text-text">
-              {ME}
+              {account}
               <Sym name={copied ? "check" : "copy"} size={13} weight="bold" />
             </button>
             <p className="mt-2 text-[14px] text-muted">

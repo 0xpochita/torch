@@ -10,6 +10,7 @@ import { Icon3D, Sym } from "@/components/icons";
 import { Topbar } from "@/components/navbar";
 import { Donut, Money, Title, TokenIcon } from "@/components/ui";
 import { ETFS, TOKENS, type Allocation, type TokenKey } from "@/lib/mock";
+import { useAccount } from "@/providers/near-provider";
 
 const STEPS = ["Theme", "Basket", "Weights", "Deposit", "Review"] as const;
 const SUGGESTIONS = [
@@ -469,6 +470,7 @@ const BURST = Array.from({ length: 22 }, (_, i) => {
 });
 
 function Minted({ name, deposit, bg, allocation, onReset }: { name: string; deposit: number; bg: string; allocation: Allocation[]; onReset: () => void }) {
+  const account = useAccount();
   const rise = (delay: number) => ({ initial: { y: 16, opacity: 0 }, animate: { y: 0, opacity: 1 }, transition: { delay, type: "spring" as const, stiffness: 260, damping: 24 } });
   return (
     <section className="relative -mx-3 mt-3 flex min-h-[calc(100dvh-24px)] flex-1 flex-col overflow-hidden rounded-[28px] bg-[#0b0806] md:-mx-0">
@@ -519,7 +521,7 @@ function Minted({ name, deposit, bg, allocation, onReset }: { name: string; depo
               </div>
               <div className="px-2 pb-1.5 pt-3">
                 <div className="truncate text-[17px] font-semibold text-white">{name}</div>
-                <div className="font-mono text-[11px] text-white/45">by bob.near</div>
+                <div className="font-mono text-[11px] text-white/45">by {account ?? "you"}</div>
                 <div className="mt-3 grid grid-cols-3 gap-1.5">
                   {[
                     ["Value", <Money key="v" value={deposit} />],

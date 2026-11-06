@@ -104,8 +104,6 @@ export const ETFS: Etf[] = [
 
 export const getEtf = (id: string) => ETFS.find((e) => e.id === id);
 
-/** The mock connected wallet. */
-export const ME = "bob.near";
 /** Vaults the mock wallet holds (owner) plus ones it created. */
 export const MY_VAULTS = { owned: ["0", "2", "5"], created: ["0"] } as const;
 
