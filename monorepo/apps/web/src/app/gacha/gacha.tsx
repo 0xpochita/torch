@@ -20,8 +20,11 @@ import { RARITY, TOKENS, type Allocation, type Rarity } from "@/lib/tokens";
 import * as near from "@/lib/near-tx";
 import { useNear } from "@/providers/near-provider";
 
-/** `fundFailed`: the vault was minted but some basket items never reached it (`gacha_fund_failed`). */
-type Pull = { id: string; rarity: Rarity; name: string; bg: string; allocation: Allocation[]; valueUsd: number; fundFailed: boolean };
+/**
+ * `fundFailed`: the vault was minted but some basket items never reached it (`gacha_fund_failed`), or a
+ * transfer's outcome could not be read (`gacha_fund_unknown`, also sets `fundUnknown`; the owner reconciles it).
+ */
+type Pull = { id: string; rarity: Rarity; name: string; bg: string; allocation: Allocation[]; valueUsd: number; fundFailed: boolean; fundUnknown: boolean };
 type Item = { token: string; amount: string };
 type Basket = { name: string; category: string; bg: string; items: Item[] };
 type Config = { price_per_pull: string; pity: number; tiers: { rarity: string; weight_bps: number; baskets: Basket[] }[] };
@@ -54,7 +57,9 @@ async function readPulls(outs: near.Outcome[], account: string, config: Config |
   if (!near.events(src, "gacha_pull", { from: GACHA }).length) src = [await near.txWithReceipts(outs[0].transaction.hash, account)];
   const evs = near.events(src, "gacha_pull", { from: GACHA });
   // gacha_pull follows funding; any item that did not land is reported first as gacha_fund_failed
-  const failed = new Set(near.events(src, "gacha_fund_failed", { from: GACHA }).filter((e) => e.player_id === account).map((e) => String(e.token_id)));
+  const tokensOf = (event: string) => new Set(near.events(src, event, { from: GACHA }).filter((e) => e.player_id === account).map((e) => String(e.token_id)));
+  const failed = tokensOf("gacha_fund_failed");
+  const unknown = tokensOf("gacha_fund_unknown");
   return Promise.all(
     evs
       .filter((e) => e.player_id === account)
@@ -72,7 +77,7 @@ async function readPulls(outs: near.Outcome[], account: string, config: Config |
           const ft = ftById(b.token);
           return ft ? [{ token: ft.key, weight: b.weight }] : [];
         });
-        return { id, rarity, name, bg: extra.bg ?? basket?.bg ?? "#e5c8ff", allocation: allocation.length ? allocation : equalWeights(basket?.items.map((i) => i.token) ?? []), valueUsd: basket ? usdOf(basket.items) : 0, fundFailed: failed.has(id) };
+        return { id, rarity, name, bg: extra.bg ?? basket?.bg ?? "#e5c8ff", allocation: allocation.length ? allocation : equalWeights(basket?.items.map((i) => i.token) ?? []), valueUsd: basket ? usdOf(basket.items) : 0, fundFailed: failed.has(id) || unknown.has(id), fundUnknown: unknown.has(id) };
       }),
   );
 }
@@ -462,10 +467,16 @@ function Reveal({ pulls, hash, onClaim, onAgain }: { pulls: Pull[]; hash: string
           </span>
         </motion.div>
 
-        {pulls.some((p) => p.fundFailed) && (
+        {pulls.some((p) => p.fundFailed && !p.fundUnknown) && (
           <p role="alert" className="max-w-[520px] rounded-[16px] bg-[#ff5a3c]/15 px-4 py-3 text-center text-[13px] text-[#ffb3a3]">
-            <b className="font-semibold text-white">Vault minted, funding failed</b> for {pulls.filter((p) => p.fundFailed).map((p) => `#${p.id}`).join(", ")}. The basket tokens went back to the
+            <b className="font-semibold text-white">Vault minted, funding failed</b> for {pulls.filter((p) => p.fundFailed && !p.fundUnknown).map((p) => `#${p.id}`).join(", ")}. The basket tokens went back to the
             treasury, so the vault holds less than its tier. Contact support with the transaction link below.
+          </p>
+        )}
+        {pulls.some((p) => p.fundUnknown) && (
+          <p role="alert" className="max-w-[520px] rounded-[16px] bg-[#ffb020]/15 px-4 py-3 text-center text-[13px] text-[#ffd98a]">
+            <b className="font-semibold text-white">Vault minted, funding status unknown</b> for {pulls.filter((p) => p.fundUnknown).map((p) => `#${p.id}`).join(", ")}. A basket transfer could not be
+            confirmed and is being reconciled; the vault may hold less than its tier until then. Keep the transaction link below.
           </p>
         )}
 
@@ -533,8 +544,8 @@ function Card({ p, big = false, delay = 0.1 }: { p: Pull; big?: boolean; delay?:
             <BasketArt allocation={p.allocation} />
             <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#ff5a0055] to-transparent" />
             {p.fundFailed && (
-              <span className={`absolute inset-x-2 bottom-2 rounded-full bg-[#c0261b]/90 text-center font-bold uppercase tracking-[0.1em] text-white ${big ? "py-1 text-[11px]" : "py-0.5 text-[7px]"}`}>
-                Funding failed
+              <span className={`absolute inset-x-2 bottom-2 rounded-full text-center font-bold uppercase tracking-[0.1em] text-white ${p.fundUnknown ? "bg-[#b26a00]/90" : "bg-[#c0261b]/90"} ${big ? "py-1 text-[11px]" : "py-0.5 text-[7px]"}`}>
+                {p.fundUnknown ? "Funding unknown" : "Funding failed"}
               </span>
             )}
             <span
