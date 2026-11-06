@@ -7,12 +7,12 @@
     "start": "tsx --env-file-if-exists=../../.env src/index.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^1",
+    "@hono/node-server": "^2",
     "hono": "^4"
   },
   "devDependencies": {
-    "@types/node": "^22",
+    "@types/node": "^26",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^7"
   }
 }
