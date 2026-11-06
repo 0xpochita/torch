@@ -250,16 +250,16 @@ export function view<T>(contractId: string, method: string, args: Record<string,
   return rpc.callFunction({ contractId, method, args, blockQuery: { finality: "final" } }) as Promise<T>;
 }
 
-/** `ft_balance_of` for every token in one go (raw base units; "0" when unregistered or unreadable). */
-export function useFtBalances(accountId: string | null, ftIds: string[], nonce = 0) {
-  const key = accountId ? JSON.stringify([accountId, ftIds, nonce]) : null;
-  const [state, setState] = useState<{ key: string; data: Record<string, string> } | null>(null);
+/** The same view on many contracts at once, keyed by contract id (failed reads are left out). */
+export function useEach<T>(contractIds: string[] | null, method: string, args: Record<string, unknown> = {}, nonce = 0) {
+  const key = contractIds ? JSON.stringify([contractIds, method, args, nonce]) : null;
+  const [state, setState] = useState<{ key: string; data: Record<string, T> } | null>(null);
   useEffect(() => {
     if (!key) return;
-    const [account, ids] = JSON.parse(key) as [string, string[]];
+    const [ids, m, a] = JSON.parse(key) as [string[], string, Record<string, unknown>];
     let live = true;
-    Promise.all(ids.map((id) => view<string>(id, "ft_balance_of", { account_id: account }).catch(() => "0"))).then(
-      (bals) => live && setState({ key, data: Object.fromEntries(ids.map((id, i) => [id, bals[i] ?? "0"])) }),
+    Promise.all(ids.map((id) => view<T>(id, m, a).then((v) => [id, v] as const, () => null))).then(
+      (rows) => live && setState({ key, data: Object.fromEntries(rows.filter((r) => r !== null)) }),
     );
     return () => {
       live = false;
@@ -267,6 +267,9 @@ export function useFtBalances(accountId: string | null, ftIds: string[], nonce =
   }, [key]);
   return state?.key === key ? state.data : null;
 }
+
+/** `ft_balance_of` (raw base units) for every token; missing when unreadable. */
+export const useFtBalances = (accountId: string | null, ftIds: string[], nonce = 0) => useEach<string>(accountId ? ftIds : null, "ft_balance_of", { account_id: accountId }, nonce);
 
 /**
  * Re-reads a tx with every receipt (wait for FINAL). Wallets that return early can miss logs from
