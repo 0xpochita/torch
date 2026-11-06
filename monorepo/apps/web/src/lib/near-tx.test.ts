@@ -121,3 +121,12 @@ test("events reads torch NEP-297 logs from every receipt", () => {
 test("explorer link points at testnet nearblocks", () => {
   assert.equal(tx.explorerTx("abc"), "https://testnet.nearblocks.io/txns/abc");
 });
+
+test("token list: wNEAR + the 14 mock FTs with INTERFACES decimals", async () => {
+  const { FTS, ftByKey } = await import("./contracts");
+  assert.equal(FTS.length, 15);
+  assert.deepEqual(ftByKey("NEAR"), { key: "NEAR", id: WNEAR, decimals: 24 });
+  assert.deepEqual(ftByKey("USDC"), { key: "USDC", id: "tusdc.torchvault.testnet", decimals: 6 });
+  assert.equal(ftByKey("BTC").decimals, 8);
+  assert.deepEqual(ftByKey("DRAGON"), { key: "DRAGON", id: "tdragon.torchvault.testnet", decimals: 18 });
+});

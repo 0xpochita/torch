@@ -1,41 +1,40 @@
 // On-chain ids for the testnet deploy (contracts/INTERFACES.md). Everything is overridable with
 // NEXT_PUBLIC_* env vars; the defaults are the agreed testnet accounts.
-import type { TokenKey } from "@/lib/mock";
+import { TOKENS as TOKEN_KEYS, type TokenKey } from "@/lib/mock";
 
 export const NETWORK = (process.env.NEXT_PUBLIC_NEAR_NETWORK ?? "testnet") as "mainnet" | "testnet";
 export const RPC = process.env.NEXT_PUBLIC_NEAR_RPC || (NETWORK === "mainnet" ? "https://free.rpc.fastnear.com" : "https://test.rpc.fastnear.com");
 
-const ROOT = process.env.NEXT_PUBLIC_TORCH_ROOT || "torchvault.testnet";
-export const COLLECTION = process.env.NEXT_PUBLIC_COLLECTION_ID || `nft.${ROOT}`;
-export const MARKET = process.env.NEXT_PUBLIC_MARKET_ID || `market.${ROOT}`;
-export const GACHA = process.env.NEXT_PUBLIC_GACHA_ID || `gacha.${ROOT}`;
-export const WNEAR = process.env.NEXT_PUBLIC_WNEAR_ID || (NETWORK === "mainnet" ? "wrap.near" : "wrap.testnet");
+export const COLLECTION = process.env.NEXT_PUBLIC_COLLECTION_ID || "nft.torchvault.testnet";
+export const MARKET = process.env.NEXT_PUBLIC_MARKET_ID || "market.torchvault.testnet";
+export const GACHA = process.env.NEXT_PUBLIC_GACHA_ID || "gacha.torchvault.testnet";
+export const WNEAR = NETWORK === "mainnet" ? "wrap.near" : "wrap.testnet";
 
 /** `<token_id>.<collection>`: the vault account behind an NFT. */
 export const vaultOf = (tokenId: string) => `${tokenId}.${COLLECTION}`;
 
 export type Ft = { key: TokenKey; id: string; decimals: number };
 
-// Mock NEP-141s: tusdc/tusdt 6 decimals, tbtc 8, the rest 18. NEAR in a basket is wNEAR (24).
-const mock = (key: TokenKey, name: string, decimals = 18): Ft => ({ key, id: `${name}.${ROOT}`, decimals });
+const MOCK_IDS = (
+  process.env.NEXT_PUBLIC_FT_IDS ||
+  "tusdc,tusdt,tbtc,teth,thot,trhea,tlinear,tstnear,tzec,taurora,tnpro,tdragon,tshitzu,tsweat"
+    .split(",")
+    .map((t) => `${t}.torchvault.testnet`)
+    .join(",")
+)
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
 
-export const FTS: Ft[] = [
-  { key: "NEAR", id: WNEAR, decimals: 24 },
-  mock("USDC", "tusdc", 6),
-  mock("USDT", "tusdt", 6),
-  mock("BTC", "tbtc", 8),
-  mock("ETH", "teth"),
-  mock("HOT", "thot"),
-  mock("RHEA", "trhea"),
-  mock("LINEAR", "tlinear"),
-  mock("STNEAR", "tstnear"),
-  mock("ZEC", "tzec"),
-  mock("AURORA", "taurora"),
-  mock("NPRO", "tnpro"),
-  mock("DRAGON", "tdragon"),
-  mock("SHITZU", "tshitzu"),
-  mock("SWEAT", "tsweat"),
-];
+/** "tusdc.torchvault.testnet" → USDC. Mock decimals: tusdc/tusdt 6, tbtc 8, everything else 18. */
+function mockFt(id: string): Ft | null {
+  const key = id.split(".")[0].replace(/^t/, "").toUpperCase();
+  if (!(key in TOKEN_KEYS)) return null;
+  return { key: key as TokenKey, id, decimals: key === "USDC" || key === "USDT" ? 6 : key === "BTC" ? 8 : 18 };
+}
+
+// NEAR in a basket is wNEAR (24 decimals); the rest are the mock NEP-141s.
+export const FTS: Ft[] = [{ key: "NEAR", id: WNEAR, decimals: 24 }, ...MOCK_IDS.map(mockFt).filter((f): f is Ft => !!f)];
 
 export const ftByKey = (key: TokenKey) => FTS.find((f) => f.key === key)!;
 export const ftById = (id: string) => FTS.find((f) => f.id === id);
