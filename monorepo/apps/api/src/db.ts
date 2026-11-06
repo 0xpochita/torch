@@ -61,7 +61,9 @@ CREATE TABLE IF NOT EXISTS pulls (
   rarity TEXT NOT NULL,
   pity_after INTEGER NOT NULL,
   price TEXT NOT NULL,
-  ts INTEGER NOT NULL
+  ts INTEGER NOT NULL,
+  -- 0 when the gacha logged gacha_fund_failed: vault minted, some basket items returned to the treasury
+  funded INTEGER NOT NULL DEFAULT 1
 );
 -- USD price per token key (prices.ts); one snapshot writes every key with the same at.
 CREATE TABLE IF NOT EXISTS price_snapshots (
@@ -86,6 +88,9 @@ export function openDb(path: string): Db {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec("PRAGMA journal_mode = WAL;" + SCHEMA);
+  // Databases created before gacha_fund_failed existed.
+  if (!all<{ name: string }>(db, "PRAGMA table_info(pulls)").some((c) => c.name === "funded"))
+    db.exec("ALTER TABLE pulls ADD COLUMN funded INTEGER NOT NULL DEFAULT 1");
   return db;
 }
 

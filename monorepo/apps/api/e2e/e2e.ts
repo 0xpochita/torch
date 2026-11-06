@@ -18,7 +18,7 @@ import { createApp } from "../src/app.ts";
 import { config } from "../src/config.ts";
 import { getCursor, openDb } from "../src/db.ts";
 import { indexOnce, nearChain } from "../src/indexer.ts";
-import { staticPrices } from "../src/prices.ts";
+import { allowFts, staticPrices } from "../src/prices.ts";
 import type { ActivityItem, GachaPull, LeaderboardRow, MarketListing, Stats, VaultDetail, VaultSummary } from "../src/types.ts";
 
 const CONTRACTS = resolve(import.meta.dirname, "../../../contracts");
@@ -174,10 +174,25 @@ async function run(rootKey: KeyPairString, code: Record<string, Uint8Array>) {
   const pity = await view<number>(GACHA, "get_pity", { account_id: bob.accountId });
   log(`6. bob pulled once (pity now ${pity})`);
 
+  // 7. xcheck X-1: a look-alike "tusdc" account calls the vault's ft_on_transfer directly. The vault logs
+  // vault_deposit with ft_id = caller; the indexer must ignore it (not allow-listed), so NAV is unchanged.
+  const FAKE = `tusdc.${carol.accountId}`;
+  await carol.signAndSendTransaction({ receiverId: FAKE, actions: [actions.createAccount(), actions.transfer(nearToYocto(1)), actions.addFullAccessKey(pub)] });
+  await call(new Account(FAKE, provider, signer), vault0, "ft_on_transfer", { sender_id: FAKE, amount: "1000000000000000", msg: "" }, "0", 30);
+  log(`7. ${FAKE} logged a fake vault_deposit on ${vault0}`);
+
+  // 8. xcheck X-5: carol lists at 3 NEAR, then nft_transfer_call to alice (no contract), which reverts:
+  // the token comes back with its approvals, so the listing must stay.
+  await call(carol, NFT, "nft_approve", { token_id: "0", account_id: MARKET, msg: JSON.stringify({ list: { price: NEAR(3) } }) }, NEAR(0.01), 100);
+  await call(carol, NFT, "nft_transfer_call", { receiver_id: alice.accountId, token_id: "0", msg: "" }, "1", 100);
+  assert.equal((await view<{ owner_id: string }>(NFT, "nft_token", { token_id: "0" })).owner_id, carol.accountId, "transfer_call reverted");
+  log("8. carol listed at 3 NEAR, nft_transfer_call to alice reverted");
+
   /* ---------- index from startHeight over RPC only ---------- */
 
   const tip = (await provider.viewBlock({ finality: "final" })).header.height;
   const cfg = { ...config, collectionId: NFT, marketId: MARKET, gachaId: GACHA, ftIds: [USDC, ETH, id("tbtc")], rpcUrl: RPC, neardataUrl: "", startHeight };
+  allowFts(cfg.ftIds);
   const db = openDb(":memory:");
   const chain = nearChain(cfg);
   const t0 = Date.now();
@@ -205,7 +220,7 @@ async function run(rootKey: KeyPairString, code: Record<string, Uint8Array>) {
   assert.ok(v0, "vault 0 indexed");
   assert.deepEqual(
     { owner: v0.ownerId, creator: v0.creator, title: v0.title, category: v0.category, rarity: v0.rarity, listing: v0.listing, vaultId: v0.vaultId },
-    { owner: carol.accountId, creator: alice.accountId, title: "E2E Blue", category: "Blue Chip", rarity: null, listing: null, vaultId: vault0 },
+    { owner: carol.accountId, creator: alice.accountId, title: "E2E Blue", category: "Blue Chip", rarity: null, listing: { tokenId: "0", sellerId: carol.accountId, price: NEAR(3), listedAt: v0.listing?.listedAt }, vaultId: vault0 },
   );
   assert.deepEqual(v0.basket, extra.basket);
   assert.equal(Math.round(v0.navUsd * 100) / 100, 500 + 0.1 * 3420, "500 USDC + 0.1 ETH");
@@ -218,17 +233,18 @@ async function run(rootKey: KeyPairString, code: Record<string, Uint8Array>) {
   }
 
   const d = await get<VaultDetail>("/vaults/0");
-  assert.deepEqual(d.holders.map((h) => h.accountId), [alice.accountId, bob.accountId, carol.accountId]);
+  // The reverted transfer_call shows up as alice holding it for one hop, then carol again.
+  assert.deepEqual(d.holders.map((h) => h.accountId), [alice.accountId, bob.accountId, carol.accountId, alice.accountId, carol.accountId]);
   assert.deepEqual(d.balances.map((b) => [b.ftId, b.amount]), [[ETH, "100000000000000000"], [USDC, "500000000"]]);
   assert.deepEqual(d.sales.map((s) => [s.sellerId, s.buyerId, s.price]), [[bob.accountId, carol.accountId, NEAR(1.5)], [alice.accountId, bob.accountId, NEAR(2)]]);
   assert.deepEqual(d.offers, []);
   assert.deepEqual(d.navHistory.map((p) => Math.round(p.navUsd)), [0, 600, 942, 842, 842]);
 
-  assert.deepEqual(await get<MarketListing[]>("/market/listings"), []);
+  assert.deepEqual((await get<MarketListing[]>("/market/listings")).map((l) => [l.tokenId, l.sellerId, l.price]), [["0", carol.accountId, NEAR(3)]], "X-5: listing survives the reverted transfer_call");
 
   const act = await get<ActivityItem[]>("/activity?token=0");
   const count = (xs: ActivityItem[]) => xs.reduce<Record<string, number>>((m, a) => ((m[a.event] = (m[a.event] ?? 0) + 1), m), {});
-  assert.deepEqual(count(act), { vault_created: 1, nft_mint: 1, vault_deposit: 2, vault_withdraw: 1, list: 1, sale: 1, nft_transfer: 2, offer: 1, offer_accept: 1 });
+  assert.deepEqual(count(act), { vault_created: 1, nft_mint: 1, vault_deposit: 2, vault_withdraw: 1, list: 2, sale: 1, nft_transfer: 4, offer: 1, offer_accept: 1 });
   assert.ok(act.every((a, i) => i === 0 || act[i - 1].at >= a.at), "newest first");
   assert.ok(act.every((a) => a.txHash), "every event carries its tx hash");
   const offerEv = act.find((a) => a.event === "offer")!.data;
@@ -247,7 +263,7 @@ async function run(rootKey: KeyPairString, code: Record<string, Uint8Array>) {
   const stats = await get<Stats>("/stats");
   assert.deepEqual(
     { vaults: stats.vaults, listings: stats.listings, offers: stats.offers, sales: stats.sales, volume: stats.volume, pulls: stats.pulls, holders: stats.holders },
-    { vaults: tokenOne ? 2 : 1, listings: 0, offers: 0, sales: 2, volume: NEAR(3.5), pulls: gachaWorks ? 1 : 0, holders: tokenOne ? 2 : 1 },
+    { vaults: tokenOne ? 2 : 1, listings: 1, offers: 0, sales: 2, volume: NEAR(3.5), pulls: gachaWorks ? 1 : 0, holders: tokenOne ? 2 : 1 },
   );
   assert.equal(stats.lastHeight, getCursor(db));
 
