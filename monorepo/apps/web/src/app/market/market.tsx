@@ -15,49 +15,64 @@ import GlideSelect from "@/components/react-bits/GlideSelect";
 import PulseHeart from "@/components/react-bits/PulseHeart";
 import SquishSwitch from "@/components/react-bits/SquishSwitch";
 import { Avatar, CountUpNumber, Money, NearAmount, Segmented, StatTile, TokenStack } from "@/components/ui";
-import { CATEGORIES, ETFS, LISTINGS, NEAR_USD, type Category, type Listing } from "@/lib/mock";
+import { EmptyState, ErrorState, Skeleton } from "@/components/load-state";
+import { toListing, useApi, type MarketItem, type MarketListing, type Stats } from "@/lib/api";
+import { CATEGORIES, type Category } from "@/lib/mock";
 
-const STATUS = ["All", "buy", "offer", "new"] as const;
-const STATUS_LABEL: Record<(typeof STATUS)[number], string> = { All: "All", buy: "Buy now", offer: "Has offers", new: "New" };
-const STATUS_ICON = { All: "store", buy: "tag", offer: "swap", new: "sparkle" } as const;
-const SORTS = { low: "Price: low to high", high: "Price: high to low", value: "Best vs value", liked: "Most liked", recent: "Recently listed" } as const;
+type Listing = MarketItem & { vs: number };
+
+// Every listing is buy-now on chain; offers live in the order book.
+const STATUS = ["All", "buy", "new"] as const;
+const STATUS_LABEL: Record<(typeof STATUS)[number], string> = { All: "All", buy: "Buy now", new: "New" };
+const STATUS_ICON = { All: "store", buy: "tag", new: "sparkle" } as const;
+const SORTS = { low: "Price: low to high", high: "Price: high to low", value: "Best vs value", recent: "Recently listed" } as const;
 type Sort = keyof typeof SORTS;
 const LAYOUTS = ["Grid", "List"] as const;
+const BUCKETS = 14;
 
 /** Price relative to what the basket inside is worth: negative = buying below value. */
-const vsValue = (l: Listing) => ((l.priceNear * NEAR_USD) / l.navUsd - 1) * 100;
-const TEMPLATE = Object.fromEntries(CATEGORIES.map((c) => [c, ETFS.find((e) => e.category === c)!])) as Record<Category, (typeof ETFS)[number]>;
-const MAX_PRICE = Math.max(...LISTINGS.map((l) => l.priceNear));
-const BUCKETS = 14;
-const POPULAR = [...LISTINGS].sort((a, b) => b.likes - a.likes)[0];
-const BEST = [...LISTINGS].filter((l) => l.status === "buy" && l.id !== POPULAR.id).sort((a, b) => vsValue(a) - vsValue(b))[0];
-const HIST = Array.from({ length: BUCKETS }, (_, b) => LISTINGS.filter((l) => Math.min(BUCKETS - 1, Math.floor((l.priceNear / MAX_PRICE) * BUCKETS)) === b).length);
+const vsValue = (l: Listing) => l.vs;
 
 export function Market() {
+  const listingsQ = useApi<MarketListing[]>("/market/listings");
+  const statsQ = useApi<Stats>("/stats");
   const [status, setStatus] = useState<(typeof STATUS)[number]>("All");
   const [cats, setCats] = useState<Category[]>([]);
-  const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
+  const [cap, setCap] = useState<number | null>(null);
   const [underValue, setUnderValue] = useState(false);
   const [sort, setSort] = useState<Sort>("low");
   const [layout, setLayout] = useState<(typeof LAYOUTS)[number]>("Grid");
   const [book, setBook] = useState<"popular" | "best">("popular");
-  const bookListing = book === "popular" ? POPULAR : BEST;
+
+  const nearUsd = statsQ.data?.nearUsd ?? 0;
+  const listings: Listing[] = (listingsQ.data ?? []).map((m) => {
+    const l = toListing(m, listingsQ.at);
+    return { ...l, vs: l.navUsd ? ((l.priceNear * nearUsd) / l.navUsd - 1) * 100 : 0 };
+  });
+  const MAX_PRICE = Math.max(0, ...listings.map((l) => l.priceNear));
+  const maxPrice = cap ?? MAX_PRICE;
+  const TEMPLATE = Object.fromEntries(CATEGORIES.map((c) => [c, listings.find((l) => l.etf.category === c)?.etf])) as Record<Category, Listing["etf"] | undefined>;
+  // ponytail: no likes indexed yet; "popular" = biggest basket on sale
+  const POPULAR = [...listings].sort((a, b) => b.navUsd - a.navUsd)[0];
+  const BEST = [...listings].filter((l) => l.id !== POPULAR?.id).sort((a, b) => vsValue(a) - vsValue(b))[0];
+  const bookListing = (book === "best" && BEST) || POPULAR;
+  const HIST = Array.from({ length: BUCKETS }, (_, b) => listings.filter((l) => Math.min(BUCKETS - 1, Math.floor((l.priceNear / (MAX_PRICE || 1)) * BUCKETS)) === b).length);
 
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-  const reset = () => (setCats([]), setMaxPrice(MAX_PRICE), setUnderValue(false), setStatus("All"));
+  const reset = () => (setCats([]), setCap(null), setUnderValue(false), setStatus("All"));
 
-  const items = LISTINGS.filter(
+  const items = listings.filter(
     (l) =>
       (status === "All" || (status === "new" ? l.listedDaysAgo <= 3 : l.status === status)) &&
       (!cats.length || cats.includes(l.etf.category)) &&
       l.priceNear <= maxPrice &&
       (!underValue || vsValue(l) < 0),
-  ).sort((a, b) =>
-    sort === "low" ? a.priceNear - b.priceNear : sort === "high" ? b.priceNear - a.priceNear : sort === "value" ? vsValue(a) - vsValue(b) : sort === "liked" ? b.likes - a.likes : a.listedDaysAgo - b.listedDaysAgo,
-  );
+  ).sort((a, b) => (sort === "low" ? a.priceNear - b.priceNear : sort === "high" ? b.priceNear - a.priceNear : sort === "value" ? vsValue(a) - vsValue(b) : b.listedAt - a.listedAt));
 
-  const floor = Math.min(...LISTINGS.map((l) => l.priceNear));
-  const under = LISTINGS.filter((l) => vsValue(l) < 0).length;
+  const floor = listings.length ? Math.min(...listings.map((l) => l.priceNear)) : 0;
+  const under = listings.filter((l) => vsValue(l) < 0).length;
+  const error = listingsQ.error ?? statsQ.error;
+  const loading = listingsQ.loading || statsQ.loading;
 
   return (
     <>
@@ -67,7 +82,7 @@ export function Market() {
             key={s}
             active={status === s}
             onClick={() => setStatus(s)}
-            count={s === "All" ? LISTINGS.length : LISTINGS.filter((l) => (s === "new" ? l.listedDaysAgo <= 3 : l.status === s)).length}
+            count={s === "All" ? listings.length : listings.filter((l) => (s === "new" ? l.listedDaysAgo <= 3 : l.status === s)).length}
             icon={<Sym name={STATUS_ICON[s]} size={15} weight="bold" />}
           >
             {STATUS_LABEL[s]}
@@ -75,11 +90,34 @@ export function Market() {
         ))}
       </Topbar>
 
+      {error ? (
+        <ErrorState error={error} className="card mt-5" />
+      ) : loading ? (
+        <div className="flex flex-col gap-6 pt-5">
+          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[84px]" />
+            ))}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-[360px] !rounded-[28px]" />
+            ))}
+          </div>
+        </div>
+      ) : !listings.length ? (
+        <EmptyState title="Nothing for sale yet" body="No vault is listed on testnet yet. List one from My Vaults to open the market." className="card mt-5">
+          <Link href="/vaults" className="btn-ink mt-2 h-10 px-5 text-[14px] leading-10">
+            My Vaults
+          </Link>
+        </EmptyState>
+      ) : (
+      <>
       <div className="grid grid-cols-2 gap-2.5 pt-5 lg:grid-cols-4">
-        <StatTile icon="store" label="Listings" value={<CountUpNumber value={LISTINGS.length} />} />
+        <StatTile icon="store" label="Listings" value={<CountUpNumber value={listings.length} />} />
         <StatTile icon="tag" label="Floor" value={<NearAmount amount={floor} />} />
-        <StatTile icon="pulse" label="Below vault value" value={`${under} of ${LISTINGS.length}`} />
-        <StatTile icon="person" label="Sellers" value={new Set(LISTINGS.map((l) => l.seller)).size} />
+        <StatTile icon="pulse" label="Below vault value" value={`${under} of ${listings.length}`} />
+        <StatTile icon="person" label="Sellers" value={new Set(listings.map((l) => l.seller)).size} />
       </div>
 
       <div className="grid gap-6 pt-6 lg:grid-cols-[270px_minmax(0,1fr)]">
@@ -100,9 +138,9 @@ export function Market() {
                 return (
                   <button key={c} onClick={() => setCats((x) => toggle(x, c))} className="flex items-center gap-2.5 rounded-[12px] px-1 py-1.5 text-left text-[14px] hover:bg-fill">
                     <span className={`grid size-5 place-items-center rounded-[6px] border-2 transition ${on ? "border-text bg-text text-surface" : "border-line"}`}>{on && <Sym name="check" size={12} weight="bold" />}</span>
-                    <TokenStack allocation={TEMPLATE[c].allocation.slice(0, 2)} size={18} />
+                    <TokenStack allocation={TEMPLATE[c]?.allocation.slice(0, 2) ?? []} size={18} />
                     <span className="flex-1 truncate font-medium">{c}</span>
-                    <span className="text-[12px] text-muted">{LISTINGS.filter((l) => l.etf.category === c).length}</span>
+                    <span className="text-[12px] text-muted">{listings.filter((l) => l.etf.category === c).length}</span>
                   </button>
                 );
               })}
@@ -122,8 +160,8 @@ export function Market() {
                 value={maxPrice}
                 maxValue={MAX_PRICE}
                 isStepped
-                stepSize={10}
-                onChange={(v) => setMaxPrice(Math.max(floor, v))}
+                stepSize={Math.max(0.1, Math.round(MAX_PRICE / 5) / 10)}
+                onChange={(v) => setCap(Math.max(floor, v))}
                 valuePosition="none"
                 trackColor="var(--fill)"
                 rangeColor="var(--text)"
@@ -151,21 +189,29 @@ export function Market() {
 
         <main className="flex min-w-0 flex-col gap-3">
           <div className="grid gap-3 xl:grid-cols-2">
-            <Featured l={POPULAR} label="Most popular" stat={`${POPULAR.likes}`} sub="this week" active={book === "popular"} onSelect={() => setBook("popular")} />
-            <Featured l={BEST} label="Best profit" stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% off`} sub="below basket value" active={book === "best"} onSelect={() => setBook("best")} />
+            <Featured l={POPULAR} label="Most popular" stat={<Money value={POPULAR.navUsd} />} sub="biggest basket" active={bookListing === POPULAR} onSelect={() => setBook("popular")} />
+            {BEST && (
+              <Featured
+                l={BEST}
+                label="Best profit"
+                stat={`${Math.abs(vsValue(BEST)).toFixed(0)}% ${vsValue(BEST) < 0 ? "off" : "over"}`}
+                sub={vsValue(BEST) < 0 ? "below basket value" : "closest to basket value"}
+                active={bookListing === BEST}
+                onSelect={() => setBook("best")}
+              />
+            )}
           </div>
           <OrderBook
             etf={bookListing.etf}
-            ask={bookListing.priceNear}
             header={
               <div className="flex items-center gap-3 px-1">
                 <h2 className="text-[20px] font-bold">Order book</h2>
                 <div className="flex gap-1.5">
-                  {([["popular", "Most popular", POPULAR], ["best", "Best profit", BEST]] as const).map(([k, label, l]) => (
+                  {([["popular", "Most popular", POPULAR], ["best", "Best profit", BEST]] as const).filter(([, , l]) => l).map(([k, label, l]) => (
                     <button
                       key={k}
                       onClick={() => setBook(k)}
-                      className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${book === k ? "bg-text text-surface" : "bg-fill hover:bg-line"}`}
+                      className={`flex h-9 shrink-0 items-center gap-2 rounded-full pl-1 pr-3 text-[13px] font-semibold transition ${bookListing === l ? "bg-text text-surface" : "bg-fill hover:bg-line"}`}
                     >
                       <Artwork etf={l.etf} size={28} className="rounded-full" />
                       {label} · {l.etf.name}
@@ -227,12 +273,14 @@ export function Market() {
           )}
         </main>
       </div>
+      </>
+      )}
     </>
   );
 }
 
 /** Highlighted listing: full-bleed basket art with a glass info panel on top (NFT drop card style). */
-function Featured({ l, label, stat, sub, active, onSelect }: { l: Listing; label: string; stat: string; sub: string; active: boolean; onSelect: () => void }) {
+function Featured({ l, label, stat, sub, active, onSelect }: { l: Listing; label: string; stat: React.ReactNode; sub: string; active: boolean; onSelect: () => void }) {
   const open = useTx();
   const stop = (fn: () => void) => (e: React.MouseEvent) => (e.stopPropagation(), fn());
   return (
@@ -270,17 +318,17 @@ function Featured({ l, label, stat, sub, active, onSelect }: { l: Listing; label
             <NearAmount amount={l.priceNear} className="text-[17px] font-bold" />
           </span>
           <span>
-            <span className="block text-[11px] text-[#121212]/60">{label === "Most popular" ? "Saved by" : "Discount"}</span>
+            <span className="block text-[11px] text-[#121212]/60">{label === "Most popular" ? "Basket inside" : "Vs value"}</span>
             <span className="text-[17px] font-bold">{stat}</span>
           </span>
         </div>
         <div className="flex gap-2">
           {l.status === "buy" && (
-            <button onClick={stop(() => open({ kind: "buy", listingId: l.id }))} className="h-10 flex-1 rounded-full bg-[#121212] text-[14px] font-semibold text-white transition active:scale-95">
+            <button onClick={stop(() => open({ kind: "buy", etfId: l.etf.id }))} className="h-10 flex-1 rounded-full bg-[#121212] text-[14px] font-semibold text-white transition active:scale-95">
               Buy now
             </button>
           )}
-          <button onClick={stop(() => open({ kind: "offer", listingId: l.id }))} className="h-10 rounded-full bg-white/80 px-4 text-[14px] font-semibold transition hover:bg-white active:scale-95">
+          <button onClick={stop(() => open({ kind: "offer", etfId: l.etf.id }))} className="h-10 rounded-full bg-white/80 px-4 text-[14px] font-semibold transition hover:bg-white active:scale-95">
             Make offer
           </button>
         </div>
@@ -353,11 +401,11 @@ function ListingCard({ l }: { l: Listing }) {
         </div>
         <div className="flex gap-2">
           {l.status === "buy" && (
-            <button onClick={() => open({ kind: "buy", listingId: l.id })} className="btn-ink h-10 flex-1 text-[14px]">
+            <button onClick={() => open({ kind: "buy", etfId: l.etf.id })} className="btn-ink h-10 flex-1 text-[14px]">
               Buy now
             </button>
           )}
-          <button onClick={() => open({ kind: "offer", listingId: l.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
+          <button onClick={() => open({ kind: "offer", etfId: l.etf.id })} className={`${l.status === "buy" ? "btn-line" : "btn-ink flex-1"} h-10 px-4 text-[14px]`}>
             Make offer
           </button>
         </div>
