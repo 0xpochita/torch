@@ -1,0 +1,20 @@
+[package]
+name = "mock-collection"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Standalone: only built by the gacha sandbox test.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+near-sdk = "5.30"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+panic = "abort"
