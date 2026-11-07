@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://torch-etf.vercel.app"><img src="https://img.shields.io/badge/WEBSITE-TORCH--ETF.VERCEL.APP-000000?style=flat-square&labelColor=555555" alt="Website" /></a>
   <a href="https://github.com/0xpochita/torch"><img src="https://img.shields.io/badge/SOURCE-GITHUB-000000?style=flat-square&labelColor=555555&logo=github&logoColor=white" alt="Source on GitHub" /></a>
   <a href="https://nearhackathon.com"><img src="https://img.shields.io/badge/BUILT%20AT-NEAR%20HACKATHON-000000?style=flat-square&labelColor=555555" alt="Built at NEAR HACKATHON" /></a>
   <img src="https://img.shields.io/badge/TRACK-NFTS%20THAT%20DO%20SOMETHING-FF8A00?style=flat-square&labelColor=555555" alt="Track: NFTs That Do Something" />
@@ -32,7 +33,7 @@ Torch turns an NFT into a **self-custodied index fund**. Every token minted by t
 
 ## For judges: try it in 5 minutes
 
-Every step is "do X, see Y". Contracts are live on testnet; the app runs locally (see [Setup](#setup)).
+Every step is "do X, see Y". Open **[torch-etf.vercel.app](https://torch-etf.vercel.app)** (or run it locally, see [Setup](#setup)). Contracts are live on NEAR testnet.
 
 | # | Do | See |
 |---|---|---|
