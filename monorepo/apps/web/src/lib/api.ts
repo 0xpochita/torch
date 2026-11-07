@@ -15,8 +15,12 @@ export class ApiError extends Error {
   }
 }
 
+// NEXT_PUBLIC_API_URL may point at the site itself (the hosted app serves the API under /api).
+const base = () =>
+  typeof window !== "undefined" && new URL(API_URL, location.href).origin === location.origin && !API_URL.endsWith("/api") ? `${new URL(API_URL, location.href).origin}/api` : API_URL;
+
 export async function api<T>(path: string): Promise<T> {
-  const res = await fetch(API_URL + path);
+  const res = await fetch(base() + path);
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(body?.error ?? `API ${res.status}`, res.status);
   return body as T;
