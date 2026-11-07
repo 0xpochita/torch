@@ -214,7 +214,7 @@ export function Explore() {
           )}
         </section>
 
-        <section className="card flex flex-col gap-4 p-5">
+        <section className="card flex h-fit flex-col gap-4 self-start p-5">
           <Link href="/leaderboard" className="flex items-center justify-between">
             <h2 className="text-[20px] font-bold">Top creators</h2>
             <span className="flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-text">
