@@ -50,6 +50,8 @@ export function Explore() {
   const catArt = categoryArt(etfs);
   const stats = statsQ.data;
   const nearUsd = stats?.nearUsd ?? 0;
+  // Top of the list only, so it lines up with the right column; the rest is one click away.
+  const TOP = 6;
   const items = etfs.filter((e) => tab === "All" || e.category === (tab as Category)).sort((a, b) => (list === "popular" ? b.navUsd - a.navUsd : b.change24h - a.change24h));
 
   // Sales volume per day, the last 7 days ending today.
@@ -144,7 +146,7 @@ export function Explore() {
           </div>
         </section>
 
-        <section className="card flex flex-col gap-3 p-5 xl:row-span-2">
+        <section className="card flex flex-col gap-3 p-5">
           <div className="grid grid-cols-2 gap-1 rounded-full bg-fill p-1">
             {LISTS.map((l) => (
               <button
@@ -168,7 +170,7 @@ export function Explore() {
           ) : items.length ? (
             <ol className="flex flex-col gap-2">
               <AnimatePresence initial={false} mode="popLayout">
-              {items.map((e, i) => (
+              {items.slice(0, TOP).map((e, i) => (
                 <motion.li
                   key={e.id}
                   layout
@@ -203,6 +205,13 @@ export function Explore() {
                 </motion.li>
               ))}
               </AnimatePresence>
+              {items.length > TOP && (
+                <li>
+                  <Link href="/market" className="mt-1 flex h-11 items-center justify-center gap-1 rounded-full bg-fill text-[14px] font-semibold text-muted hover:text-text">
+                    See all {items.length} vaults <Sym name="chevron" size={14} stroke={2.4} />
+                  </Link>
+                </li>
+              )}
             </ol>
           ) : (
             <div className="grid place-items-center gap-2 rounded-[20px] bg-fill p-10 text-center">
@@ -214,83 +223,86 @@ export function Explore() {
           )}
         </section>
 
-        <section className="card flex h-fit flex-col gap-4 self-start p-5">
-          <Link href="/leaderboard" className="flex items-center justify-between">
-            <h2 className="text-[20px] font-bold">Top creators</h2>
-            <span className="flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-text">
-              Leaderboard <Sym name="chevron" size={14} stroke={2.4} />
-            </span>
-          </Link>
-          {boardQ.error ? (
-            <ErrorState error={boardQ.error} className="rounded-[20px] bg-fill" />
-          ) : boardQ.loading ? (
-            <div className="flex gap-4">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="size-[68px] !rounded-full" />
-              ))}
+        {/* right column stacks on its own, so the long list on the left leaves no gaps here */}
+        <div className="flex flex-col gap-5">
+          <section className="card flex flex-col gap-4 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[20px] font-bold">Browse</h2>
+              <span className="text-[13px] text-muted">{CATEGORIES.length} categories</span>
             </div>
-          ) : !creators.length ? (
-            <EmptyState title="No creators yet" body="Mint the first vault to top the board." className="rounded-[20px] bg-fill !p-6" />
-          ) : (
-          <ol className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1">
-            {creators.map((c, i) => (
-              <li key={c.name}>
-                <Link href={c.etf ? `/etf/${c.etf.id}` : "/leaderboard"} className="flex w-[84px] flex-col items-center gap-1.5 text-center">
-                  <span className="relative">
-                    <span className="block rounded-full ring-4 ring-fill">
-                      <Avatar account={c.name} size={68} />
+            <div className="grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3">
+              {CATEGORIES.map((c) => {
+                const art = catArt[c];
+                const inCat = etfs.filter((e) => e.category === c);
+                // value-weighted 24h change of the category's baskets
+                const nav = inCat.reduce((s, e) => s + e.navUsd, 0);
+                const change = nav ? inCat.reduce((s, e) => s + e.change24h * e.navUsd, 0) / nav : 0;
+                return (
+                  <motion.button
+                    key={c}
+                    onClick={() => setTab(c)}
+                    whileHover={{ y: -3 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`grain relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
+                    style={{ background: art?.bg ?? "var(--fill)" }}
+                  >
+                    {/* basket logos sit on the right of the tile */}
+                    <span className="absolute inset-y-0 -right-2 w-[64%]">
+                      {art && <BasketArt allocation={art.allocation} className="!bg-none" />}
                     </span>
-                    <span className={`absolute bottom-0.5 right-0.5 size-3.5 rounded-full ring-2 ring-surface ${i < 3 ? "bg-up" : "bg-faint"}`} />
-                  </span>
-                  <span className="w-full truncate text-[13px] font-semibold">{c.name}</span>
-                  <Money value={c.nav} className="text-[12px] text-muted" />
-                </Link>
-              </li>
-            ))}
-          </ol>
-          )}
-        </section>
+                    <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
+                    <span className="relative">
+                      <span className={`block text-[22px] font-bold tabular-nums leading-none ${change >= 0 ? "text-[#138a4b]" : "text-[#d92d2d]"}`}>
+                        {change >= 0 ? "+" : "−"}
+                        {Math.abs(change).toFixed(2)}%
+                      </span>
+                      <span className="text-[12px] font-medium text-[#121212]/55">
+                        24h · {inCat.length} {inCat.length === 1 ? "vault" : "vaults"}
+                      </span>
+                    </span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </section>
 
-        <section className="card flex flex-col gap-4 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[20px] font-bold">Browse</h2>
-            <span className="text-[13px] text-muted">{CATEGORIES.length} categories</span>
-          </div>
-          <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3">
-            {CATEGORIES.map((c) => {
-              const art = catArt[c];
-              const inCat = etfs.filter((e) => e.category === c);
-              // value-weighted 24h change of the category's baskets
-              const nav = inCat.reduce((s, e) => s + e.navUsd, 0);
-              const change = nav ? inCat.reduce((s, e) => s + e.change24h * e.navUsd, 0) / nav : 0;
-              return (
-                <motion.button
-                  key={c}
-                  onClick={() => setTab(c)}
-                  whileHover={{ y: -3 }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`grain relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-left text-[#121212] ${tab === c ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`}
-                  style={{ background: art?.bg ?? "var(--fill)" }}
-                >
-                  {/* basket logos sit on the right of the tile */}
-                  <span className="absolute inset-y-0 -right-2 w-[64%]">
-                    {art && <BasketArt allocation={art.allocation} className="!bg-none" />}
-                  </span>
-                  <span className="title-chunky relative max-w-[9ch] text-[21px] leading-[1.02]">{c}</span>
-                  <span className="relative">
-                    <span className={`block text-[22px] font-bold tabular-nums leading-none ${change >= 0 ? "text-[#138a4b]" : "text-[#d92d2d]"}`}>
-                      {change >= 0 ? "+" : "−"}
-                      {Math.abs(change).toFixed(2)}%
+          <section className="card flex flex-col gap-4 p-5">
+            <Link href="/leaderboard" className="flex items-center justify-between">
+              <h2 className="text-[20px] font-bold">Top creators</h2>
+              <span className="flex items-center gap-1 text-[13px] font-semibold text-muted hover:text-text">
+                Leaderboard <Sym name="chevron" size={14} stroke={2.4} />
+              </span>
+            </Link>
+            {boardQ.error ? (
+              <ErrorState error={boardQ.error} className="rounded-[20px] bg-fill" />
+            ) : boardQ.loading ? (
+              <div className="flex gap-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="size-[68px] !rounded-full" />
+                ))}
+              </div>
+            ) : !creators.length ? (
+              <EmptyState title="No creators yet" body="Mint the first vault to top the board." className="rounded-[20px] bg-fill !p-6" />
+            ) : (
+            <ol className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1">
+              {creators.map((c, i) => (
+                <li key={c.name}>
+                  <Link href={c.etf ? `/etf/${c.etf.id}` : "/leaderboard"} className="flex w-[84px] flex-col items-center gap-1.5 text-center">
+                    <span className="relative">
+                      <span className="block rounded-full ring-4 ring-fill">
+                        <Avatar account={c.name} size={68} />
+                      </span>
+                      <span className={`absolute bottom-0.5 right-0.5 size-3.5 rounded-full ring-2 ring-surface ${i < 3 ? "bg-up" : "bg-faint"}`} />
                     </span>
-                    <span className="text-[12px] font-medium text-[#121212]/55">
-                      24h · {inCat.length} {inCat.length === 1 ? "vault" : "vaults"}
-                    </span>
-                  </span>
-                </motion.button>
-              );
-            })}
-          </div>
-        </section>
+                    <span className="w-full truncate text-[13px] font-semibold">{c.name}</span>
+                    <Money value={c.nav} className="text-[12px] text-muted" />
+                  </Link>
+                </li>
+              ))}
+            </ol>
+            )}
+          </section>
+        </div>
 
         <section className="card relative flex items-center gap-6 overflow-hidden bg-lilac p-6 xl:col-span-2">
           <div className="flex-1">
