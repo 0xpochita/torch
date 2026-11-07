@@ -308,7 +308,7 @@ export function Explore() {
           <div className="flex-1">
             <p className="title-chunky text-[40px] text-lilac-ink">Make your own ETF</p>
             <p className="mt-2 max-w-md text-[15px] text-muted">Pick NEAR tokens, set the weights, mint the NFT. The vault holds the basket for you.</p>
-            <Link href="/create" className="btn-ink mt-5 inline-flex h-12 items-center gap-2 px-6 text-[16px]">
+            <Link href="/create" className="mt-5 inline-flex h-12 items-center gap-2 rounded-full bg-[#ffbf73] px-6 text-[16px] font-semibold text-[#2b1600] transition hover:bg-[#ffb05a] active:scale-[0.97]">
               <Image src="/icons/3d/create.png" alt="" width={26} height={26} className="-ml-1" /> Create ETF
             </Link>
           </div>
