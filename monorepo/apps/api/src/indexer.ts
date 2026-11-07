@@ -11,6 +11,8 @@ export type Chain = {
   /** null when the height was skipped (no block produced). */
   block(height: number): Promise<Block | null>;
   view<T>(accountId: string, method: string, args: object): Promise<T>;
+  /** Optional: the next height after `h` that has a block, so sparse chains skip the gaps. */
+  next?(h: number): Promise<number>;
 };
 
 type Event = { standard: "torch" | "nep171"; event: string; data: Record<string, any>[] };
@@ -179,7 +181,7 @@ export async function indexOnce(db: Db, chain: Chain, cfg: Config, max = 100): P
   let h = getCursor(db) ?? (cfg.startHeight ?? tip) - 1;
   let n = 0;
   for (; h < tip && n < max; n++) {
-    h++;
+    h = chain.next ? Math.min(tip, await chain.next(h)) : h + 1;
     const b = await chain.block(h);
     if (!b) setCursor(db, h);
     else await followUp(db, chain, cfg, applyBlock(db, cfg, b), b.timestamp);
