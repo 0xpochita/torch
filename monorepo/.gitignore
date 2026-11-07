@@ -46,3 +46,6 @@ target/
 
 # api sqlite index
 apps/api/data/
+
+# remotion launch video (local only)
+video/
