@@ -50,7 +50,7 @@ jobs:
         run: ./scripts/deploy-testnet.sh
       - name: Upload contract ids
         if: ${{ !inputs.dry_run }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: contract-env
           include-hidden-files: true
